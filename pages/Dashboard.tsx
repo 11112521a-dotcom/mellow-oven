@@ -9,7 +9,12 @@ import { DateRangePicker, DateRange } from '@/src/components/ui/DateRangePicker'
 import { startOfMonth, endOfMonth, isWithinInterval } from 'date-fns';
 
 const Dashboard: React.FC = () => {
-  const { transactions, dailyReports, products, jars, markets } = useStore();
+  const { transactions, dailyReports, products, jars, markets, alerts, generateAlerts } = useStore();
+
+  // Generate alerts on mount
+  React.useEffect(() => {
+    generateAlerts();
+  }, [generateAlerts, transactions, products, jars]); // Re-run when data changes
 
   // Date Range State
   const [dateRange, setDateRange] = useState<DateRange>({
@@ -44,8 +49,7 @@ const Dashboard: React.FC = () => {
   // Wealth & Goals
   const emergencyFund = jars.find(j => j.id === 'Emergency')?.balance || 0;
   const capexFund = jars.find(j => j.id === 'CapEx')?.balance || 0;
-  const capexGoal = 20000; // Example Goal: New Fridge
-  const capexProgress = Math.min(100, (capexFund / capexGoal) * 100);
+
 
   // Runway Calculation (Assume avg daily expense = 1000 for demo if no data)
   const avgDailyExpense = 1000;
@@ -62,6 +66,29 @@ const Dashboard: React.FC = () => {
         </div>
         <DateRangePicker value={dateRange} onChange={setDateRange} />
       </header>
+
+      {/* Alerts Section */}
+      {alerts.length > 0 && (
+        <div className="space-y-2">
+          {alerts.map(alert => (
+            <div key={alert.id} className={`p-4 rounded-xl border flex items-start gap-3 ${alert.type === 'warning' ? 'bg-red-50 border-red-200 text-red-800' :
+              alert.type === 'success' ? 'bg-green-50 border-green-200 text-green-800' :
+                'bg-blue-50 border-blue-200 text-blue-800'
+              }`}>
+              <AlertTriangle className="shrink-0 mt-0.5" size={20} />
+              <div className="flex-1">
+                <h4 className="font-bold text-sm">{alert.title}</h4>
+                <p className="text-sm opacity-90">{alert.message}</p>
+              </div>
+              {alert.actionLabel && (
+                <button className="text-xs font-bold underline hover:opacity-80">
+                  {alert.actionLabel}
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Zone 1: The Pulse (Scorecards) */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
@@ -208,21 +235,7 @@ const Dashboard: React.FC = () => {
             </div>
           </div>
 
-          {/* CapEx Goal */}
-          <div className="bg-white/5 p-6 rounded-2xl border border-white/10">
-            <h4 className="text-cafe-300 text-sm font-medium uppercase tracking-wider mb-4">🎯 เป้าหมายถัดไป: ตู้เย็นใหญ่</h4>
-            <div className="flex justify-between items-end mb-2">
-              <span className="text-3xl font-bold text-yellow-400">{capexProgress.toFixed(0)}%</span>
-              <span className="text-sm text-cafe-300">{formatCurrency(capexFund)} / {formatCurrency(capexGoal)}</span>
-            </div>
-            <div className="w-full bg-white/20 rounded-full h-4 overflow-hidden">
-              <div
-                className="bg-yellow-400 h-4 rounded-full transition-all duration-1000"
-                style={{ width: `${capexProgress}%` }}
-              ></div>
-            </div>
-            <p className="text-xs text-cafe-400 mt-3">เก็บอีก {formatCurrency(capexGoal - capexFund)} จะซื้อได้แล้ว!</p>
-          </div>
+
 
           {/* Runway */}
           <div className="flex flex-col justify-center items-center bg-white/5 p-6 rounded-2xl border border-white/10 text-center">

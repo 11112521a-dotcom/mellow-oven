@@ -63,8 +63,11 @@ export interface Ingredient {
   currentStock: number;
   costPerUnit: number;
   supplier: string;
-  image?: string;
+  // image?: string; // Removed
   lastUpdated: string;
+  buyUnit?: string; // e.g. "Pack"
+  conversionRate?: number; // e.g. 30 (1 Pack = 30 Units)
+  minStock?: number; // Minimum stock threshold for alerts
 }
 
 export interface PurchaseOrder {

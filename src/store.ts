@@ -91,6 +91,9 @@ export const useStore = create<AppState>()(
                     ...i,
                     currentStock: Number(i.current_stock),
                     costPerUnit: Number(i.cost_per_unit),
+                    buyUnit: i.buy_unit,
+                    conversionRate: Number(i.conversion_rate) || 1,
+                    minStock: Number(i.min_stock) || 10, // Default to 10 if not set
                     // image field removed
                 })) || [];
 
@@ -220,7 +223,11 @@ export const useStore = create<AppState>()(
                     unit: ingredient.unit,
                     current_stock: ingredient.currentStock,
                     cost_per_unit: ingredient.costPerUnit,
-                    supplier: ingredient.supplier
+                    supplier: ingredient.supplier,
+
+                    buy_unit: ingredient.buyUnit,
+                    conversion_rate: ingredient.conversionRate,
+                    min_stock: ingredient.minStock
                     // image_url removed
                 };
 
@@ -246,6 +253,9 @@ export const useStore = create<AppState>()(
                     id: data.id,
                     currentStock: Number(data.current_stock),
                     costPerUnit: Number(data.cost_per_unit),
+                    buyUnit: data.buy_unit,
+                    conversionRate: Number(data.conversion_rate) || 1,
+                    minStock: Number(data.min_stock) || 10,
                     // image removed
                     lastUpdated: data.created_at || new Date().toISOString()
                 };
@@ -288,6 +298,18 @@ export const useStore = create<AppState>()(
                 if (updates.costPerUnit !== undefined) {
                     dbUpdates.cost_per_unit = updates.costPerUnit;
                     delete dbUpdates.costPerUnit;
+                }
+                if (updates.conversionRate !== undefined) {
+                    dbUpdates.conversion_rate = updates.conversionRate;
+                    delete dbUpdates.conversionRate;
+                }
+                if (updates.buyUnit !== undefined) {
+                    dbUpdates.buy_unit = updates.buyUnit;
+                    delete dbUpdates.buyUnit;
+                }
+                if (updates.minStock !== undefined) {
+                    dbUpdates.min_stock = updates.minStock;
+                    delete dbUpdates.minStock;
                 }
                 // image update removed
 
@@ -404,14 +426,16 @@ export const useStore = create<AppState>()(
             })),
 
             generateAlerts: () => {
-                const { jars, goals, jarCustomizations } = get();
+                const { jars, goals, jarCustomizations, ingredients } = get();
                 const newAlerts: Alert[] = [];
 
                 // Check low balance warnings
+                // Check low balance warnings - REMOVED as per user request
+                /*
                 jars.forEach(jar => {
                     const customization = jarCustomizations.find(c => c.jarId === jar.id);
                     const minBalance = customization?.minBalance || 1000;
-
+ 
                     if (jar.balance < minBalance) {
                         newAlerts.push({
                             id: `low-${jar.id}-${Date.now()}`,
@@ -420,6 +444,22 @@ export const useStore = create<AppState>()(
                             message: `ยอดเงินเหลือ ฿${jar.balance.toLocaleString()} (ต่ำกว่าเป้า ฿${minBalance.toLocaleString()})`,
                             jarId: jar.id,
                             actionLabel: 'เติมเงิน',
+                            dismissible: true
+                        });
+                    }
+                });
+                */
+
+                // Check low stock ingredients (NEW!)
+                ingredients.forEach(ing => {
+                    const threshold = ing.minStock || 10;
+                    if (ing.currentStock < threshold) {
+                        newAlerts.push({
+                            id: `low-stock-${ing.id}`,
+                            type: 'warning',
+                            title: `วัตถุดิบใกล้หมด!`,
+                            message: `${ing.name} เหลือเพียง ${ing.currentStock} ${ing.unit}`,
+                            actionLabel: 'สั่งซื้อ',
                             dismissible: true
                         });
                     }

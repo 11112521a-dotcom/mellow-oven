@@ -37,6 +37,7 @@ export const ProductList: React.FC = () => {
         currentStock: 0,
         costPerUnit: 0,
         supplier: '',
+        minStock: 10,
     });
 
     // Temporary state for cost calculation
@@ -70,12 +71,15 @@ export const ProductList: React.FC = () => {
                     currentStock: Number(newIngredient.currentStock) || 0,
                     costPerUnit: Number(newIngredient.costPerUnit) || 0,
                     supplier: newIngredient.supplier || 'General',
-                    image: '', // No image
+                    // image: '', // No image
                     lastUpdated: new Date().toISOString(),
+                    buyUnit: newIngredient.buyUnit,
+                    conversionRate: newIngredient.conversionRate,
+                    minStock: Number(newIngredient.minStock) || 10,
                 } as Ingredient);
 
                 setIsAddModalOpen(false);
-                setNewIngredient({ name: '', unit: 'kg', currentStock: 0, costPerUnit: 0, supplier: '' });
+                setNewIngredient({ name: '', unit: 'kg', currentStock: 0, costPerUnit: 0, supplier: '', minStock: 10 });
                 setBuyPrice('');
                 setBuyQuantity('');
                 // alert('บันทึกสำเร็จ!'); // Optional success message
@@ -190,7 +194,7 @@ export const ProductList: React.FC = () => {
                     <tbody className="divide-y divide-cafe-100">
                         {filteredIngredients.length === 0 ? (
                             <tr>
-                                <td colSpan={8} className="px-6 py-8 text-center text-cafe-400">
+                                <td colSpan={7} className="px-6 py-8 text-center text-cafe-400">
                                     ไม่พบข้อมูลวัตถุดิบ
                                 </td>
                             </tr>
@@ -287,87 +291,162 @@ export const ProductList: React.FC = () => {
             {/* Add Ingredient Modal */}
             <Modal isOpen={isAddModalOpen} onClose={() => setIsAddModalOpen(false)} title="เพิ่มวัตถุดิบใหม่">
                 <form onSubmit={handleSubmit} className="space-y-4">
-                    <div>
-                        <label className="block text-sm font-medium text-cafe-700 mb-1">ชื่อวัตถุดิบ</label>
-                        <input
-                            required
-                            value={newIngredient.name}
-                            onChange={e => setNewIngredient({ ...newIngredient, name: e.target.value })}
-                            className="w-full p-2 border border-cafe-200 rounded-lg"
-                        />
-                    </div>
-
-
-
+                    {/* Name & Unit */}
                     <div className="grid grid-cols-2 gap-4">
-                        <div>
-                            <label className="block text-sm font-medium text-cafe-700 mb-1">จำนวนเริ่มต้น</label>
-                            <NumberInput
-                                value={newIngredient.currentStock || 0}
-                                onChange={val => setNewIngredient({ ...newIngredient, currentStock: val })}
-                                className="w-full p-2 border border-cafe-200 rounded-lg"
+                        <div className="col-span-2">
+                            <label className="block text-sm font-medium text-cafe-700 mb-1">ชื่อวัตถุดิบ</label>
+                            <input
+                                type="text"
+                                required
+                                value={newIngredient.name}
+                                onChange={(e) => setNewIngredient({ ...newIngredient, name: e.target.value })}
+                                className="w-full p-2 border border-cafe-200 rounded-lg focus:ring-2 focus:ring-cafe-500 outline-none"
+                                placeholder="เช่น แป้งสาลี, น้ำตาลทราย"
                             />
                         </div>
                         <div>
-                            <label className="block text-sm font-medium text-cafe-700 mb-1">หน่วย</label>
+                            <label className="block text-sm font-medium text-cafe-700 mb-1">หน่วยใช้จริง (Stock Unit)</label>
                             <select
-                                required
                                 value={newIngredient.unit}
-                                onChange={e => setNewIngredient({ ...newIngredient, unit: e.target.value })}
-                                className="w-full p-2 border border-cafe-200 rounded-lg bg-white"
+                                onChange={(e) => setNewIngredient({ ...newIngredient, unit: e.target.value })}
+                                className="w-full p-2 border border-cafe-200 rounded-lg bg-white focus:ring-2 focus:ring-cafe-500 outline-none"
                             >
                                 {units.map(u => <option key={u} value={u}>{u}</option>)}
                             </select>
                         </div>
-                    </div>
-
-                    <div className="p-4 bg-cafe-50 rounded-lg border border-cafe-100 space-y-3">
-                        <h4 className="text-sm font-bold text-cafe-800">คำนวณต้นทุน (Auto Calculate)</h4>
-                        <div className="grid grid-cols-2 gap-4">
-                            <div>
-                                <label className="block text-xs text-cafe-500 mb-1">ราคาซื้อมา (บาท)</label>
-                                <NumberInput
-                                    value={parseFloat(buyPrice) || 0}
-                                    onChange={val => setBuyPrice(val.toString())}
-                                    className="w-full p-2 border border-cafe-200 rounded-lg text-sm"
-                                    placeholder="เช่น 100"
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-xs text-cafe-500 mb-1">จำนวนที่ได้</label>
-                                <NumberInput
-                                    value={parseFloat(buyQuantity) || 0}
-                                    onChange={val => setBuyQuantity(val.toString())}
-                                    className="w-full p-2 border border-cafe-200 rounded-lg text-sm"
-                                    placeholder="เช่น 1"
-                                />
-                            </div>
-                        </div>
-                        <div className="flex justify-between items-center pt-2 border-t border-cafe-200">
-                            <span className="text-sm text-cafe-600">ต้นทุนต่อหน่วย:</span>
-                            <span className="font-bold text-cafe-900">{formatCurrency(newIngredient.costPerUnit || 0)} / {newIngredient.unit}</span>
-                        </div>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4">
-                        <div className="hidden"> {/* Hidden because auto-calculated */}
-                            <label className="block text-sm font-medium text-cafe-700 mb-1">ต้นทุนต่อหน่วย</label>
-                            <NumberInput
-                                value={newIngredient.costPerUnit || 0}
-                                onChange={val => setNewIngredient({ ...newIngredient, costPerUnit: val })}
-                                className="w-full p-2 border border-cafe-200 rounded-lg"
-                            />
-                        </div>
                         <div>
                             <label className="block text-sm font-medium text-cafe-700 mb-1">ซัพพลายเออร์</label>
                             <input
+                                type="text"
                                 value={newIngredient.supplier}
-                                onChange={e => setNewIngredient({ ...newIngredient, supplier: e.target.value })}
-                                className="w-full p-2 border border-cafe-200 rounded-lg"
+                                onChange={(e) => setNewIngredient({ ...newIngredient, supplier: e.target.value })}
+                                className="w-full p-2 border border-cafe-200 rounded-lg focus:ring-2 focus:ring-cafe-500 outline-none"
+                                placeholder="ระบุร้านค้า/แบรนด์"
                             />
                         </div>
                     </div>
-                    <button type="submit" className="w-full bg-cafe-600 text-white py-2 rounded-lg hover:bg-cafe-700">บันทึก</button>
+
+                    {/* Bulk Buy Toggle */}
+                    <div className="bg-blue-50 p-4 rounded-xl border border-blue-100">
+                        <div className="flex items-center justify-between mb-4">
+                            <label className="flex items-center gap-2 cursor-pointer">
+                                <input
+                                    type="checkbox"
+                                    className="w-4 h-4 text-cafe-600 rounded focus:ring-cafe-500"
+                                    checked={newIngredient.buyUnit !== undefined}
+                                    onChange={(e) => {
+                                        if (e.target.checked) {
+                                            setNewIngredient(prev => ({ ...prev, buyUnit: 'Pack', conversionRate: 1 }));
+                                        } else {
+                                            const { buyUnit, conversionRate, ...rest } = newIngredient;
+                                            setNewIngredient(rest);
+                                        }
+                                    }}
+                                />
+                                <span className="text-sm font-medium text-blue-800">ซื้อในหน่วยอื่น (Bulk Buy)?</span>
+                            </label>
+                        </div>
+
+                        {newIngredient.buyUnit !== undefined ? (
+                            <div className="space-y-3 animate-in fade-in slide-in-from-top-2">
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-xs text-blue-700 mb-1">หน่วยที่ซื้อ (Buy Unit)</label>
+                                        <input
+                                            type="text"
+                                            value={newIngredient.buyUnit}
+                                            onChange={(e) => setNewIngredient({ ...newIngredient, buyUnit: e.target.value })}
+                                            className="w-full p-2 border border-blue-200 rounded-lg bg-white text-sm"
+                                            placeholder="เช่น ลัง, แพ็ค"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs text-blue-700 mb-1">จำนวนย่อยต่อหน่วยซื้อ</label>
+                                        <div className="flex items-center gap-2">
+                                            <NumberInput
+                                                value={newIngredient.conversionRate || 1}
+                                                onChange={(val) => setNewIngredient({ ...newIngredient, conversionRate: val })}
+                                                className="w-full p-2 border border-blue-200 rounded-lg bg-white text-sm"
+                                            />
+                                            <span className="text-xs text-blue-600 whitespace-nowrap">{newIngredient.unit}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className="block text-xs text-blue-700 mb-1">ราคาต่อ {newIngredient.buyUnit}</label>
+                                    <NumberInput
+                                        value={parseFloat(buyPrice) || 0}
+                                        onChange={(val) => {
+                                            setBuyPrice(val.toString());
+                                            // Auto calc cost per unit
+                                            const price = val;
+                                            const rate = newIngredient.conversionRate || 1;
+                                            if (price > 0 && rate > 0) {
+                                                setNewIngredient(prev => ({ ...prev, costPerUnit: price / rate }));
+                                            }
+                                        }}
+                                        className="w-full p-2 border border-blue-200 rounded-lg bg-white text-sm"
+                                        placeholder="0.00"
+                                    />
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="space-y-3">
+                                <div>
+                                    <label className="block text-xs text-blue-700 mb-1">ราคาซื้อต่อ {newIngredient.unit}</label>
+                                    <NumberInput
+                                        value={newIngredient.costPerUnit || 0}
+                                        onChange={(val) => setNewIngredient({ ...newIngredient, costPerUnit: val })}
+                                        className="w-full p-2 border border-blue-200 rounded-lg bg-white text-sm"
+                                        placeholder="0.00"
+                                    />
+                                </div>
+                            </div>
+                        )}
+
+                        {(newIngredient.costPerUnit || 0) > 0 && (
+                            <div className="mt-3 pt-3 border-t border-blue-200 flex justify-between items-center">
+                                <span className="text-sm text-blue-800">ต้นทุนจริงต่อ {newIngredient.unit}:</span>
+                                <span className="font-bold text-lg text-green-600">{formatCurrency(newIngredient.costPerUnit || 0)}</span>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Current Stock & Min Stock */}
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-sm font-medium text-cafe-700 mb-1">คงเหลือปัจจุบัน ({newIngredient.unit})</label>
+                            <NumberInput
+                                value={newIngredient.currentStock || 0}
+                                onChange={(val) => setNewIngredient({ ...newIngredient, currentStock: val })}
+                                className="w-full p-2 border border-cafe-200 rounded-lg focus:ring-2 focus:ring-cafe-500 outline-none"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-cafe-700 mb-1">แจ้งเตือนเมื่อต่ำกว่า ({newIngredient.unit})</label>
+                            <NumberInput
+                                value={newIngredient.minStock || 10}
+                                onChange={(val) => setNewIngredient({ ...newIngredient, minStock: val })}
+                                className="w-full p-2 border border-cafe-200 rounded-lg focus:ring-2 focus:ring-cafe-500 outline-none"
+                            />
+                        </div>
+                    </div>
+
+                    <div className="flex justify-end gap-3 pt-4 border-t border-cafe-100">
+                        <button
+                            type="button"
+                            onClick={() => setIsAddModalOpen(false)}
+                            className="px-4 py-2 text-cafe-600 hover:bg-cafe-50 rounded-lg transition-colors"
+                        >
+                            ยกเลิก
+                        </button>
+                        <button
+                            type="submit"
+                            className="px-4 py-2 bg-cafe-800 text-white rounded-lg hover:bg-cafe-900 transition-colors"
+                        >
+                            บันทึกวัตถุดิบ
+                        </button>
+                    </div>
                 </form>
             </Modal>
 

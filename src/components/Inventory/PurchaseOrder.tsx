@@ -11,16 +11,42 @@ export const PurchaseOrderForm: React.FC = () => {
     const [selectedIngredientId, setSelectedIngredientId] = useState('');
     const [quantity, setQuantity] = useState('');
     const [cost, setCost] = useState('');
-    const [cart, setCart] = useState<{ ingredient: Ingredient, quantity: number, cost: number }[]>([]);
+    const [useBuyUnit, setUseBuyUnit] = useState(true); // Default to buy unit if available
+    const [cart, setCart] = useState<{ ingredient: Ingredient, quantity: number, cost: number, buyUnit?: string, buyQuantity?: number }[]>([]);
+
+    const selectedIngredient = ingredients.find(i => i.id === selectedIngredientId);
+
+    // Reset toggle when ingredient changes
+    React.useEffect(() => {
+        if (selectedIngredient?.buyUnit) {
+            setUseBuyUnit(true);
+        } else {
+            setUseBuyUnit(false);
+        }
+    }, [selectedIngredientId]);
 
     const handleAddToCart = () => {
-        const ingredient = ingredients.find(i => i.id === selectedIngredientId);
-        if (ingredient && quantity && cost) {
+        if (selectedIngredient && quantity && cost) {
+            const qty = parseFloat(quantity);
+            const totalCost = parseFloat(cost);
+
+            let finalQuantity = qty;
+            let buyUnitLabel = selectedIngredient.unit;
+            let buyQty = qty;
+
+            if (useBuyUnit && selectedIngredient.buyUnit && selectedIngredient.conversionRate) {
+                finalQuantity = qty * selectedIngredient.conversionRate;
+                buyUnitLabel = selectedIngredient.buyUnit;
+            }
+
             setCart([...cart, {
-                ingredient,
-                quantity: Number(quantity),
-                cost: Number(cost)
+                ingredient: selectedIngredient,
+                quantity: finalQuantity, // Stock Unit Quantity
+                cost: totalCost,
+                buyUnit: useBuyUnit ? selectedIngredient.buyUnit : undefined,
+                buyQuantity: useBuyUnit ? qty : undefined
             }]);
+
             setSelectedIngredientId('');
             setQuantity('');
             setCost('');
@@ -92,8 +118,40 @@ export const PurchaseOrderForm: React.FC = () => {
                         ))}
                     </select>
                 </div>
+
+                {/* Unit Toggle */}
+                {selectedIngredient?.buyUnit && (
+                    <div className="md:col-span-4 flex items-center gap-4 bg-blue-50 p-2 rounded-lg border border-blue-100">
+                        <span className="text-sm text-blue-800 font-medium">หน่วยที่จะซื้อ:</span>
+                        <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                                type="radio"
+                                checked={useBuyUnit}
+                                onChange={() => setUseBuyUnit(true)}
+                                className="text-blue-600 focus:ring-blue-500"
+                            />
+                            <span className="text-sm text-cafe-700">
+                                {selectedIngredient.buyUnit} (1 {selectedIngredient.buyUnit} = {selectedIngredient.conversionRate} {selectedIngredient.unit})
+                            </span>
+                        </label>
+                        <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                                type="radio"
+                                checked={!useBuyUnit}
+                                onChange={() => setUseBuyUnit(false)}
+                                className="text-blue-600 focus:ring-blue-500"
+                            />
+                            <span className="text-sm text-cafe-700">
+                                {selectedIngredient.unit} (หน่วยใช้จริง)
+                            </span>
+                        </label>
+                    </div>
+                )}
+
                 <div>
-                    <label className="block text-sm font-medium text-cafe-700 mb-1">จำนวนที่ซื้อ</label>
+                    <label className="block text-sm font-medium text-cafe-700 mb-1">
+                        จำนวนที่ซื้อ ({selectedIngredient && useBuyUnit && selectedIngredient.buyUnit ? selectedIngredient.buyUnit : selectedIngredient?.unit || 'หน่วย'})
+                    </label>
                     <NumberInput
                         value={parseFloat(quantity) || 0}
                         onChange={(val) => setQuantity(val.toString())}
@@ -128,16 +186,21 @@ export const PurchaseOrderForm: React.FC = () => {
                         {cart.map((item, index) => (
                             <div key={index} className="flex justify-between items-center bg-white p-2 rounded border border-cafe-100">
                                 <div className="flex items-center gap-3">
-                                    {item.ingredient.image ? (
-                                        <img src={item.ingredient.image} alt={item.ingredient.name} className="w-10 h-10 rounded object-cover border border-cafe-200" />
-                                    ) : (
-                                        <div className="w-10 h-10 rounded bg-cafe-100 flex items-center justify-center text-cafe-400">
-                                            <ShoppingCart size={16} />
-                                        </div>
-                                    )}
+                                    <div className="w-10 h-10 rounded bg-cafe-100 flex items-center justify-center text-cafe-400">
+                                        <ShoppingCart size={16} />
+                                    </div>
                                     <div>
                                         <div className="font-medium text-cafe-800">{item.ingredient.name}</div>
-                                        <div className="text-sm text-cafe-500">x {item.quantity} {item.ingredient.unit}</div>
+                                        <div className="text-sm text-cafe-500">
+                                            {item.buyUnit ? (
+                                                <span className="text-blue-600 font-bold">
+                                                    x {item.buyQuantity} {item.buyUnit}
+                                                    <span className="text-cafe-400 font-normal"> ({item.quantity} {item.ingredient.unit})</span>
+                                                </span>
+                                            ) : (
+                                                <span>x {item.quantity} {item.ingredient.unit}</span>
+                                            )}
+                                        </div>
                                     </div>
                                 </div>
                                 <div className="flex items-center gap-4">
