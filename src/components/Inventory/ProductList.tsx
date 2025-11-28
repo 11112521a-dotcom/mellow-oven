@@ -37,7 +37,6 @@ export const ProductList: React.FC = () => {
         currentStock: 0,
         costPerUnit: 0,
         supplier: '',
-        image: ''
     });
 
     // Temporary state for cost calculation
@@ -60,23 +59,30 @@ export const ProductList: React.FC = () => {
         ing.supplier.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (newIngredient.name && newIngredient.unit) {
-            addIngredient({
-                id: crypto.randomUUID(),
-                name: newIngredient.name,
-                unit: newIngredient.unit,
-                currentStock: Number(newIngredient.currentStock) || 0,
-                costPerUnit: Number(newIngredient.costPerUnit) || 0,
-                supplier: newIngredient.supplier || 'General',
-                image: newIngredient.image,
-                lastUpdated: new Date().toISOString(),
-            } as Ingredient);
-            setIsAddModalOpen(false);
-            setNewIngredient({ name: '', unit: 'kg', currentStock: 0, costPerUnit: 0, supplier: '', image: '' });
-            setBuyPrice('');
-            setBuyQuantity('');
+            try {
+                await addIngredient({
+                    id: crypto.randomUUID(), // Temporary ID, will be replaced by DB
+                    name: newIngredient.name,
+                    unit: newIngredient.unit,
+                    currentStock: Number(newIngredient.currentStock) || 0,
+                    costPerUnit: Number(newIngredient.costPerUnit) || 0,
+                    supplier: newIngredient.supplier || 'General',
+                    image: '', // No image
+                    lastUpdated: new Date().toISOString(),
+                } as Ingredient);
+
+                setIsAddModalOpen(false);
+                setNewIngredient({ name: '', unit: 'kg', currentStock: 0, costPerUnit: 0, supplier: '' });
+                setBuyPrice('');
+                setBuyQuantity('');
+                // alert('บันทึกสำเร็จ!'); // Optional success message
+            } catch (error) {
+                console.error("Failed to add ingredient:", error);
+                alert(`เกิดข้อผิดพลาดในการบันทึก: ${error}`);
+            }
         }
     };
 
@@ -172,7 +178,6 @@ export const ProductList: React.FC = () => {
                 <table className="w-full text-left">
                     <thead className="bg-cafe-50 text-cafe-500 text-sm">
                         <tr>
-                            <th className="px-6 py-4 font-medium w-16">รูป</th>
                             <th className="px-6 py-4 font-medium">ชื่อวัตถุดิบ</th>
                             <th className="px-6 py-4 font-medium">คงเหลือ (แก้ไขได้)</th>
                             <th className="px-6 py-4 font-medium">หน่วย</th>
@@ -192,15 +197,7 @@ export const ProductList: React.FC = () => {
                         ) : (
                             filteredIngredients.map((ing) => (
                                 <tr key={ing.id} className="hover:bg-cafe-50/50 transition-colors">
-                                    <td className="px-6 py-4">
-                                        {ing.image ? (
-                                            <img src={ing.image} alt={ing.name} className="w-10 h-10 rounded-lg object-cover border border-cafe-200" />
-                                        ) : (
-                                            <div className="w-10 h-10 rounded-lg bg-cafe-100 flex items-center justify-center text-cafe-400">
-                                                <ImageIcon size={16} />
-                                            </div>
-                                        )}
-                                    </td>
+
                                     <td className="px-6 py-4 font-medium text-cafe-800">{ing.name}</td>
 
                                     {/* Stock Column */}
@@ -300,16 +297,7 @@ export const ProductList: React.FC = () => {
                         />
                     </div>
 
-                    <div>
-                        <label className="block text-sm font-medium text-cafe-700 mb-1">รูปภาพ (URL)</label>
-                        <input
-                            type="url"
-                            value={newIngredient.image}
-                            onChange={e => setNewIngredient({ ...newIngredient, image: e.target.value })}
-                            className="w-full p-2 border border-cafe-200 rounded-lg"
-                            placeholder="https://example.com/image.jpg"
-                        />
-                    </div>
+
 
                     <div className="grid grid-cols-2 gap-4">
                         <div>

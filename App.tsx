@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useStore } from './src/store';
 import { Layout } from './src/components/Layout';
 import Dashboard from './pages/Dashboard';
 import Financials from './pages/Financials';
@@ -9,6 +10,11 @@ import Settings from './pages/Settings';
 
 const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
+  const { fetchData } = useStore();
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
   const renderContent = () => {
     switch (activeTab) {

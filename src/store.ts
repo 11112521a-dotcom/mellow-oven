@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { supabase } from './lib/supabase';
 import { Jar, Transaction, Ingredient, PurchaseOrder, Product, DailyReport, JarType, Market, Goal, Alert, JarHistory, JarCustomization } from '../types';
 
 interface AppState {
@@ -7,6 +8,7 @@ interface AppState {
     storeName: string;
     setStoreName: (name: string) => void;
     loadStore: (state: Partial<AppState>) => void;
+    fetchData: () => Promise<void>;
 
     // Finance
     jars: Jar[];
@@ -20,11 +22,11 @@ interface AppState {
     // Inventory
     ingredients: Ingredient[];
     purchaseOrders: PurchaseOrder[];
-    addIngredient: (ingredient: Ingredient) => void;
-    updateStock: (id: string, quantity: number) => void; // quantity can be negative
-    setIngredientStock: (id: string, quantity: number) => void; // Set absolute value
-    updateIngredient: (id: string, updates: Partial<Ingredient>) => void;
-    removeIngredient: (id: string) => void;
+    addIngredient: (ingredient: Ingredient) => Promise<void>;
+    updateStock: (id: string, quantity: number) => Promise<void>; // quantity can be negative
+    setIngredientStock: (id: string, quantity: number) => Promise<void>; // Set absolute value
+    updateIngredient: (id: string, updates: Partial<Ingredient>) => Promise<void>;
+    removeIngredient: (id: string) => Promise<void>;
     createPurchaseOrder: (po: PurchaseOrder) => void;
 
     // Sales & Products
@@ -78,6 +80,35 @@ export const useStore = create<AppState>()(
             storeName: 'Mellow Oven',
             setStoreName: (name) => set({ storeName: name }),
             loadStore: (newState) => set((state) => ({ ...state, ...newState })),
+            fetchData: async () => {
+                const { data: products } = await supabase.from('products').select('*');
+                const { data: ingredients } = await supabase.from('ingredients').select('*');
+                const { data: markets } = await supabase.from('markets').select('*');
+                const { data: transactions } = await supabase.from('transactions').select('*').order('date', { ascending: false });
+
+                // Map snake_case from DB to camelCase for App
+                const mappedIngredients = ingredients?.map(i => ({
+                    ...i,
+                    currentStock: Number(i.current_stock),
+                    costPerUnit: Number(i.cost_per_unit),
+                    // image field removed
+                })) || [];
+
+                const mappedTransactions = transactions?.map(t => ({
+                    ...t,
+                    fromJar: t.from_jar,
+                    toJar: t.to_jar,
+                    marketId: t.market_id
+                })) || [];
+
+                set((state) => ({
+                    ...state,
+                    products: products || state.products,
+                    ingredients: mappedIngredients.length > 0 ? mappedIngredients : state.ingredients,
+                    markets: markets || state.markets,
+                    transactions: mappedTransactions.length > 0 ? mappedTransactions : state.transactions,
+                }));
+            },
 
             jars: [
                 { id: 'Working', name: 'Working Capital', balance: 0, allocationPercent: 0.2, description: 'หมุนเวียน' },
@@ -103,15 +134,53 @@ export const useStore = create<AppState>()(
             jarHistory: [],
             jarCustomizations: [],
 
-            addTransaction: (transaction) => set((state) => ({ transactions: [transaction, ...state.transactions] })),
+            addTransaction: async (transaction) => {
+                const dbTransaction = {
+                    ...transaction,
+                    from_jar: transaction.fromJar,
+                    to_jar: transaction.toJar,
+                    market_id: (transaction as any).marketId // Cast if needed
+                };
+                // Remove camelCase keys to avoid errors if strict
+                delete (dbTransaction as any).fromJar;
+                delete (dbTransaction as any).toJar;
+                delete (dbTransaction as any).marketId;
 
-            updateTransaction: (id, updates) => set((state) => ({
-                transactions: state.transactions.map((tx) => tx.id === id ? { ...tx, ...updates } : tx)
-            })),
+                const { error } = await supabase.from('transactions').insert(dbTransaction);
+                if (!error) {
+                    set((state) => ({ transactions: [transaction, ...state.transactions] }));
+                } else {
+                    console.error('Error adding transaction:', error);
+                }
+            },
 
-            deleteTransaction: (id) => set((state) => ({
-                transactions: state.transactions.filter((tx) => tx.id !== id)
-            })),
+            updateTransaction: async (id, updates) => {
+                const dbUpdates: any = { ...updates };
+                if (updates.fromJar) {
+                    dbUpdates.from_jar = updates.fromJar;
+                    delete dbUpdates.fromJar;
+                }
+                if (updates.toJar) {
+                    dbUpdates.to_jar = updates.toJar;
+                    delete dbUpdates.toJar;
+                }
+
+                const { error } = await supabase.from('transactions').update(dbUpdates).eq('id', id);
+                if (!error) {
+                    set((state) => ({
+                        transactions: state.transactions.map((tx) => tx.id === id ? { ...tx, ...updates } : tx)
+                    }));
+                }
+            },
+
+            deleteTransaction: async (id) => {
+                const { error } = await supabase.from('transactions').delete().eq('id', id);
+                if (!error) {
+                    set((state) => ({
+                        transactions: state.transactions.filter((tx) => tx.id !== id)
+                    }));
+                }
+            },
 
             updateJarBalance: (id, amount) => set((state) => ({
                 jars: state.jars.map((jar) => jar.id === id ? { ...jar, balance: jar.balance + amount } : jar)
@@ -144,41 +213,143 @@ export const useStore = create<AppState>()(
                 });
             },
 
-            addIngredient: (ingredient) => set((state) => ({ ingredients: [...state.ingredients, ingredient] })),
+            addIngredient: async (ingredient) => {
+                // Prepare payload for Supabase (exclude ID to let DB generate it)
+                const dbIngredient = {
+                    name: ingredient.name,
+                    unit: ingredient.unit,
+                    current_stock: ingredient.currentStock,
+                    cost_per_unit: ingredient.costPerUnit,
+                    supplier: ingredient.supplier
+                    // image_url removed
+                };
 
-            updateStock: (id, quantity) => set((state) => ({
-                ingredients: state.ingredients.map((ing) => ing.id === id ? { ...ing, currentStock: ing.currentStock + quantity } : ing)
-            })),
+                const { data, error } = await supabase
+                    .from('ingredients')
+                    .insert(dbIngredient)
+                    .select()
+                    .single();
 
-            setIngredientStock: (id, quantity) => set((state) => ({
-                ingredients: state.ingredients.map((ing) => ing.id === id ? { ...ing, currentStock: quantity } : ing)
-            })),
+                if (error) {
+                    console.error('Supabase Error:', error);
+                    throw new Error(error.message);
+                }
 
-            updateIngredient: (id, updates) => set((state) => ({
-                ingredients: state.ingredients.map((ing) => ing.id === id ? { ...ing, ...updates } : ing)
-            })),
+                if (!data) {
+                    console.error('No data returned from Supabase');
+                    throw new Error('บันทึกข้อมูลไม่สำเร็จ (ไม่ได้รับข้อมูลตอบกลับจากฐานข้อมูล)');
+                }
+
+                // Map back to App format using the real ID from DB
+                const newIngredient: Ingredient = {
+                    ...ingredient,
+                    id: data.id,
+                    currentStock: Number(data.current_stock),
+                    costPerUnit: Number(data.cost_per_unit),
+                    // image removed
+                    lastUpdated: data.created_at || new Date().toISOString()
+                };
+                set((state) => ({ ingredients: [newIngredient, ...state.ingredients] }));
+            },
+
+            updateStock: async (id, quantity) => {
+                const { ingredients } = get();
+                const ingredient = ingredients.find(i => i.id === id);
+                if (ingredient) {
+                    const newStock = Number(ingredient.currentStock) + Number(quantity);
+                    const { error } = await supabase.from('ingredients').update({ current_stock: newStock }).eq('id', id);
+                    if (!error) {
+                        set((state) => ({
+                            ingredients: state.ingredients.map((ing) => ing.id === id ? { ...ing, currentStock: newStock } : ing)
+                        }));
+                    } else {
+                        console.error('Error updating stock:', error);
+                    }
+                }
+            },
+
+            setIngredientStock: async (id, quantity) => {
+                const { error } = await supabase.from('ingredients').update({ current_stock: quantity }).eq('id', id);
+                if (!error) {
+                    set((state) => ({
+                        ingredients: state.ingredients.map((ing) => ing.id === id ? { ...ing, currentStock: quantity } : ing)
+                    }));
+                } else {
+                    console.error('Error setting stock:', error);
+                }
+            },
+
+            updateIngredient: async (id, updates) => {
+                const dbUpdates: any = { ...updates };
+                if (updates.currentStock !== undefined) {
+                    dbUpdates.current_stock = updates.currentStock;
+                    delete dbUpdates.currentStock;
+                }
+                if (updates.costPerUnit !== undefined) {
+                    dbUpdates.cost_per_unit = updates.costPerUnit;
+                    delete dbUpdates.costPerUnit;
+                }
+                // image update removed
+
+                const { error } = await supabase.from('ingredients').update(dbUpdates).eq('id', id);
+                if (!error) {
+                    set((state) => ({
+                        ingredients: state.ingredients.map((ing) => ing.id === id ? { ...ing, ...updates } : ing)
+                    }));
+                }
+            },
 
             createPurchaseOrder: (po) => set((state) => ({ purchaseOrders: [...state.purchaseOrders, po] })),
 
-            addProduct: (product) => set((state) => ({ products: [...state.products, product] })),
+            addProduct: async (product) => {
+                const { error } = await supabase.from('products').insert(product);
+                if (!error) {
+                    set((state) => ({ products: [...state.products, product] }));
+                }
+            },
 
-            updateProduct: (id, updates) => set((state) => ({
-                products: state.products.map((p) => p.id === id ? { ...p, ...updates } : p)
-            })),
+            updateProduct: async (id, updates) => {
+                const { error } = await supabase.from('products').update(updates).eq('id', id);
+                if (!error) {
+                    set((state) => ({
+                        products: state.products.map((p) => p.id === id ? { ...p, ...updates } : p)
+                    }));
+                }
+            },
 
-            removeProduct: (id) => set((state) => ({
-                products: state.products.filter((p) => p.id !== id)
-            })),
+            removeProduct: async (id) => {
+                const { error } = await supabase.from('products').delete().eq('id', id);
+                if (!error) {
+                    set((state) => ({
+                        products: state.products.filter((p) => p.id !== id)
+                    }));
+                }
+            },
 
             addDailyReport: (report) => set((state) => ({ dailyReports: [...state.dailyReports, report] })),
 
-            addMarket: (market) => set((state) => ({ markets: [...state.markets, market] })),
-            updateMarket: (id, updates) => set((state) => ({
-                markets: state.markets.map((m) => m.id === id ? { ...m, ...updates } : m)
-            })),
-            removeMarket: (id) => set((state) => ({
-                markets: state.markets.filter((m) => m.id !== id)
-            })),
+            addMarket: async (market) => {
+                const { error } = await supabase.from('markets').insert(market);
+                if (!error) {
+                    set((state) => ({ markets: [...state.markets, market] }));
+                }
+            },
+            updateMarket: async (id, updates) => {
+                const { error } = await supabase.from('markets').update(updates).eq('id', id);
+                if (!error) {
+                    set((state) => ({
+                        markets: state.markets.map((m) => m.id === id ? { ...m, ...updates } : m)
+                    }));
+                }
+            },
+            removeMarket: async (id) => {
+                const { error } = await supabase.from('markets').delete().eq('id', id);
+                if (!error) {
+                    set((state) => ({
+                        markets: state.markets.filter((m) => m.id !== id)
+                    }));
+                }
+            },
 
             deductStockByRecipe: (productId, quantity) => {
                 const { products, updateStock } = get();
@@ -197,9 +368,14 @@ export const useStore = create<AppState>()(
                 }
             },
 
-            removeIngredient: (id) => set((state) => ({
-                ingredients: state.ingredients.filter((ing) => ing.id !== id)
-            })),
+            removeIngredient: async (id) => {
+                const { error } = await supabase.from('ingredients').delete().eq('id', id);
+                if (!error) {
+                    set((state) => ({
+                        ingredients: state.ingredients.filter((ing) => ing.id !== id)
+                    }));
+                }
+            },
 
             // Goals Management
             addGoal: (goal) => set((state) => ({ goals: [...state.goals, goal] })),
