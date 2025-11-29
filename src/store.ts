@@ -108,12 +108,36 @@ export const useStore = create<AppState>()(
                     marketId: t.market_id
                 })) || [];
 
+                // Calculate Jar Balances from Transactions
+                const calculatedBalances: Record<string, number> = {
+                    'Working': 0,
+                    'CapEx': 0,
+                    'Opex': 0,
+                    'Emergency': 0,
+                    'Owner': 0
+                };
+
+                mappedTransactions.forEach(tx => {
+                    if (tx.type === 'INCOME' && tx.toJar) {
+                        calculatedBalances[tx.toJar] = (calculatedBalances[tx.toJar] || 0) + tx.amount;
+                    } else if (tx.type === 'EXPENSE' && tx.fromJar) {
+                        calculatedBalances[tx.fromJar] = (calculatedBalances[tx.fromJar] || 0) - tx.amount;
+                    } else if (tx.type === 'TRANSFER') {
+                        if (tx.fromJar) calculatedBalances[tx.fromJar] = (calculatedBalances[tx.fromJar] || 0) - tx.amount;
+                        if (tx.toJar) calculatedBalances[tx.toJar] = (calculatedBalances[tx.toJar] || 0) + tx.amount;
+                    }
+                });
+
                 set((state) => ({
                     ...state,
                     products: products || state.products,
                     ingredients: mappedIngredients.length > 0 ? mappedIngredients : state.ingredients,
                     markets: markets || state.markets,
                     transactions: mappedTransactions.length > 0 ? mappedTransactions : state.transactions,
+                    jars: state.jars.map(jar => ({
+                        ...jar,
+                        balance: calculatedBalances[jar.id] || 0
+                    }))
                 }));
             },
 
@@ -195,20 +219,10 @@ export const useStore = create<AppState>()(
 
             transferFunds: (from, to, amount, description) => {
                 const { addTransaction, updateJarBalance } = get();
-                // Deduct from source
+                // Optimistic update
                 updateJarBalance(from, -amount);
-                addTransaction({
-                    id: crypto.randomUUID(),
-                    date: new Date().toISOString(),
-                    amount: amount,
-                    type: 'TRANSFER',
-                    fromJar: from,
-                    toJar: to,
-                    description: `Transfer to ${to}: ${description}`
-                });
-
-                // Add to destination
                 updateJarBalance(to, amount);
+
                 addTransaction({
                     id: crypto.randomUUID(),
                     date: new Date().toISOString(),
@@ -216,7 +230,7 @@ export const useStore = create<AppState>()(
                     type: 'TRANSFER',
                     fromJar: from,
                     toJar: to,
-                    description: `Received from ${from}: ${description}`
+                    description: description || `Transfer from ${from} to ${to}`
                 });
             },
 

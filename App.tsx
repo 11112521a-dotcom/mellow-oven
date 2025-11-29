@@ -10,11 +10,13 @@ import Settings from './pages/Settings';
 
 const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
-  const { fetchData } = useStore();
+  const { fetchData, subscribeToRealtime, unsubscribeFromRealtime } = useStore();
 
   useEffect(() => {
     fetchData();
-  }, [fetchData]);
+    subscribeToRealtime();
+    return () => unsubscribeFromRealtime();
+  }, [fetchData, subscribeToRealtime, unsubscribeFromRealtime]);
 
   const renderContent = () => {
     switch (activeTab) {
