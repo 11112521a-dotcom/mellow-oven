@@ -71,6 +71,10 @@ interface AppState {
     // Actions
     deductStockByRecipe: (productId: string, quantity: number) => void;
     resetStore: () => void;
+
+    // Realtime
+    subscribeToRealtime: () => void;
+    unsubscribeFromRealtime: () => void;
 }
 
 export const useStore = create<AppState>()(
@@ -591,21 +595,64 @@ export const useStore = create<AppState>()(
                 return Math.min(100, score);
             },
 
-            resetStore: () => set({
-                jars: [],
-                transactions: [],
-                ingredients: [],
-                purchaseOrders: [],
-                products: [],
-                dailyReports: [],
-                goals: [],
-                alerts: [],
-                jarHistory: [],
-                jarCustomizations: []
-            }),
+            resetStore: () => {
+                localStorage.removeItem('bakesoft-storage');
+                set({
+                    jars: [],
+                    transactions: [],
+                    ingredients: [],
+                    purchaseOrders: [],
+                    products: [],
+                    dailyReports: [],
+                    markets: [],
+                    goals: [],
+                    alerts: [],
+                    jarHistory: [],
+                    jarCustomizations: []
+                });
+                window.location.reload();
+            },
+
+            subscribeToRealtime: () => {
+                const { fetchData } = get();
+
+                // Subscribe to Transactions
+                supabase
+                    .channel('public:transactions')
+                    .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, () => {
+                        fetchData();
+                    })
+                    .subscribe();
+
+                // Subscribe to Ingredients
+                supabase
+                    .channel('public:ingredients')
+                    .on('postgres_changes', { event: '*', schema: 'public', table: 'ingredients' }, () => {
+                        fetchData();
+                    })
+                    .subscribe();
+
+                // Subscribe to Markets
+                supabase
+                    .channel('public:markets')
+                    .on('postgres_changes', { event: '*', schema: 'public', table: 'markets' }, () => {
+                        fetchData();
+                    })
+                    .subscribe();
+            },
+
+            unsubscribeFromRealtime: () => {
+                supabase.removeAllChannels();
+            }
         }),
         {
             name: 'bakesoft-storage',
+            partialize: (state) => ({
+                storeName: state.storeName,
+                jars: state.jars, // Persist jars locally for offline support, but sync will override
+                jarCustomizations: state.jarCustomizations
+            })
         }
     )
 );
+

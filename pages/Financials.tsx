@@ -3,71 +3,34 @@ import { useStore } from '@/src/store';
 import { WalletCard } from '@/src/components/Finance/WalletCard';
 import { TransactionTable } from '@/src/components/Finance/TransactionTable';
 import { QuickActionsBar } from '@/src/components/Finance/QuickActionsBar';
-import { Modal } from '@/src/components/ui/Modal';
+import { TransactionModal } from '@/src/components/Finance/TransactionModal';
 import { JarType } from '@/types';
-import { Plus, ArrowRightLeft } from 'lucide-react';
+import { ArrowRightLeft } from 'lucide-react';
 
 const Financials: React.FC = () => {
-    const { jars, transactions, updateJarBalance, transferFunds } = useStore();
+    const { jars, transactions } = useStore();
 
-    const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
-    const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-    const [selectedJar, setSelectedJar] = useState<JarType | null>(null);
+    const [isTransactionModalOpen, setIsTransactionModalOpen] = useState(false);
+    const [transactionMode, setTransactionMode] = useState<'INCOME' | 'EXPENSE' | 'TRANSFER'>('INCOME');
+    const [selectedJar, setSelectedJar] = useState<JarType | undefined>(undefined);
 
-    // Form States
-    const [amount, setAmount] = useState('');
-    const [description, setDescription] = useState('');
-    const [targetJar, setTargetJar] = useState<JarType>('Working');
-
-    const handleTransferClick = (jarId: JarType) => {
+    const openTransaction = (mode: 'INCOME' | 'EXPENSE' | 'TRANSFER', jarId?: JarType) => {
+        setTransactionMode(mode);
         setSelectedJar(jarId);
-        setTargetJar(jarId === 'Working' ? 'CapEx' : 'Working'); // Default target
-        setAmount('');
-        setDescription('');
-        setIsTransferModalOpen(true);
-    };
-
-    const handleEditClick = (jarId: JarType) => {
-        setSelectedJar(jarId);
-        setAmount('');
-        setIsEditModalOpen(true);
-    };
-
-    const submitTransfer = (e: React.FormEvent) => {
-        e.preventDefault();
-        if (selectedJar && amount) {
-            transferFunds(selectedJar, targetJar, Number(amount), description || 'Transfer');
-            setIsTransferModalOpen(false);
-        }
-    };
-
-    const submitEdit = (e: React.FormEvent) => {
-        e.preventDefault();
-        if (selectedJar && amount) {
-            const amountNum = Number(amount);
-            const jarName = jars.find(j => j.id === selectedJar)?.name || selectedJar;
-
-            // Update balance
-            updateJarBalance(selectedJar, amountNum);
-
-            // Add transaction log
-            const { addTransaction } = useStore.getState();
-            addTransaction({
-                id: crypto.randomUUID(),
-                date: new Date().toISOString(),
-                amount: Math.abs(amountNum),
-                type: amountNum > 0 ? 'INCOME' : 'EXPENSE',
-                toJar: amountNum > 0 ? selectedJar : undefined,
-                fromJar: amountNum < 0 ? selectedJar : undefined,
-                description: `${amountNum > 0 ? 'เพิ่ม' : 'ลด'}เงินใน ${jarName} (Manual Edit)`,
-                category: 'Manual Adjustment'
-            });
-
-            setIsEditModalOpen(false);
-        }
+        setIsTransactionModalOpen(true);
     };
 
     const totalBalance = jars.reduce((acc, jar) => acc + jar.balance, 0);
+
+    // Calculate daily stats
+    const today = new Date().toISOString().split('T')[0];
+    const todayTransactions = transactions.filter(t => t.date.startsWith(today));
+    const incomeToday = todayTransactions
+        .filter(t => t.type === 'INCOME')
+        .reduce((acc, t) => acc + t.amount, 0);
+    const expenseToday = todayTransactions
+        .filter(t => t.type === 'EXPENSE')
+        .reduce((acc, t) => acc + t.amount, 0);
 
     return (
         <div className="space-y-8 animate-in fade-in duration-500">
@@ -79,11 +42,11 @@ const Financials: React.FC = () => {
                     <div className="flex gap-4">
                         <div className="bg-white/10 px-4 py-2 rounded-lg backdrop-blur-sm">
                             <p className="text-xs text-cafe-200">รายรับวันนี้</p>
-                            <p className="font-semibold text-lg">+฿0</p>
+                            <p className="font-semibold text-lg text-green-300">+฿{incomeToday.toLocaleString()}</p>
                         </div>
                         <div className="bg-white/10 px-4 py-2 rounded-lg backdrop-blur-sm">
                             <p className="text-xs text-cafe-200">รายจ่ายวันนี้</p>
-                            <p className="font-semibold text-lg">-฿0</p>
+                            <p className="font-semibold text-lg text-red-300">-฿{expenseToday.toLocaleString()}</p>
                         </div>
                     </div>
                 </div>
@@ -93,7 +56,7 @@ const Financials: React.FC = () => {
             </div>
 
             {/* Quick Actions Bar */}
-            <QuickActionsBar />
+            <QuickActionsBar onOpenTransaction={(mode) => openTransaction(mode)} />
 
             {/* Wallets Grid */}
             <div>
@@ -106,8 +69,8 @@ const Financials: React.FC = () => {
                         <WalletCard
                             key={jar.id}
                             jar={jar}
-                            onTransfer={handleTransferClick}
-                            onEdit={handleEditClick}
+                            onTransfer={(jarId) => openTransaction('TRANSFER', jarId)}
+                            onEdit={(jarId) => openTransaction('INCOME', jarId)}
                         />
                     ))}
                 </div>
@@ -116,108 +79,13 @@ const Financials: React.FC = () => {
             {/* Transactions */}
             <TransactionTable transactions={transactions} />
 
-            {/* Transfer Modal */}
-            <Modal
-                isOpen={isTransferModalOpen}
-                onClose={() => setIsTransferModalOpen(false)}
-                title="โยกย้ายเงิน"
-            >
-                <form onSubmit={submitTransfer} className="space-y-4">
-                    <div>
-                        <label className="block text-sm font-medium text-cafe-700 mb-1">จากกระเป๋า</label>
-                        <div className="p-3 bg-cafe-100 rounded-lg text-cafe-800 font-medium">
-                            {jars.find(j => j.id === selectedJar)?.name}
-                        </div>
-                    </div>
-
-                    <div className="flex justify-center text-cafe-400">
-                        <ArrowRightLeft size={24} />
-                    </div>
-
-                    <div>
-                        <label className="block text-sm font-medium text-cafe-700 mb-1">ไปยังกระเป๋า</label>
-                        <select
-                            value={targetJar}
-                            onChange={(e) => setTargetJar(e.target.value as JarType)}
-                            className="w-full p-3 border border-cafe-200 rounded-lg focus:ring-2 focus:ring-cafe-500 outline-none"
-                        >
-                            {jars.filter(j => j.id !== selectedJar).map(jar => (
-                                <option key={jar.id} value={jar.id}>{jar.name}</option>
-                            ))}
-                        </select>
-                    </div>
-
-                    <div>
-                        <label className="block text-sm font-medium text-cafe-700 mb-1">จำนวนเงิน</label>
-                        <input
-                            type="number"
-                            value={amount}
-                            onChange={(e) => setAmount(e.target.value)}
-                            className="w-full p-3 border border-cafe-200 rounded-lg focus:ring-2 focus:ring-cafe-500 outline-none text-lg font-medium"
-                            placeholder="0.00"
-                            required
-                        />
-                    </div>
-
-                    <div>
-                        <label className="block text-sm font-medium text-cafe-700 mb-1">บันทึกช่วยจำ</label>
-                        <input
-                            type="text"
-                            value={description}
-                            onChange={(e) => setDescription(e.target.value)}
-                            className="w-full p-3 border border-cafe-200 rounded-lg focus:ring-2 focus:ring-cafe-500 outline-none"
-                            placeholder="ค่าอะไร..."
-                        />
-                    </div>
-
-                    <button
-                        type="submit"
-                        className="w-full bg-cafe-600 text-white py-3 rounded-xl font-bold hover:bg-cafe-700 transition-colors shadow-lg shadow-cafe-200"
-                    >
-                        ยืนยันการโอน
-                    </button>
-                </form>
-            </Modal>
-
-            {/* Edit Balance Modal */}
-            <Modal
-                isOpen={isEditModalOpen}
-                onClose={() => setIsEditModalOpen(false)}
-                title="แก้ไขยอดเงิน (Manual Adjustment)"
-            >
-                <form onSubmit={submitEdit} className="space-y-4">
-                    <div className="p-4 bg-yellow-50 text-yellow-800 rounded-lg text-sm mb-4">
-                        การแก้ไขยอดเงินโดยตรงควรใช้เมื่อจำเป็นเท่านั้น ระบบจะไม่ได้บันทึกเป็นรายรับ/รายจ่ายปกติ
-                    </div>
-
-                    <div>
-                        <label className="block text-sm font-medium text-cafe-700 mb-1">กระเป๋า</label>
-                        <div className="p-3 bg-cafe-100 rounded-lg text-cafe-800 font-medium">
-                            {jars.find(j => j.id === selectedJar)?.name}
-                        </div>
-                    </div>
-
-                    <div>
-                        <label className="block text-sm font-medium text-cafe-700 mb-1">ยอดเงินที่ต้องการเพิ่ม/ลด (+/-)</label>
-                        <input
-                            type="number"
-                            value={amount}
-                            onChange={(e) => setAmount(e.target.value)}
-                            className="w-full p-3 border border-cafe-200 rounded-lg focus:ring-2 focus:ring-cafe-500 outline-none text-lg font-medium"
-                            placeholder="เช่น 500 หรือ -200"
-                            required
-                        />
-                        <p className="text-xs text-cafe-400 mt-1">ใส่เครื่องหมายลบ (-) เพื่อลดยอดเงิน</p>
-                    </div>
-
-                    <button
-                        type="submit"
-                        className="w-full bg-cafe-600 text-white py-3 rounded-xl font-bold hover:bg-cafe-700 transition-colors shadow-lg shadow-cafe-200"
-                    >
-                        บันทึกยอดเงิน
-                    </button>
-                </form>
-            </Modal>
+            {/* Unified Transaction Modal */}
+            <TransactionModal
+                isOpen={isTransactionModalOpen}
+                onClose={() => setIsTransactionModalOpen(false)}
+                mode={transactionMode}
+                defaultJar={selectedJar}
+            />
         </div>
     );
 };

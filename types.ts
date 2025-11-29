@@ -53,6 +53,7 @@ export interface Transaction {
   toJar?: JarType;
   description: string;
   category?: string;
+  marketId?: string;
 }
 
 // Inventory Types

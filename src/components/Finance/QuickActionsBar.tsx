@@ -1,9 +1,13 @@
 import React, { useState } from 'react';
-import { Sparkles, FileText } from 'lucide-react';
+import { Sparkles, FileText, TrendingUp, TrendingDown, ArrowRightLeft } from 'lucide-react';
 import { AutoAllocationModal } from './AutoAllocationModal';
 import { MonthlyReportModal } from './MonthlyReportModal';
 
-export const QuickActionsBar: React.FC = () => {
+interface QuickActionsBarProps {
+    onOpenTransaction: (mode: 'INCOME' | 'EXPENSE' | 'TRANSFER') => void;
+}
+
+export const QuickActionsBar: React.FC<QuickActionsBarProps> = ({ onOpenTransaction }) => {
     const [isAutoAllocateOpen, setIsAutoAllocateOpen] = useState(false);
     const [isMonthlyReportOpen, setIsMonthlyReportOpen] = useState(false);
 
@@ -11,22 +15,51 @@ export const QuickActionsBar: React.FC = () => {
         <>
             <div className="bg-white p-4 rounded-xl shadow-sm border border-cafe-100">
                 <div className="flex gap-3 flex-wrap">
+                    {/* Income Button */}
+                    <button
+                        onClick={() => onOpenTransaction('INCOME')}
+                        className="flex-1 min-w-[150px] bg-green-100 text-green-700 px-4 py-3 rounded-lg hover:bg-green-200 transition-all flex items-center justify-center gap-2 font-bold"
+                    >
+                        <TrendingUp size={20} />
+                        รายรับ
+                    </button>
+
+                    {/* Expense Button */}
+                    <button
+                        onClick={() => onOpenTransaction('EXPENSE')}
+                        className="flex-1 min-w-[150px] bg-red-100 text-red-700 px-4 py-3 rounded-lg hover:bg-red-200 transition-all flex items-center justify-center gap-2 font-bold"
+                    >
+                        <TrendingDown size={20} />
+                        รายจ่าย
+                    </button>
+
+                    {/* Transfer Button */}
+                    <button
+                        onClick={() => onOpenTransaction('TRANSFER')}
+                        className="flex-1 min-w-[150px] bg-blue-100 text-blue-700 px-4 py-3 rounded-lg hover:bg-blue-200 transition-all flex items-center justify-center gap-2 font-bold"
+                    >
+                        <ArrowRightLeft size={20} />
+                        โอนเงิน
+                    </button>
+
+                    <div className="w-px bg-gray-200 mx-2 hidden md:block"></div>
+
                     {/* Auto Allocate Button */}
                     <button
                         onClick={() => setIsAutoAllocateOpen(true)}
-                        className="flex-1 min-w-[200px] bg-gradient-to-r from-cafe-600 to-cafe-700 text-white px-5 py-3 rounded-lg hover:from-cafe-700 hover:to-cafe-800 transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2 font-medium"
+                        className="flex-1 min-w-[180px] bg-gradient-to-r from-cafe-600 to-cafe-700 text-white px-4 py-3 rounded-lg hover:from-cafe-700 hover:to-cafe-800 transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2 font-medium"
                     >
                         <Sparkles size={20} />
-                        แบ่งกำไรอัตโนมัติ
+                        แบ่งกำไร
                     </button>
 
                     {/* Monthly Report Button */}
                     <button
                         onClick={() => setIsMonthlyReportOpen(true)}
-                        className="flex-1 min-w-[200px] bg-cafe-100 text-cafe-700 px-5 py-3 rounded-lg hover:bg-cafe-200 transition-all flex items-center justify-center gap-2 font-medium"
+                        className="flex-1 min-w-[180px] bg-cafe-100 text-cafe-700 px-4 py-3 rounded-lg hover:bg-cafe-200 transition-all flex items-center justify-center gap-2 font-medium"
                     >
                         <FileText size={20} />
-                        รายงานรายเดือน
+                        รายงาน
                     </button>
                 </div>
             </div>
