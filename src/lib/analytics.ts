@@ -1,26 +1,20 @@
 import { Transaction, DailyReport, Product, Ingredient } from '@/types';
 
+// ===== Existing Functions =====
 export const calculateKPIs = (transactions: Transaction[], dailyReports: DailyReport[]) => {
-    // 1. Revenue (Total Income from Sales)
     const revenue = transactions
         .filter(t => t.type === 'INCOME' && t.category === 'Sales')
         .reduce((sum, t) => sum + t.amount, 0);
 
-    // 2. COGS (Total Expense for Ingredients/Stock)
     const cogs = transactions
         .filter(t => t.type === 'EXPENSE' && t.category === 'COGS')
         .reduce((sum, t) => sum + t.amount, 0);
 
-    // 3. Opex (Other Expenses)
     const opex = transactions
         .filter(t => t.type === 'EXPENSE' && t.category !== 'COGS')
         .reduce((sum, t) => sum + t.amount, 0);
 
-    // 4. Net Profit
     const netProfit = revenue - cogs - opex;
-
-    // 5. Waste Value (Estimated from Daily Reports if available, or manual waste logs)
-    // For now, let's assume waste is tracked in DailyReports (which we haven't fully implemented UI for yet, but the model exists)
     const wasteValue = dailyReports.reduce((sum, report) => sum + report.wasteCost, 0);
 
     return {
@@ -34,7 +28,6 @@ export const calculateKPIs = (transactions: Transaction[], dailyReports: DailyRe
 };
 
 export const getSalesTrend = (transactions: Transaction[]) => {
-    // Group sales by date (last 7 days)
     const trend = [];
     for (let i = 6; i >= 0; i--) {
         const d = new Date();
@@ -50,21 +43,7 @@ export const getSalesTrend = (transactions: Transaction[]) => {
     return trend;
 };
 
-export const getFlavorMix = (transactions: Transaction[]) => {
-    // This would ideally come from detailed sales logs.
-    // For now, we return dummy data as placeholder.
-    return [
-        { name: 'Chocolate', value: 400 },
-        { name: 'Vanilla', value: 300 },
-        { name: 'Strawberry', value: 300 },
-        { name: 'Matcha', value: 200 },
-    ];
-};
-
-// --- New Analytics for "The Pulse" Dashboard ---
-
 export const getTopProducts = (logs: any[], products: Product[]) => {
-    // Aggregate sales by product
     const productStats: Record<string, { name: string, revenue: number, profit: number, costPct: number }> = {};
 
     logs.forEach(log => {
@@ -95,10 +74,8 @@ export const getTopProducts = (logs: any[], products: Product[]) => {
 };
 
 export const getMarketPerformance = (dailyReports: DailyReport[], markets: any[]) => {
-    // Aggregate data by market
     const marketStats: Record<string, { name: string, sales: number, profit: number, waste: number }> = {};
 
-    // Initialize with all markets (so even empty ones show up)
     markets.forEach(m => {
         marketStats[m.id] = { name: m.name, sales: 0, profit: 0, waste: 0 };
     });
@@ -115,16 +92,14 @@ export const getMarketPerformance = (dailyReports: DailyReport[], markets: any[]
 };
 
 export const getRunway = (emergencyFund: number, dailyBurnRate: number) => {
-    if (dailyBurnRate <= 0) return 999; // Infinite runway
+    if (dailyBurnRate <= 0) return 999;
     return Math.floor(emergencyFund / dailyBurnRate);
 };
 
 export const calculateMenuMatrix = (logs: any[], products: Product[]) => {
-    // 1. Aggregate Sales & Profit per Product
     const productStats: Record<string, { name: string, soldQty: number, profit: number, contributionMargin: number }> = {};
     let totalSold = 0;
 
-    // 1. Initialize with ALL products to ensure we analyze the entire menu (even unsold items)
     products.forEach(p => {
         productStats[p.id] = {
             name: p.name,
@@ -134,7 +109,6 @@ export const calculateMenuMatrix = (logs: any[], products: Product[]) => {
         };
     });
 
-    // 2. Aggregate Sales from Logs
     logs.forEach(log => {
         if (productStats[log.productId]) {
             productStats[log.productId].soldQty += log.soldQty;
@@ -146,20 +120,18 @@ export const calculateMenuMatrix = (logs: any[], products: Product[]) => {
     const stats = Object.values(productStats);
     if (stats.length === 0) return [];
 
-    // 2. Calculate Averages
     const avgSoldQty = totalSold / stats.length;
     const avgContributionMargin = stats.reduce((sum, p) => sum + p.contributionMargin, 0) / stats.length;
 
-    // 3. Classify
     return stats.map(p => {
         const isHighPopularity = p.soldQty >= avgSoldQty;
         const isHighProfit = p.contributionMargin >= avgContributionMargin;
 
         let category = '';
-        if (isHighPopularity && isHighProfit) category = 'Star'; // ขายดี กำไรเยอะ
-        else if (isHighPopularity && !isHighProfit) category = 'Workhorse'; // ขายดี กำไรน้อย
-        else if (!isHighPopularity && isHighProfit) category = 'Puzzle'; // ขายน้อย กำไรเยอะ
-        else category = 'Dog'; // ขายน้อย กำไรน้อย
+        if (isHighPopularity && isHighProfit) category = 'Star';
+        else if (isHighPopularity && !isHighProfit) category = 'Workhorse';
+        else if (!isHighPopularity && isHighProfit) category = 'Puzzle';
+        else category = 'Dog';
 
         return {
             ...p,
@@ -170,28 +142,229 @@ export const calculateMenuMatrix = (logs: any[], products: Product[]) => {
     });
 };
 
-export const calculateForecast = (productId: string, date: string, logs: any[], marketId?: string) => {
-    // Simple Algorithm: Average of last 3 same-weekdays
-    // e.g. If date is Friday, get average of last 3 Fridays
+// ===== NEW: SMART PRODUCTION FORECASTING =====
 
-    const targetDate = new Date(date);
-    const targetDay = targetDate.getDay(); // 0-6
+/**
+ * Weather Impact Multiplier
+ * คำนวณผลกระทบสภาพอากาศต่อยอดขาย
+ */
+export const getWeatherImpact = (weather: string): number => {
+    const impacts: Record<string, number> = {
+        'Sunny': 1.15,      // แดดจ้า +15%
+        'Cloudy': 1.0,      // เมฆมาก ปกติ
+        'Rainy': 0.65,      // ฝนตก -35%
+        'Storm': 0.40,      // พายุ -60%
+        'Windy': 0.85,      // ลมแรง -15%
+        'Cold': 1.10        // หนาว +10% (เครื่องดื่มร้อนขายดี)
+    };
+    return impacts[weather] || 1.0;
+};
 
+/**
+ * Market Performance Scoring
+ * คำนวณคะแนนประสิทธิภาพของตลาดแต่ละแห่ง
+ */
+export const getMarketPerformanceScore = (marketId: string, dailyReports: DailyReport[]): number => {
+    const marketReports = dailyReports.filter(r => r.marketId === marketId);
+    if (marketReports.length === 0) return 1.0;
+
+    // คำนวณค่าเฉลี่ยยอดขายต่อวัน
+    const avgRevenue = marketReports.reduce((sum, r) => sum + r.revenue, 0) / marketReports.length;
+    const avgProfit = marketReports.reduce((sum, r) => sum + r.netProfit, 0) / marketReports.length;
+
+    // สร้าง Score: ถ้า revenue สูง + profit margin ดี = score สูง
+    const profitMargin = avgRevenue > 0 ? (avgProfit / avgRevenue) : 0;
+    const score = (avgRevenue / 1000) * (1 + profitMargin); // Normalize
+
+    return Math.max(0.5, Math.min(1.5, score)); // Clamp between 0.5 - 1.5
+};
+
+/**
+ * Advanced Multi-Factor Forecasting
+ * อัลกอริทึมพยากรณ์แบบหลายปัจจัย
+ */
+export const calculateAdvancedForecast = (
+    productId: string,
+    targetDate: Date,
+    logs: any[],
+    options: {
+        weather?: string;
+        marketId?: string;
+        dailyReports?: DailyReport[];
+    } = {}
+): {
+    quantity: number;
+    confidence: number; // 0-100
+    insights: string[];
+} => {
+    const { weather = 'Sunny', marketId, dailyReports = [] } = options;
+
+    // 1. Base Forecast: Same-day-of-week average (last 4 weeks)
+    const targetDay = targetDate.getDay();
     const sameDayLogs = logs.filter(log => {
         const logDate = new Date(log.date);
-        return log.productId === productId && logDate.getDay() === targetDay && logDate < targetDate;
+        const matchesProduct = log.productId === productId;
+        const matchesDay = logDate.getDay() === targetDay;
+        const matchesMarket = marketId ? log.marketId === marketId : true;
+        const isBeforeTarget = logDate < targetDate;
+        return matchesProduct && matchesDay && matchesMarket && isBeforeTarget;
     });
 
-    // Sort by date desc
     sameDayLogs.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    const recentLogs = sameDayLogs.slice(0, 4); // Last 4 occurrences
 
-    // Take last 3
-    const recentLogs = sameDayLogs.slice(0, 3);
+    if (recentLogs.length === 0) {
+        return {
+            quantity: 0,
+            confidence: 0,
+            insights: ['ไม่มีข้อมูลย้อนหลัง ไม่สามารถพยากรณ์ได้']
+        };
+    }
 
-    if (recentLogs.length === 0) return 0;
+    const baseAvg = recentLogs.reduce((sum, log) => sum + log.soldQty, 0) / recentLogs.length;
 
-    const avgSold = recentLogs.reduce((sum, log) => sum + log.soldQty, 0) / recentLogs.length;
+    // 2. Trend Analysis: เช็คว่ายอดขายเพิ่มขึ้น หรือลดลง
+    let trendMultiplier = 1.0;
+    if (recentLogs.length >= 3) {
+        const trend1 = recentLogs[0].soldQty;
+        const trend2 = recentLogs[1].soldQty;
+        const trend3 = recentLogs[2].soldQty;
 
-    // Add a small buffer (e.g. 10%) for growth/safety
-    return Math.ceil(avgSold * 1.1);
+        if (trend1 > trend2 && trend2 > trend3) {
+            trendMultiplier = 1.10; // Upward trend +10%
+        } else if (trend1 < trend2 && trend2 < trend3) {
+            trendMultiplier = 0.90; // Downward trend -10%
+        }
+    }
+
+    // 3. Weather Impact
+    const weatherMultiplier = getWeatherImpact(weather);
+
+    // 4. Market Performance
+    let marketMultiplier = 1.0;
+    if (marketId && dailyReports.length > 0) {
+        marketMultiplier = getMarketPerformanceScore(marketId, dailyReports);
+    }
+
+    // 5. Day of Week Factor (Weekend vs Weekday)
+    const isWeekend = targetDay === 0 || targetDay === 6;
+    const dayMultiplier = isWeekend ? 1.25 : 1.0; // Weekend +25%
+
+    // 6. Final Calculation
+    const rawForecast = baseAvg * trendMultiplier * weatherMultiplier * marketMultiplier * dayMultiplier;
+    const forecast = Math.ceil(rawForecast * 1.05); // Add 5% safety buffer
+
+    // 7. Calculate Confidence Score
+    const dataPoints = recentLogs.length;
+    const variance = recentLogs.reduce((sum, log) => sum + Math.pow(log.soldQty - baseAvg, 2), 0) / dataPoints;
+    const stdDev = Math.sqrt(variance);
+    const cv = baseAvg > 0 ? (stdDev / baseAvg) : 1; // Coefficient of Variation
+
+    let confidence = 100;
+    if (dataPoints < 3) confidence -= 30;
+    if (cv > 0.5) confidence -= 20;
+    if (weather === 'Storm' || weather === 'Rainy') confidence -= 15;
+    confidence = Math.max(50, Math.min(95, confidence));
+
+    // 8. Generate Insights
+    const insights: string[] = [];
+    if (trendMultiplier > 1.0) insights.push('📈 ยอดขายมีแนวโน้มเพิ่มขึ้น');
+    if (trendMultiplier < 1.0) insights.push('📉 ยอดขายมีแนวโน้มลดลง');
+    if (weatherMultiplier < 0.8) insights.push('🌧️ สภาพอากาศไม่ดี อาจส่งผลต่อยอดขาย');
+    if (isWeekend) insights.push('🎉 วันหยุด มักขายได้มากกว่าปกติ');
+    if (marketMultiplier > 1.2) insights.push('🏆 ตลาดนี้มีประสิทธิภาพดีมาก');
+    if (dataPoints < 3) insights.push('⚠️ ข้อมูลน้อย ความแม่นยำอาจลด');
+
+    return {
+        quantity: forecast,
+        confidence: Math.round(confidence),
+        insights
+    };
+};
+
+/**
+ * Get Sales Pattern for a Product
+ * วิเคราะห์รูปแบบการขายของสินค้า (7-30 วัน)
+ */
+export const getSalesPattern = (productId: string, logs: any[], days: number = 30) => {
+    const now = new Date();
+    const pattern = [];
+
+    for (let i = days - 1; i >= 0; i--) {
+        const d = new Date(now);
+        d.setDate(d.getDate() - i);
+        const dateStr = d.toISOString().split('T')[0];
+
+        const daySold = logs
+            .filter(log => log.productId === productId && log.date.startsWith(dateStr))
+            .reduce((sum, log) => sum + log.soldQty, 0);
+
+        pattern.push({
+            date: dateStr,
+            sold: daySold,
+            dayOfWeek: d.getDay()
+        });
+    }
+
+    return pattern;
+};
+
+/**
+ * Smart Product Insights
+ * วิเคราะห์ประสิทธิภาพสินค้าและให้คำแนะนำ
+ */
+export const getSmartProductInsights = (products: Product[], logs: any[]) => {
+    const insights = products.map(product => {
+        const productLogs = logs.filter(log => log.productId === product.id);
+        const totalSold = productLogs.reduce((sum, log) => sum + log.soldQty, 0);
+        const avgSold = productLogs.length > 0 ? totalSold / productLogs.length : 0;
+        const revenue = totalSold * product.price;
+        const profit = revenue - (totalSold * product.cost);
+        const margin = revenue > 0 ? (profit / revenue) * 100 : 0;
+
+        // Classify performance
+        let performance: 'excellent' | 'good' | 'average' | 'poor' = 'average';
+        if (avgSold > 20 && margin > 40) performance = 'excellent';
+        else if (avgSold > 15 && margin > 30) performance = 'good';
+        else if (avgSold < 5 || margin < 15) performance = 'poor';
+
+        // Generate recommendations
+        const recommendations: string[] = [];
+        if (performance === 'excellent') {
+            recommendations.push('⭐ ขายดีมาก! พิจารณาเพิ่มผลิต');
+        } else if (performance === 'poor') {
+            recommendations.push('⚠️ ขายช้า ลองลดผลิตหรือปรับราคา');
+        }
+        if (margin < 20) {
+            recommendations.push('💰 กำไรน้อย ปรับราคาหรือลดต้นทุน');
+        }
+        if (margin > 50) {
+            recommendations.push('🎯 Margin ดีมาก คงไว้!');
+        }
+
+        return {
+            productId: product.id,
+            productName: product.name,
+            totalSold,
+            avgSold,
+            margin,
+            performance,
+            recommendations
+        };
+    });
+
+    return {
+        bestSellers: insights.filter(i => i.performance === 'excellent').slice(0, 5),
+        underperforming: insights.filter(i => i.performance === 'poor').slice(0, 5),
+        allInsights: insights
+    };
+};
+
+/**
+ * Legacy Support: Keep old function for backward compatibility
+ */
+export const calculateForecast = (productId: string, date: string, logs: any[], marketId?: string) => {
+    const targetDate = new Date(date);
+    const result = calculateAdvancedForecast(productId, targetDate, logs, { marketId });
+    return result.quantity;
 };
