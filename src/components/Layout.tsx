@@ -91,7 +91,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, activeTab, onTabChange
             </aside>
 
             {/* Mobile Header */}
-            <div className="md:hidden fixed top-0 left-0 right-0 bg-white border-b border-cafe-200 z-30 px-4 py-3 flex justify-between items-center shadow-sm">
+            <div className="md:hidden fixed top-0 left-0 right-0 bg-white border-b border-cafe-200 z-50 px-4 py-3 flex justify-between items-center shadow-sm">
                 <h1 className="text-lg font-bold text-cafe-700">{storeName}</h1>
                 <button
                     onClick={() => setIsMobileMenuOpen(true)}
