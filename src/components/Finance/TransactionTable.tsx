@@ -117,7 +117,8 @@ export const TransactionTable: React.FC<TransactionTableProps> = ({ transactions
             </div>
 
             <div className="overflow-x-auto">
-                <table className="w-full text-left">
+                {/* Desktop Table View */}
+                <table className="w-full text-left hidden md:table">
                     <thead className="bg-cafe-50 text-cafe-500 text-sm">
                         <tr>
                             <th className="px-6 py-4 font-medium">วันที่</th>
@@ -130,7 +131,7 @@ export const TransactionTable: React.FC<TransactionTableProps> = ({ transactions
                     <tbody className="divide-y divide-cafe-100">
                         {filteredTransactions.length === 0 ? (
                             <tr>
-                                <td colSpan={4} className="px-6 py-8 text-center text-cafe-400">
+                                <td colSpan={5} className="px-6 py-8 text-center text-cafe-400">
                                     {searchTerm || typeFilter !== 'ALL' || categoryFilter !== 'ALL'
                                         ? 'ไม่พบรายการที่ตรงกับการค้นหา'
                                         : 'ยังไม่มีรายการ'}
@@ -194,6 +195,68 @@ export const TransactionTable: React.FC<TransactionTableProps> = ({ transactions
                         )}
                     </tbody>
                 </table>
+
+                {/* Mobile Card View */}
+                <div className="md:hidden space-y-3 p-4">
+                    {filteredTransactions.length === 0 ? (
+                        <div className="text-center text-cafe-400 py-8">
+                            {searchTerm || typeFilter !== 'ALL' || categoryFilter !== 'ALL'
+                                ? 'ไม่พบรายการที่ตรงกับการค้นหา'
+                                : 'ยังไม่มีรายการ'}
+                        </div>
+                    ) : (
+                        filteredTransactions.slice(0, 50).map((tx) => (
+                            <div key={tx.id} className="bg-white border border-cafe-100 rounded-xl p-4 shadow-sm">
+                                <div className="flex justify-between items-start mb-2">
+                                    <div>
+                                        <p className="font-bold text-cafe-800">{tx.description}</p>
+                                        <p className="text-xs text-cafe-400">{formatDate(tx.date)}</p>
+                                    </div>
+                                    <span className={`text-lg font-bold
+                                        ${tx.type === 'INCOME' ? 'text-green-600' :
+                                            tx.type === 'EXPENSE' ? 'text-red-600' :
+                                                'text-cafe-800'}`}>
+                                        {tx.type === 'EXPENSE' ? '-' : '+'}{formatCurrency(tx.amount)}
+                                    </span>
+                                </div>
+
+                                <div className="flex flex-wrap gap-2 mb-3">
+                                    <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium
+                                        ${tx.type === 'INCOME' ? 'bg-green-100 text-green-700' :
+                                            tx.type === 'EXPENSE' ? 'bg-red-100 text-red-700' :
+                                                'bg-blue-100 text-blue-700'}`}>
+                                        {tx.type === 'INCOME' && <ArrowDownLeft size={12} />}
+                                        {tx.type === 'EXPENSE' && <ArrowUpRight size={12} />}
+                                        {tx.type === 'TRANSFER' && <ArrowRightLeft size={12} />}
+                                        {tx.type}
+                                    </span>
+                                    {tx.category && (
+                                        <span className="bg-cafe-100 text-cafe-600 px-2 py-1 rounded-full text-xs">
+                                            {tx.category.replace('Sales:', '')}
+                                        </span>
+                                    )}
+                                    {tx.fromJar && <span className="text-xs text-cafe-500 bg-gray-50 px-2 py-1 rounded-lg">จาก: {tx.fromJar}</span>}
+                                    {tx.toJar && <span className="text-xs text-cafe-500 bg-gray-50 px-2 py-1 rounded-lg">ไป: {tx.toJar}</span>}
+                                </div>
+
+                                <div className="flex justify-end gap-2 border-t border-cafe-50 pt-2">
+                                    <button
+                                        onClick={() => handleEdit(tx)}
+                                        className="flex items-center gap-1 px-3 py-1.5 text-blue-600 bg-blue-50 rounded-lg text-xs font-medium"
+                                    >
+                                        <Edit2 size={14} /> แก้ไข
+                                    </button>
+                                    <button
+                                        onClick={() => handleDelete(tx)}
+                                        className="flex items-center gap-1 px-3 py-1.5 text-red-600 bg-red-50 rounded-lg text-xs font-medium"
+                                    >
+                                        <Trash2 size={14} /> ลบ
+                                    </button>
+                                </div>
+                            </div>
+                        ))
+                    )}
+                </div>
 
                 {filteredTransactions.length > 50 && (
                     <div className="p-4 text-center text-sm text-cafe-500 bg-cafe-50">

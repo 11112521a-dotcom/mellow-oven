@@ -56,29 +56,31 @@ const Dashboard: React.FC = () => {
   const runwayDays = getRunway(emergencyFund, avgDailyExpense);
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-500 pb-12">
-      <header className="flex justify-between items-center">
+    <div className="space-y-4 md:space-y-8 animate-in fade-in duration-500 pb-20 md:pb-12">
+      <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-cafe-900 flex items-center gap-2">
+          <h2 className="text-xl md:text-2xl font-bold text-cafe-900 flex items-center gap-2">
             <Activity className="text-cafe-600" /> The Pulse: สุขภาพร้าน
           </h2>
-          <p className="text-cafe-500">ภาพรวมธุรกิจประจำเดือนนี้</p>
+          <p className="text-sm md:text-base text-cafe-500">ภาพรวมธุรกิจประจำเดือนนี้</p>
         </div>
-        <DateRangePicker value={dateRange} onChange={setDateRange} />
+        <div className="w-full md:w-auto">
+          <DateRangePicker value={dateRange} onChange={setDateRange} />
+        </div>
       </header>
 
       {/* Alerts Section */}
       {alerts.length > 0 && (
         <div className="space-y-2">
           {alerts.map(alert => (
-            <div key={alert.id} className={`p-4 rounded-xl border flex items-start gap-3 ${alert.type === 'warning' ? 'bg-red-50 border-red-200 text-red-800' :
+            <div key={alert.id} className={`p-3 md:p-4 rounded-xl border flex items-start gap-3 ${alert.type === 'warning' ? 'bg-red-50 border-red-200 text-red-800' :
               alert.type === 'success' ? 'bg-green-50 border-green-200 text-green-800' :
                 'bg-blue-50 border-blue-200 text-blue-800'
               }`}>
               <AlertTriangle className="shrink-0 mt-0.5" size={20} />
               <div className="flex-1">
                 <h4 className="font-bold text-sm">{alert.title}</h4>
-                <p className="text-sm opacity-90">{alert.message}</p>
+                <p className="text-xs md:text-sm opacity-90">{alert.message}</p>
               </div>
               {alert.actionLabel && (
                 <button className="text-xs font-bold underline hover:opacity-80">
@@ -91,7 +93,7 @@ const Dashboard: React.FC = () => {
       )}
 
       {/* Zone 1: The Pulse (Scorecards) */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3 md:gap-4">
         <ScoreCard
           title="รายได้รวม (Revenue)"
           value={formatCurrency(kpis.revenue)}
@@ -128,10 +130,10 @@ const Dashboard: React.FC = () => {
         />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-8">
         {/* Zone 2: Product Intelligence */}
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-cafe-100">
-          <h3 className="text-lg font-bold text-cafe-800 mb-6 flex items-center gap-2">
+        <div className="bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-cafe-100">
+          <h3 className="text-base md:text-lg font-bold text-cafe-800 mb-4 md:mb-6 flex items-center gap-2">
             <TrendingUp size={20} /> ประสิทธิภาพเมนู (Product Intelligence)
           </h3>
 
@@ -182,11 +184,11 @@ const Dashboard: React.FC = () => {
         </div>
 
         {/* Zone 3: Market Insights */}
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-cafe-100">
-          <h3 className="text-lg font-bold text-cafe-800 mb-6 flex items-center gap-2">
+        <div className="bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-cafe-100">
+          <h3 className="text-base md:text-lg font-bold text-cafe-800 mb-4 md:mb-6 flex items-center gap-2">
             <Target size={20} /> สมรภูมิการค้า (Market Insights)
           </h3>
-          <div className="h-80">
+          <div className="h-64 md:h-80">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={marketStats} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} />
@@ -198,7 +200,7 @@ const Dashboard: React.FC = () => {
               </BarChart>
             </ResponsiveContainer>
           </div>
-          <div className="mt-4 grid grid-cols-2 gap-4">
+          <div className="mt-4 grid grid-cols-2 gap-3 md:gap-4">
             {marketStats.map((m, i) => (
               <div key={i} className="bg-cafe-50 p-3 rounded-lg text-center">
                 <p className="text-xs text-cafe-500">{m.name}</p>
@@ -216,12 +218,12 @@ const Dashboard: React.FC = () => {
       </div>
 
       {/* Zone 4: Wealth & Goals */}
-      <div className="bg-cafe-900 text-white p-8 rounded-3xl shadow-xl">
-        <h3 className="text-xl font-bold mb-6 flex items-center gap-2">
+      <div className="bg-cafe-900 text-white p-6 md:p-8 rounded-3xl shadow-xl">
+        <h3 className="text-lg md:text-xl font-bold mb-6 flex items-center gap-2">
           <Wallet className="text-yellow-400" /> ความมั่งคั่ง & เป้าหมาย (Wealth & Goals)
         </h3>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8">
           {/* Money Pockets */}
           <div className="space-y-4">
             <h4 className="text-cafe-300 text-sm font-medium uppercase tracking-wider">Current Money Pockets</h4>
@@ -240,7 +242,7 @@ const Dashboard: React.FC = () => {
           {/* Runway */}
           <div className="flex flex-col justify-center items-center bg-white/5 p-6 rounded-2xl border border-white/10 text-center">
             <h4 className="text-cafe-300 text-sm font-medium uppercase tracking-wider mb-2">Runway (อยู่ได้อีก)</h4>
-            <div className="text-5xl font-bold text-green-400 mb-1">{runwayDays} <span className="text-xl text-white">วัน</span></div>
+            <div className="text-4xl md:text-5xl font-bold text-green-400 mb-1">{runwayDays} <span className="text-xl text-white">วัน</span></div>
             <p className="text-xs text-cafe-400">คำนวณจากเงินฉุกเฉิน / ค่าใช้จ่ายเฉลี่ย</p>
           </div>
         </div>
@@ -256,9 +258,9 @@ const ScoreCard = ({ title, value, subValue, trend, trendUp, highlight, inverse 
     : (trendUp ? 'text-green-600' : 'text-red-600'); // Normal: Higher is better (Green)
 
   return (
-    <div className={`p-5 rounded-2xl shadow-sm border ${highlight ? 'bg-cafe-900 border-cafe-900 text-white' : 'bg-white border-cafe-100'}`}>
-      <p className={`text-sm mb-1 ${highlight ? 'text-cafe-300' : 'text-cafe-500'}`}>{title}</p>
-      <h3 className={`text-2xl font-bold ${highlight ? 'text-white' : 'text-cafe-900'}`}>{value}</h3>
+    <div className={`p-4 md:p-5 rounded-2xl shadow-sm border ${highlight ? 'bg-cafe-900 border-cafe-900 text-white' : 'bg-white border-cafe-100'}`}>
+      <p className={`text-xs md:text-sm mb-1 ${highlight ? 'text-cafe-300' : 'text-cafe-500'}`}>{title}</p>
+      <h3 className={`text-xl md:text-2xl font-bold ${highlight ? 'text-white' : 'text-cafe-900'}`}>{value}</h3>
       {subValue && <p className={`text-xs mt-1 ${highlight ? 'text-cafe-400' : 'text-cafe-500'}`}>{subValue}</p>}
       {trend && (
         <div className={`flex items-center gap-1 text-xs mt-2 font-medium ${trendColor}`}>
