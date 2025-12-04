@@ -1254,6 +1254,14 @@ export const useStore = create<AppState>()(
                         fetchData();
                     })
                     .subscribe();
+
+                // Subscribe to Products
+                supabase
+                    .channel('public:products')
+                    .on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, () => {
+                        fetchData();
+                    })
+                    .subscribe();
             },
 
             unsubscribeFromRealtime: () => {
