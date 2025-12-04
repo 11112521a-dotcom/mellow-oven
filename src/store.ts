@@ -139,6 +139,7 @@ export const useStore = create<AppState>()(
                 const { data: ingredients } = await supabase.from('ingredients').select('*');
                 const { data: markets } = await supabase.from('markets').select('*');
                 const { data: transactions } = await supabase.from('transactions').select('*').order('date', { ascending: false });
+                const { data: productSales } = await supabase.from('product_sales').select('*').order('sale_date', { ascending: false });
 
                 // Map snake_case from DB to camelCase for App
                 const mappedIngredients = ingredients?.map(i => ({
@@ -157,6 +158,25 @@ export const useStore = create<AppState>()(
                     fromJar: t.from_jar,
                     toJar: t.to_jar,
                     marketId: t.market_id
+                })) || [];
+
+                const mappedProductSales = productSales?.map(s => ({
+                    id: s.id,
+                    recordedAt: s.recorded_at,
+                    saleDate: s.sale_date,
+                    marketId: s.market_id,
+                    marketName: s.market_name,
+                    productId: s.product_id,
+                    productName: s.product_name,
+                    category: s.category,
+                    quantitySold: s.quantity_sold,
+                    pricePerUnit: s.price_per_unit,
+                    totalRevenue: s.total_revenue,
+                    costPerUnit: s.cost_per_unit,
+                    totalCost: s.total_cost,
+                    grossProfit: s.gross_profit,
+                    variantId: s.variant_id,
+                    variantName: s.variant_name
                 })) || [];
 
                 // Calculate Jar Balances from Transactions
@@ -216,6 +236,7 @@ export const useStore = create<AppState>()(
                         ingredients: mappedIngredients.length > 0 ? mappedIngredients : state.ingredients,
                         markets: markets || state.markets,
                         transactions: mappedTransactions.length > 0 ? mappedTransactions : state.transactions,
+                        productSales: mappedProductSales.length > 0 ? mappedProductSales : state.productSales,
                         jars: state.jars.map(jar => ({
                             ...jar,
                             balance: calculatedBalances[jar.id] || 0
@@ -1259,6 +1280,14 @@ export const useStore = create<AppState>()(
                 supabase
                     .channel('public:products')
                     .on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, () => {
+                        fetchData();
+                    })
+                    .subscribe();
+
+                // Subscribe to Product Sales
+                supabase
+                    .channel('public:product_sales')
+                    .on('postgres_changes', { event: '*', schema: 'public', table: 'product_sales' }, () => {
                         fetchData();
                     })
                     .subscribe();
