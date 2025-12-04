@@ -13,6 +13,8 @@ export const DailySalesForm: React.FC = () => {
     const [selectedMarketId, setSelectedMarketId] = useState<string>(markets[0]?.id || '');
     const [logs, setLogs] = useState<(DailyProductionLog & { product: Product, variant?: Variant })[]>([]);
 
+    const [showConfirmModal, setShowConfirmModal] = useState(false);
+
     // Initialize logs
     useEffect(() => {
         if (products.length > 0 && logs.length === 0) {
@@ -78,9 +80,17 @@ export const DailySalesForm: React.FC = () => {
     const totalWasteCost = logs.reduce((sum, log) => sum + (log.wasteQty * (log.variant ? log.variant.cost : log.product.cost)), 0);
     const trueProfit = totalRevenue - totalCOGS - totalWasteCost;
 
-    const handleSave = () => {
-        if (totalSoldItems === 0 && !confirm('ยอดขายเป็น 0 ต้องการบันทึกหรือไม่?')) return;
+    const handleSaveClick = () => {
+        if (totalSoldItems === 0) {
+            if (confirm('ยอดขายเป็น 0 ต้องการบันทึกหรือไม่?')) {
+                setShowConfirmModal(true);
+            }
+        } else {
+            setShowConfirmModal(true);
+        }
+    };
 
+    const confirmSave = async () => {
         const marketName = markets.find(m => m.id === selectedMarketId)?.name || 'Unknown Market';
 
         // Add COGS to Working Capital
@@ -88,7 +98,7 @@ export const DailySalesForm: React.FC = () => {
 
         // Add Gross Profit to Unallocated
         const { addUnallocatedProfit } = useStore.getState();
-        addUnallocatedProfit({
+        await addUnallocatedProfit({
             id: crypto.randomUUID(),
             date: date,
             amount: trueProfit,
@@ -117,14 +127,14 @@ export const DailySalesForm: React.FC = () => {
         });
 
         // Record Product Sales Logs
-        logs.forEach(log => {
+        for (const log of logs) {
             if (log.soldQty > 0) {
                 const price = log.variant ? log.variant.price : log.product.price;
                 const cost = log.variant ? log.variant.cost : log.product.cost;
                 const itemRevenue = log.soldQty * price;
                 const itemCost = log.soldQty * cost;
 
-                addProductSaleLog({
+                await addProductSaleLog({
                     id: crypto.randomUUID(),
                     recordedAt: new Date().toISOString(),
                     saleDate: date,
@@ -143,13 +153,13 @@ export const DailySalesForm: React.FC = () => {
                     variantName: log.variant?.name
                 });
             }
-        });
+        }
 
         // Auto-Deduct Stock
-        logs.forEach(log => {
-            if (log.soldQty > 0) deductStockByRecipe(log.productId, log.soldQty, log.variantId);
-            if (log.wasteQty > 0) deductStockByRecipe(log.productId, log.wasteQty, log.variantId);
-        });
+        for (const log of logs) {
+            if (log.soldQty > 0) await deductStockByRecipe(log.productId, log.soldQty, log.variantId);
+            if (log.wasteQty > 0) await deductStockByRecipe(log.productId, log.wasteQty, log.variantId);
+        }
 
         // Save Daily Report
         addDailyReport({
@@ -174,6 +184,7 @@ export const DailySalesForm: React.FC = () => {
             logs
         });
 
+        setShowConfirmModal(false);
         alert(`✅ บันทึกสำเร็จ!\n\n💰 รายได้: ${formatCurrency(totalRevenue)}\n✅ ขายได้: ${totalSoldItems} ชิ้น\n💚 กำไร: ${formatCurrency(trueProfit)}`);
 
         // Reset form
@@ -334,7 +345,7 @@ export const DailySalesForm: React.FC = () => {
                         </div>
                     </div>
                     <button
-                        onClick={handleSave}
+                        onClick={handleSaveClick}
                         className="bg-gradient-to-r from-cafe-800 to-cafe-900 text-white px-8 py-4 rounded-xl font-bold text-lg hover:from-cafe-900 hover:to-black shadow-xl flex items-center gap-3 transition-all active:scale-95"
                     >
                         <Save size={24} />
@@ -342,6 +353,51 @@ export const DailySalesForm: React.FC = () => {
                     </button>
                 </div>
             </div>
+
+            {/* Confirmation Modal */}
+            {showConfirmModal && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 backdrop-blur-sm animate-in fade-in">
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
+                        <div className="p-6 text-center">
+                            <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                                <Save size={32} className="text-green-600" />
+                            </div>
+                            <h3 className="text-2xl font-bold text-cafe-900 mb-2">ยืนยันการบันทึก?</h3>
+                            <p className="text-cafe-500 mb-6">กรุณาตรวจสอบความถูกต้องก่อนบันทึก</p>
+
+                            <div className="bg-cafe-50 rounded-xl p-4 space-y-3 mb-6">
+                                <div className="flex justify-between items-center">
+                                    <span className="text-cafe-600">💰 รายได้รวม</span>
+                                    <span className="font-bold text-lg text-cafe-900">{formatCurrency(totalRevenue)}</span>
+                                </div>
+                                <div className="flex justify-between items-center">
+                                    <span className="text-cafe-600">📦 จำนวนที่ขาย</span>
+                                    <span className="font-bold text-lg text-cafe-900">{totalSoldItems} ชิ้น</span>
+                                </div>
+                                <div className="pt-3 border-t border-cafe-200 flex justify-between items-center">
+                                    <span className="text-green-600 font-semibold">💚 กำไรโดยประมาณ</span>
+                                    <span className="font-bold text-xl text-green-600">{formatCurrency(trueProfit)}</span>
+                                </div>
+                            </div>
+
+                            <div className="flex gap-3">
+                                <button
+                                    onClick={() => setShowConfirmModal(false)}
+                                    className="flex-1 py-3 rounded-xl font-semibold text-cafe-600 hover:bg-cafe-50 transition-colors"
+                                >
+                                    ยกเลิก
+                                </button>
+                                <button
+                                    onClick={confirmSave}
+                                    className="flex-1 py-3 rounded-xl font-bold text-white bg-green-600 hover:bg-green-700 shadow-lg shadow-green-200 transition-all active:scale-95"
+                                >
+                                    ยืนยันบันทึก
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

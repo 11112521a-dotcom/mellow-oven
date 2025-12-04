@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { useStore } from '@/src/store';
 import { calculateOptimalProduction } from '@/src/lib/forecasting';
 import type { ForecastOutput } from '@/src/lib/forecasting';
@@ -9,8 +9,10 @@ import {
     analyzeWaste
 } from '@/src/lib/advancedAnalytics';
 import {
-    ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, ReferenceArea, Cell
+    ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, ReferenceArea, Cell,
+    BarChart, Bar, Legend
 } from 'recharts';
+import { Save, Loader2, Calendar, CloudSun, Store, AlertTriangle, TrendingUp, Package, Target, ArrowUpRight, ArrowDownRight } from 'lucide-react';
 
 interface ForecastResult {
     productId: string;
@@ -20,8 +22,8 @@ interface ForecastResult {
 }
 
 export const ProductionPlanner: React.FC = () => {
-    const { products, markets, saveForecast, productSales, dailyReports } = useStore();
-    const [activeTab, setActiveTab] = useState<'plan' | 'insights'>('plan');
+    const { products, markets, saveForecast, productSales, dailyReports, productionForecasts } = useStore();
+    const [activeTab, setActiveTab] = useState<'plan' | 'insights' | 'accuracy'>('plan');
 
     // State for Production Planner
     const [selectedDate, setSelectedDate] = useState(() => {
@@ -32,6 +34,7 @@ export const ProductionPlanner: React.FC = () => {
     const [selectedWeather, setSelectedWeather] = useState<string>('sunny');
     const [selectedMarket, setSelectedMarket] = useState<string>('storefront');
     const [isCalculating, setIsCalculating] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
     const [results, setResults] = useState<ForecastResult[]>([]);
 
     const getMarketName = (marketId: string) => {
@@ -52,9 +55,58 @@ export const ProductionPlanner: React.FC = () => {
         return { matrix, abcItems, wasteItems };
     }, [activeTab, products, productSales, dailyReports]);
 
-    const handleCalculateAll = async () => {
+    // Accuracy Calculations
+    const accuracyData = useMemo(() => {
+        if (activeTab !== 'accuracy') return null;
+
+        // 1. Group forecasts by date
+        const forecastsByDate = productionForecasts.reduce((acc, f) => {
+            if (!acc[f.forecastForDate]) acc[f.forecastForDate] = [];
+            acc[f.forecastForDate].push(f);
+            return acc;
+        }, {} as Record<string, typeof productionForecasts>);
+
+        // 2. Compare with actual sales
+        const comparisons = Object.keys(forecastsByDate).map(date => {
+            const forecasts = forecastsByDate[date];
+            const sales = productSales.filter(s => s.saleDate === date);
+
+            let totalForecastQty = 0;
+            let totalActualQty = 0;
+            let matchCount = 0;
+
+            forecasts.forEach(f => {
+                const actual = sales.find(s => s.productId === f.productId);
+                if (actual) {
+                    totalForecastQty += f.optimalQuantity;
+                    totalActualQty += actual.quantitySold;
+                    matchCount++;
+                }
+            });
+
+            const accuracy = totalActualQty > 0 ? 1 - (Math.abs(totalForecastQty - totalActualQty) / totalActualQty) : 0;
+
+            return {
+                date,
+                forecasts,
+                sales,
+                totalForecastQty,
+                totalActualQty,
+                accuracy: Math.max(0, accuracy * 100), // Ensure not negative
+                matchCount
+            };
+        }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()); // Newest first
+
+        return comparisons;
+    }, [activeTab, productionForecasts, productSales]);
+
+    // Auto-Calculate Logic
+    const calculateForecasts = useCallback(async () => {
+        if (products.length === 0) return;
+
         setIsCalculating(true);
-        setResults([]);
+        // Small delay to prevent UI flickering on fast inputs and allow loading state to show
+        await new Promise(resolve => setTimeout(resolve, 300));
 
         const forecastResults: ForecastResult[] = [];
         const { productSales } = useStore.getState();
@@ -86,16 +138,6 @@ export const ProductionPlanner: React.FC = () => {
                     productName: item.name,
                     forecast
                 });
-
-                await saveForecast(
-                    forecast,
-                    item.id,
-                    item.name,
-                    selectedMarket,
-                    getMarketName(selectedMarket),
-                    selectedDate,
-                    selectedWeather
-                );
             } catch (error) {
                 forecastResults.push({
                     productId: item.id,
@@ -108,13 +150,44 @@ export const ProductionPlanner: React.FC = () => {
 
         setResults(forecastResults);
         setIsCalculating(false);
+    }, [products, selectedMarket, selectedWeather, selectedDate]); // Added dependencies
+
+    // Trigger calculation on input change
+    useEffect(() => {
+        calculateForecasts();
+    }, [calculateForecasts]);
+
+    const handleSavePlan = async () => {
+        setIsSaving(true);
+        try {
+            for (const result of results) {
+                if (!result.error) {
+                    await saveForecast(
+                        result.forecast,
+                        result.productId,
+                        result.productName,
+                        selectedMarket,
+                        getMarketName(selectedMarket),
+                        selectedDate,
+                        selectedWeather
+                    );
+                }
+            }
+            // Show success feedback (could use a toast here)
+            alert('บันทึกแผนการผลิตเรียบร้อยแล้ว!');
+        } catch (error) {
+            console.error('Failed to save plan:', error);
+            alert('เกิดข้อผิดพลาดในการบันทึก');
+        } finally {
+            setIsSaving(false);
+        }
     };
 
     const weatherOptions = [
-        { value: 'sunny', label: '☀️ Sunny' },
-        { value: 'cloudy', label: '☁️ Cloudy' },
-        { value: 'rain', label: '🌧️ Rain' },
-        { value: 'storm', label: '⛈️ Storm' }
+        { value: 'sunny', label: '☀️ แดดจัด (Sunny)' },
+        { value: 'cloudy', label: '☁️ เมฆมาก (Cloudy)' },
+        { value: 'rain', label: '🌧️ ฝนตก (Rain)' },
+        { value: 'storm', label: '⛈️ พายุ (Storm)' }
     ];
 
     const totalProfit = results
@@ -122,75 +195,68 @@ export const ProductionPlanner: React.FC = () => {
         .reduce((sum, r) => sum + (r.forecast.expectedProfit || 0), 0);
 
     return (
-        <div className="bg-white rounded-2xl shadow-sm border border-cafe-100 p-6">
+        <div className="space-y-6">
             {/* Header with Tabs */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
-                <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-pink-500 rounded-xl flex items-center justify-center text-2xl shadow-md">
-                        🧬
-                    </div>
-                    <div>
-                        <h2 className="text-2xl font-bold text-cafe-900">Smart Analytics & Planner</h2>
-                        <p className="text-sm text-cafe-500">วิเคราะห์ข้อมูลและวางแผนการผลิตด้วย AI</p>
-                    </div>
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div>
+                    <h2 className="text-2xl font-bold text-cafe-900">Production Planner</h2>
+                    <p className="text-sm text-cafe-500">วางแผนการผลิตอัจฉริยะ</p>
                 </div>
 
-                <div className="flex bg-cafe-100 p-1 rounded-lg">
+                <div className="flex bg-cafe-100 p-1 rounded-lg self-start md:self-auto overflow-x-auto">
                     <button
                         onClick={() => setActiveTab('plan')}
-                        className={`px-4 py-2 rounded-md text-sm font-semibold transition-all ${activeTab === 'plan' ? 'bg-white text-purple-600 shadow-sm' : 'text-cafe-600 hover:text-cafe-900'}`}
+                        className={`px-4 py-2 rounded-md text-sm font-semibold transition-all whitespace-nowrap ${activeTab === 'plan' ? 'bg-white text-cafe-800 shadow-sm' : 'text-cafe-500 hover:text-cafe-800'}`}
                     >
-                        📅 Production Plan
+                        📅 แผนการผลิต
                     </button>
                     <button
                         onClick={() => setActiveTab('insights')}
-                        className={`px-4 py-2 rounded-md text-sm font-semibold transition-all ${activeTab === 'insights' ? 'bg-white text-purple-600 shadow-sm' : 'text-cafe-600 hover:text-cafe-900'}`}
+                        className={`px-4 py-2 rounded-md text-sm font-semibold transition-all whitespace-nowrap ${activeTab === 'insights' ? 'bg-white text-cafe-800 shadow-sm' : 'text-cafe-500 hover:text-cafe-800'}`}
                     >
-                        📊 ข้อมูลเชิงลึก (ใหม่)
+                        📊 ข้อมูลเชิงลึก
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('accuracy')}
+                        className={`px-4 py-2 rounded-md text-sm font-semibold transition-all whitespace-nowrap ${activeTab === 'accuracy' ? 'bg-white text-cafe-800 shadow-sm' : 'text-cafe-500 hover:text-cafe-800'}`}
+                    >
+                        🎯 ความแม่นยำ (Beta)
                     </button>
                 </div>
             </div>
 
             {activeTab === 'plan' ? (
-                <>
-                    {/* Input Section - Simplified */}
-                    <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl p-5 mb-6">
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                            <div>
-                                <label className="block text-sm font-semibold text-cafe-700 mb-2">
-                                    📅 วันที่ผลิต
-                                </label>
+                <div className="space-y-6">
+                    {/* Controls Bar */}
+                    <div className="bg-white p-4 rounded-xl border border-cafe-200 shadow-sm flex flex-col md:flex-row gap-4 items-center justify-between sticky top-4 z-10">
+                        <div className="flex flex-col md:flex-row gap-4 w-full md:w-auto">
+                            <div className="relative">
+                                <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-cafe-400" size={18} />
                                 <input
                                     type="date"
                                     value={selectedDate}
                                     onChange={(e) => setSelectedDate(e.target.value)}
-                                    className="w-full px-4 py-2.5 border-2 border-purple-200 rounded-lg focus:ring-2 focus:ring-purple-400 focus:border-transparent outline-none bg-white"
+                                    className="pl-10 pr-4 py-2 bg-cafe-50 border border-cafe-200 rounded-lg text-sm focus:ring-2 focus:ring-cafe-500 outline-none w-full md:w-auto"
                                 />
                             </div>
-
-                            <div>
-                                <label className="block text-sm font-semibold text-cafe-700 mb-2">
-                                    🌦️ สภาพอากาศ
-                                </label>
+                            <div className="relative">
+                                <CloudSun className="absolute left-3 top-1/2 -translate-y-1/2 text-cafe-400" size={18} />
                                 <select
                                     value={selectedWeather}
                                     onChange={(e) => setSelectedWeather(e.target.value)}
-                                    className="w-full px-4 py-2.5 border-2 border-purple-200 rounded-lg focus:ring-2 focus:ring-purple-400 focus:border-transparent outline-none bg-white"
+                                    className="pl-10 pr-8 py-2 bg-cafe-50 border border-cafe-200 rounded-lg text-sm focus:ring-2 focus:ring-cafe-500 outline-none appearance-none w-full md:w-auto"
                                 >
                                     {weatherOptions.map(opt => (
                                         <option key={opt.value} value={opt.value}>{opt.label}</option>
                                     ))}
                                 </select>
                             </div>
-
-                            <div>
-                                <label className="block text-sm font-semibold text-cafe-700 mb-2">
-                                    🏪 ตลาด
-                                </label>
+                            <div className="relative">
+                                <Store className="absolute left-3 top-1/2 -translate-y-1/2 text-cafe-400" size={18} />
                                 <select
                                     value={selectedMarket}
                                     onChange={(e) => setSelectedMarket(e.target.value)}
-                                    className="w-full px-4 py-2.5 border-2 border-purple-200 rounded-lg focus:ring-2 focus:ring-purple-400 focus:border-transparent outline-none bg-white"
+                                    className="pl-10 pr-8 py-2 bg-cafe-50 border border-cafe-200 rounded-lg text-sm focus:ring-2 focus:ring-cafe-500 outline-none appearance-none w-full md:w-auto"
                                 >
                                     {markets.map(market => (
                                         <option key={market.id} value={market.id}>{market.name}</option>
@@ -199,128 +265,104 @@ export const ProductionPlanner: React.FC = () => {
                             </div>
                         </div>
 
-                        <button
-                            onClick={handleCalculateAll}
-                            disabled={isCalculating || products.length === 0}
-                            className={`w-full py-3.5 px-6 rounded-xl font-bold text-white text-lg transition-all ${isCalculating || products.length === 0
-                                ? 'bg-gray-300 cursor-not-allowed'
-                                : 'bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 shadow-lg hover:shadow-xl active:scale-98'
-                                }`}
-                        >
-                            {isCalculating ? (
-                                <span className="flex items-center justify-center gap-2">
-                                    <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
-                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                                    </svg>
-                                    กำลังคำนวณ {products.reduce((acc, p) => acc + (p.variants?.length || 1), 0)} เมนู...
-                                </span>
-                            ) : (
-                                `🚀 คำนวณปริมาณผลิต (${products.reduce((acc, p) => acc + (p.variants?.length || 1), 0)} เมนู)`
-                            )}
-                        </button>
+                        <div className="flex items-center gap-4 w-full md:w-auto justify-between md:justify-end">
+                            <div className="text-right hidden md:block">
+                                <p className="text-xs text-cafe-500">กำไรคาดการณ์</p>
+                                <p className="text-lg font-bold text-green-600">฿{totalProfit.toLocaleString()}</p>
+                            </div>
+                            <button
+                                onClick={handleSavePlan}
+                                disabled={isSaving || isCalculating || results.length === 0}
+                                className="flex items-center gap-2 px-6 py-2.5 bg-cafe-900 text-white rounded-lg hover:bg-cafe-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm active:scale-95"
+                            >
+                                {isSaving ? <Loader2 className="animate-spin" size={18} /> : <Save size={18} />}
+                                <span>บันทึกแผน</span>
+                            </button>
+                        </div>
                     </div>
 
-                    {/* Results - Simplified Table */}
-                    {results.length > 0 && (
-                        <div>
-                            <div className="flex items-center justify-between mb-4">
-                                <h3 className="text-lg font-bold text-cafe-900">
-                                    ผลการคำนวณ ({results.length} เมนู)
-                                </h3>
-                                <span className="text-sm text-cafe-500">
-                                    {new Date(selectedDate).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' })}
-                                </span>
-                            </div>
+                    {/* Results Grid */}
+                    {isCalculating ? (
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 animate-pulse">
+                            {[1, 2, 3, 4, 5, 6].map(i => (
+                                <div key={i} className="h-40 bg-gray-100 rounded-xl"></div>
+                            ))}
+                        </div>
+                    ) : (
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            {results.map((result) => (
+                                <div
+                                    key={result.productId}
+                                    className={`bg-white p-5 rounded-xl border transition-all hover:shadow-md ${result.error ? 'border-red-200 bg-red-50' : 'border-cafe-100'
+                                        }`}
+                                >
+                                    <div className="flex justify-between items-start mb-4">
+                                        <div>
+                                            <h3 className="font-bold text-cafe-900 line-clamp-1">{result.productName}</h3>
+                                            {!result.error && (
+                                                <div className="flex items-center gap-2 mt-1">
+                                                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${result.forecast.confidenceLevel === 'high' ? 'bg-green-100 text-green-700' :
+                                                        result.forecast.confidenceLevel === 'medium' ? 'bg-yellow-100 text-yellow-700' :
+                                                            'bg-red-100 text-red-700'
+                                                        }`}>
+                                                        ความเชื่อมั่น: {
+                                                            result.forecast.confidenceLevel === 'high' ? 'สูง' :
+                                                                result.forecast.confidenceLevel === 'medium' ? 'ปานกลาง' : 'ต่ำ'
+                                                        }
+                                                    </span>
+                                                </div>
+                                            )}
+                                        </div>
+                                        {!result.error && (
+                                            <div className="text-right">
+                                                <p className="text-xs text-cafe-500">ควรผลิต</p>
+                                                <p className="text-3xl font-black text-cafe-800">{result.forecast.optimalQuantity}</p>
+                                            </div>
+                                        )}
+                                    </div>
 
-                            <div className="overflow-x-auto rounded-xl border border-cafe-100 mb-4">
-                                <table className="w-full">
-                                    <thead className="bg-cafe-50">
-                                        <tr>
-                                            <th className="px-6 py-3 text-left text-sm font-semibold text-cafe-700">เมนู</th>
-                                            <th className="px-6 py-3 text-center text-sm font-semibold text-cafe-700">ควรผลิต</th>
-                                            <th className="px-6 py-3 text-center text-sm font-semibold text-cafe-700">ความเชื่อมั่น</th>
-                                            <th className="px-6 py-3 text-right text-sm font-semibold text-cafe-700">กำไรคาดการณ์</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-cafe-50">
-                                        {results.map((result, index) => (
-                                            <tr key={result.productId} className={`hover:bg-cafe-50/50 transition-colors ${index % 2 === 0 ? 'bg-white' : 'bg-cafe-25'}`}>
-                                                {result.error ? (
-                                                    <>
-                                                        <td className="px-6 py-3 font-semibold text-cafe-900">{result.productName}</td>
-                                                        <td colSpan={3} className="px-6 py-3 text-center text-red-600 text-sm">
-                                                            ⚠️ {result.error}
-                                                        </td>
-                                                    </>
-                                                ) : (
-                                                    <>
-                                                        <td className="px-6 py-3 font-semibold text-cafe-900">{result.productName}</td>
-                                                        <td className="px-6 py-3 text-center">
-                                                            <span className="text-3xl font-bold text-purple-600">
-                                                                {result.forecast.optimalQuantity}
-                                                            </span>
-                                                        </td>
-                                                        <td className="px-6 py-3 text-center">
-                                                            <span className={`px-3 py-1 rounded-full text-xs font-bold ${result.forecast.confidenceLevel === 'high' ? 'bg-green-100 text-green-700' :
-                                                                result.forecast.confidenceLevel === 'medium' ? 'bg-yellow-100 text-yellow-700' :
-                                                                    'bg-red-100 text-red-700'
-                                                                }`}>
-                                                                {result.forecast.confidenceLevel === 'high' ? '● สูง' :
-                                                                    result.forecast.confidenceLevel === 'medium' ? '● ปานกลาง' : '● ต่ำ'}
-                                                            </span>
-                                                        </td>
-                                                        <td className="px-6 py-3 text-right">
-                                                            <div className="font-bold text-green-600 text-lg">
-                                                                ฿{result.forecast.expectedProfit?.toLocaleString() || '0'}
-                                                            </div>
-                                                            <div className="text-xs text-cafe-500 mt-1">
-                                                                <span className="text-red-600">ขาด: {(result.forecast.stockoutProbability * 100).toFixed(0)}%</span>
-                                                                {' • '}
-                                                                <span className="text-orange-600">เหลือ: {(result.forecast.wasteProbability * 100).toFixed(0)}%</span>
-                                                            </div>
-                                                        </td>
-                                                    </>
-                                                )}
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
+                                    {result.error ? (
+                                        <div className="flex items-center gap-2 text-red-600 text-sm">
+                                            <AlertTriangle size={16} />
+                                            {result.error}
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-3">
+                                            <div className="flex justify-between items-center py-2 border-t border-cafe-50">
+                                                <div className="flex items-center gap-2 text-sm text-cafe-600">
+                                                    <TrendingUp size={14} />
+                                                    <span>กำไรคาดการณ์</span>
+                                                </div>
+                                                <span className="font-bold text-green-600">฿{result.forecast.expectedProfit?.toLocaleString()}</span>
+                                            </div>
 
-                            {/* Total Profit */}
-                            <div className="p-5 bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl border-2 border-green-200">
-                                <div className="flex items-center justify-between">
-                                    <span className="text-cafe-700 font-semibold">💰 กำไรรวมที่คาดการณ์:</span>
-                                    <span className="text-3xl font-bold text-green-600">
-                                        ฿{totalProfit.toLocaleString()}
-                                    </span>
+                                            <div className="grid grid-cols-2 gap-2 text-xs">
+                                                <div className="bg-red-50 p-2 rounded-lg text-center">
+                                                    <p className="text-red-400 mb-1">โอกาสของขาด</p>
+                                                    <p className="font-bold text-red-600">{(result.forecast.stockoutProbability * 100).toFixed(0)}%</p>
+                                                </div>
+                                                <div className="bg-orange-50 p-2 rounded-lg text-center">
+                                                    <p className="text-orange-400 mb-1">โอกาสเหลือทิ้ง</p>
+                                                    <p className="font-bold text-orange-600">{(result.forecast.wasteProbability * 100).toFixed(0)}%</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
-                            </div>
+                            ))}
                         </div>
                     )}
 
-                    {/* Empty State */}
                     {results.length === 0 && !isCalculating && products.length > 0 && (
-                        <div className="text-center py-12 text-cafe-400">
-                            <div className="text-6xl mb-4">📊</div>
-                            <p className="text-lg font-semibold text-cafe-600">เลือกวันที่และสภาพอากาศ แล้วกดคำนวณ</p>
-                            <p className="text-sm mt-2">AI จะคำนวณปริมาณผลิตที่เหมาะสมให้ทั้ง {products.length} เมนู</p>
+                        <div className="text-center py-12 text-cafe-400 bg-cafe-50 rounded-xl border-2 border-dashed border-cafe-200">
+                            <Package size={48} className="mx-auto mb-4 opacity-50" />
+                            <p>ไม่มีรายการเมนูให้คำนวณ</p>
                         </div>
                     )}
-
-                    {/* No Products */}
-                    {products.length === 0 && (
-                        <div className="text-center py-12 text-cafe-400">
-                            <div className="text-6xl mb-4">🍞</div>
-                            <p className="text-lg font-semibold text-cafe-600">ยังไม่มีเมนู</p>
-                            <p className="text-sm mt-2">เพิ่มเมนูก่อนเพื่อใช้ระบบวางแผนการผลิต</p>
-                        </div>
-                    )}
-                </>
-            ) : (
-                // Insights Tab Content
-                <div className="space-y-6">
+                </div>
+            ) : activeTab === 'insights' ? (
+                // Insights Tab Content (Unchanged)
+                <div className="space-y-6 animate-in fade-in">
                     {/* Top Row */}
                     <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
                         {/* Menu Matrix */}
@@ -501,6 +543,100 @@ export const ProductionPlanner: React.FC = () => {
                             )}
                         </div>
                     </div>
+                </div>
+            ) : (
+                // Accuracy Tab Content
+                <div className="space-y-6 animate-in fade-in">
+                    {accuracyData?.map((data) => (
+                        <div key={data.date} className="bg-white border border-cafe-200 rounded-xl p-6 shadow-sm">
+                            <div className="flex justify-between items-center mb-6">
+                                <div>
+                                    <h3 className="text-lg font-bold text-cafe-900">
+                                        {new Date(data.date).toLocaleDateString('th-TH', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+                                    </h3>
+                                    <p className="text-sm text-cafe-500">
+                                        มีข้อมูล {data.matchCount} รายการที่ตรงกัน
+                                    </p>
+                                </div>
+                                <div className="text-right">
+                                    <div className="text-3xl font-black text-purple-600">
+                                        {data.accuracy.toFixed(1)}%
+                                    </div>
+                                    <div className="text-xs text-cafe-500">ความแม่นยำรวม</div>
+                                </div>
+                            </div>
+
+                            {/* Comparison Chart */}
+                            <div className="h-[300px] mb-6">
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <BarChart
+                                        data={data.forecasts.map(f => {
+                                            const actual = data.sales.find(s => s.productId === f.productId);
+                                            return {
+                                                name: f.productName,
+                                                Plan: f.optimalQuantity,
+                                                Actual: actual?.quantitySold || 0
+                                            };
+                                        }).slice(0, 10)} // Show top 10 for readability
+                                        margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
+                                    >
+                                        <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
+                                        <XAxis dataKey="name" fontSize={10} />
+                                        <YAxis />
+                                        <Tooltip
+                                            contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)' }}
+                                        />
+                                        <Legend />
+                                        <Bar dataKey="Plan" fill="#9333ea" radius={[4, 4, 0, 0]} name="แผนการผลิต" />
+                                        <Bar dataKey="Actual" fill="#22c55e" radius={[4, 4, 0, 0]} name="ยอดขายจริง" />
+                                    </BarChart>
+                                </ResponsiveContainer>
+                            </div>
+
+                            {/* Detailed List */}
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-sm">
+                                    <thead className="bg-cafe-50">
+                                        <tr>
+                                            <th className="px-4 py-2 text-left text-cafe-600">สินค้า</th>
+                                            <th className="px-4 py-2 text-center text-cafe-600">แผน (ชิ้น)</th>
+                                            <th className="px-4 py-2 text-center text-cafe-600">จริง (ชิ้น)</th>
+                                            <th className="px-4 py-2 text-right text-cafe-600">ผลต่าง</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-cafe-100">
+                                        {data.forecasts.map(f => {
+                                            const actual = data.sales.find(s => s.productId === f.productId);
+                                            const actualQty = actual?.quantitySold || 0;
+                                            const diff = actualQty - f.optimalQuantity;
+
+                                            return (
+                                                <tr key={f.productId} className="hover:bg-cafe-50">
+                                                    <td className="px-4 py-2 font-medium text-cafe-900">{f.productName}</td>
+                                                    <td className="px-4 py-2 text-center text-purple-600 font-bold">{f.optimalQuantity}</td>
+                                                    <td className="px-4 py-2 text-center text-green-600 font-bold">{actualQty}</td>
+                                                    <td className="px-4 py-2 text-right">
+                                                        <span className={`flex items-center justify-end gap-1 font-bold ${diff > 0 ? 'text-green-600' : diff < 0 ? 'text-red-500' : 'text-gray-400'}`}>
+                                                            {diff > 0 ? <ArrowUpRight size={14} /> : diff < 0 ? <ArrowDownRight size={14} /> : null}
+                                                            {diff > 0 ? '+' : ''}{diff}
+                                                        </span>
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    ))}
+
+                    {accuracyData?.length === 0 && (
+                        <div className="text-center py-12 text-cafe-400 bg-cafe-50 rounded-xl border-2 border-dashed border-cafe-200">
+                            <Target size={48} className="mx-auto mb-4 opacity-50" />
+                            <p className="text-lg font-semibold text-cafe-600">ยังไม่มีข้อมูลเปรียบเทียบ</p>
+                            <p className="text-sm mt-2">ต้องมีการบันทึกแผนการผลิต และมียอดขายจริงในวันเดียวกันก่อน</p>
+                        </div>
+                    )}
                 </div>
             )}
         </div>

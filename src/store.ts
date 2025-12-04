@@ -140,6 +140,7 @@ export const useStore = create<AppState>()(
                 const { data: markets } = await supabase.from('markets').select('*');
                 const { data: transactions } = await supabase.from('transactions').select('*').order('date', { ascending: false });
                 const { data: productSales } = await supabase.from('product_sales').select('*').order('sale_date', { ascending: false });
+                const { data: productionForecasts } = await supabase.from('production_forecasts').select('*').order('forecast_for_date', { ascending: false });
 
                 // Map snake_case from DB to camelCase for App
                 const mappedIngredients = ingredients?.map(i => ({
@@ -177,6 +178,33 @@ export const useStore = create<AppState>()(
                     grossProfit: s.gross_profit,
                     variantId: s.variant_id,
                     variantName: s.variant_name
+                })) || [];
+
+                const mappedProductionForecasts = productionForecasts?.map(f => ({
+                    id: f.id,
+                    createdAt: f.created_at,
+                    productId: f.product_id,
+                    productName: f.product_name,
+                    marketId: f.market_id,
+                    marketName: f.market_name,
+                    forecastForDate: f.forecast_for_date,
+                    weatherForecast: f.weather_forecast,
+                    historicalDataPoints: f.historical_data_points,
+                    baselineForecast: f.baseline_forecast,
+                    weatherAdjustedForecast: f.weather_adjusted_forecast,
+                    lambdaPoisson: f.lambda_poisson,
+                    optimalQuantity: f.optimal_quantity,
+                    serviceLevelTarget: f.service_level_target,
+                    stockoutProbability: f.stockout_probability,
+                    wasteProbability: f.waste_probability,
+                    unitPrice: f.unit_price,
+                    unitCost: f.unit_cost,
+                    expectedDemand: f.expected_demand,
+                    expectedProfit: f.expected_profit,
+                    confidenceLevel: f.confidence_level,
+                    predictionIntervalLower: f.prediction_interval_lower,
+                    predictionIntervalUpper: f.prediction_interval_upper,
+                    outliersRemoved: f.outliers_removed
                 })) || [];
 
                 // Calculate Jar Balances from Transactions
@@ -233,10 +261,11 @@ export const useStore = create<AppState>()(
                     return {
                         ...state,
                         products: mergedProducts,
-                        ingredients: mappedIngredients.length > 0 ? mappedIngredients : state.ingredients,
+                        ingredients: ingredients ? mappedIngredients : state.ingredients,
                         markets: markets || state.markets,
-                        transactions: mappedTransactions.length > 0 ? mappedTransactions : state.transactions,
-                        productSales: mappedProductSales.length > 0 ? mappedProductSales : state.productSales,
+                        transactions: transactions ? mappedTransactions : state.transactions,
+                        productSales: productSales ? mappedProductSales : state.productSales,
+                        productionForecasts: productionForecasts ? mappedProductionForecasts : state.productionForecasts,
                         jars: state.jars.map(jar => ({
                             ...jar,
                             balance: calculatedBalances[jar.id] || 0
@@ -1264,6 +1293,14 @@ export const useStore = create<AppState>()(
                 supabase
                     .channel('public:ingredients')
                     .on('postgres_changes', { event: '*', schema: 'public', table: 'ingredients' }, () => {
+                        fetchData();
+                    })
+                    .subscribe();
+
+                // Subscribe to Production Forecasts
+                supabase
+                    .channel('public:production_forecasts')
+                    .on('postgres_changes', { event: '*', schema: 'public', table: 'production_forecasts' }, () => {
                         fetchData();
                     })
                     .subscribe();
