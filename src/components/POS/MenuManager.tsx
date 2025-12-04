@@ -50,7 +50,7 @@ export const MenuManager: React.FC = () => {
         const finalCost = recipe ? recipe.costPerUnit : (Number(newProduct.cost) || (variants.length > 0 ? variants[0].cost : 0));
 
         addProduct({
-            id: Date.now().toString(36) + Math.random().toString(36).substr(2),
+            id: crypto.randomUUID(),
             name: newProduct.name,
             category: newProduct.category || 'Cake',
             flavor: newProduct.flavor || '',
