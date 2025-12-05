@@ -11,6 +11,7 @@ export interface CleanedSalesData {
     costPerUnit: number;
     daysAgo: number;
     isOutlier: boolean;
+    isSpecialEvent: boolean;
 }
 
 export interface DataCleaningResult {
@@ -27,14 +28,24 @@ export interface DataCleaningResult {
 }
 
 /**
+ * Check if a date is a Payday (25th-30th or 1st-5th)
+ */
+function isPayday(dateStr: string): boolean {
+    const date = new Date(dateStr);
+    const day = date.getDate();
+    return (day >= 25 && day <= 31) || (day >= 1 && day <= 5);
+}
+
+/**
  * STEP 1: Fetch and clean sales data for specific market and product
- * Applies IQR method to detect and handle outliers
+ * Applies IQR method to detect and handle outliers, but RESPECTS Paydays/Holidays
  */
 export async function fetchAndCleanData(
     productSales: ProductSaleLog[],
     marketId: string,
     productId: string,
     variantId?: string,
+    holidays: string[] = [], // List of holiday date strings (YYYY-MM-DD)
     maxHistoryDays: number = 180
 ): Promise<DataCleaningResult> {
     const today = new Date();
@@ -53,10 +64,11 @@ export async function fetchAndCleanData(
         throw new Error('No sales data found for this market-product combination');
     }
 
-    // Calculate days ago for each sale
+    // Calculate days ago and identify special events
     const salesWithDaysAgo = filteredSales.map(sale => {
         const saleDate = new Date(sale.saleDate);
         const daysAgo = Math.floor((today.getTime() - saleDate.getTime()) / (1000 * 60 * 60 * 24));
+        const isSpecial = isPayday(sale.saleDate) || holidays.includes(sale.saleDate);
 
         return {
             saleDate: sale.saleDate,
@@ -67,25 +79,33 @@ export async function fetchAndCleanData(
             pricePerUnit: sale.pricePerUnit,
             costPerUnit: sale.costPerUnit,
             daysAgo,
-            isOutlier: false
+            isOutlier: false,
+            isSpecialEvent: isSpecial
         };
     });
 
-    // Extract quantities for IQR analysis
-    const quantities = salesWithDaysAgo.map(s => s.quantitySold);
+    // Extract quantities for IQR analysis (ONLY from non-special days to establish baseline)
+    // If we include special days in IQR calc, they might skew the "normal" range
+    const normalQuantities = salesWithDaysAgo
+        .filter(s => !s.isSpecialEvent)
+        .map(s => s.quantitySold);
 
-    // Calculate IQR and detect outliers
-    const iqrStats = calculateIQR(quantities);
-    const outlierResult = removeOutliers(quantities);
+    // Fallback: If too few normal days, use all data
+    const quantitiesForStats = normalQuantities.length >= 5 ? normalQuantities : salesWithDaysAgo.map(s => s.quantitySold);
+
+    // Calculate IQR and detect outliers based on "Normal" days
+    const iqrStats = calculateIQR(quantitiesForStats);
 
     // Mark outliers and replace with median
-    const cleanedData = salesWithDaysAgo.map((sale, index) => {
-        const isOutlier = outlierResult.outliers.includes(quantities[index]);
+    // CRITICAL CHANGE: Do NOT mark as outlier if it is a Special Event
+    const cleanedData = salesWithDaysAgo.map((sale) => {
+        const isStatisticalOutlier = sale.quantitySold < iqrStats.lowerBound || sale.quantitySold > iqrStats.upperBound;
+        const isRealOutlier = isStatisticalOutlier && !sale.isSpecialEvent;
 
         return {
             ...sale,
-            qtyCleaned: isOutlier ? iqrStats.median : sale.quantitySold,
-            isOutlier
+            qtyCleaned: isRealOutlier ? iqrStats.median : sale.quantitySold,
+            isOutlier: isRealOutlier
         };
     });
 
@@ -93,8 +113,8 @@ export async function fetchAndCleanData(
         cleanedData,
         stats: {
             totalPoints: cleanedData.length,
-            outliersDetected: outlierResult.outliers.length,
-            outlierRate: outlierResult.outliers.length / cleanedData.length,
+            outliersDetected: cleanedData.filter(d => d.isOutlier).length,
+            outlierRate: cleanedData.filter(d => d.isOutlier).length / cleanedData.length,
             Q1: iqrStats.Q1,
             Q3: iqrStats.Q3,
             IQR: iqrStats.IQR,

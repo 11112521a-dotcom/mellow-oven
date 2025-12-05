@@ -1,9 +1,16 @@
-import { poissonCDF } from './statisticalUtils';
+import { poissonCDF, negativeBinomialCDF } from './statisticalUtils';
 
 export interface NewsvendorParams {
     sellingPrice: number;
     unitCost: number;
     disposalCost: number; // Cost to dispose waste (usually 0 or negative for salvage value)
+}
+
+export interface DistributionParams {
+    type: 'poisson' | 'negativeBinomial';
+    lambda?: number; // For Poisson
+    r?: number;      // For Negative Binomial
+    p?: number;      // For Negative Binomial
 }
 
 export interface NewsvendorResult {
@@ -32,21 +39,31 @@ export function calculateCriticalRatio(params: NewsvendorParams): number {
  * Q* is the quantity where P(Demand ≤ Q*) ≥ Critical Ratio
  */
 export function calculateOptimalQuantity(
-    lambda: number, // Expected demand (from Poisson λ)
+    distribution: DistributionParams,
     params: NewsvendorParams
 ): NewsvendorResult {
     const criticalRatio = calculateCriticalRatio(params);
 
-    // Find Q* using Poisson CDF
+    // Find Q* using CDF
     let Q = 0;
     let cumulativeProbability = 0;
 
-    // Iterate until we exceed the critical ratio
-    const maxIterations = Math.ceil(lambda * 3); // Safety limit
+    // Safety limit to prevent infinite loops
+    // Use lambda or r/p to estimate mean for safety limit
+    const estimatedMean = distribution.type === 'poisson'
+        ? (distribution.lambda || 10)
+        : (distribution.r && distribution.p ? (distribution.r * (1 - distribution.p) / distribution.p) : 10);
+
+    const maxIterations = Math.ceil(estimatedMean * 5) + 50;
 
     while (cumulativeProbability < criticalRatio && Q < maxIterations) {
         Q++;
-        cumulativeProbability = poissonCDF(Q, lambda);
+
+        if (distribution.type === 'poisson') {
+            cumulativeProbability = poissonCDF(Q, distribution.lambda || 0);
+        } else {
+            cumulativeProbability = negativeBinomialCDF(Q, distribution.r || 1, distribution.p || 0.5);
+        }
     }
 
     return {

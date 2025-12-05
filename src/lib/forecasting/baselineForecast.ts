@@ -1,18 +1,29 @@
 import { CleanedSalesData } from './dataRetrieval';
-import { weightedMovingAverage } from './statisticalUtils';
+import { holtWinters, weightedMovingAverage } from './statisticalUtils';
 
 /**
- * STEP 2: Calculate baseline forecast using Time-Decay Weighted Moving Average
- * Gives higher weight to recent sales visits
+ * STEP 2: Calculate baseline forecast using Holt-Winters Triple Exponential Smoothing
+ * Captures Level, Trend, and Weekly Seasonality
  */
 export function calculateBaselineForecast(
     data: CleanedSalesData[],
-    decayRate: number = 0.05
+    seasonLength: number = 7
 ): number {
     if (data.length === 0) return 0;
 
-    const quantities = data.map(d => d.qtyCleaned);
-    const daysAgo = data.map(d => d.daysAgo);
+    // Sort data by date ascending (oldest to newest) for Holt-Winters
+    const sortedData = [...data].sort((a, b) =>
+        new Date(a.saleDate).getTime() - new Date(b.saleDate).getTime()
+    );
 
-    return weightedMovingAverage(quantities, daysAgo, decayRate);
+    const quantities = sortedData.map(d => d.qtyCleaned);
+
+    // Use Holt-Winters if we have enough data (at least 2 seasons + 1)
+    // Otherwise fallback to Weighted Moving Average
+    if (quantities.length >= seasonLength * 2) {
+        return holtWinters(quantities, seasonLength);
+    } else {
+        const daysAgo = sortedData.map(d => d.daysAgo);
+        return weightedMovingAverage(quantities, daysAgo);
+    }
 }
