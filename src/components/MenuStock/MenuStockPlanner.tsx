@@ -92,6 +92,10 @@ export const MenuStockPlanner: React.FC = () => {
         value: number;
     } | null>(null);
 
+    // Bulk Fill State (for filling all variants at once)
+    const [bulkProduction, setBulkProduction] = useState<Record<string, number>>({});
+    const [bulkTransfer, setBulkTransfer] = useState<Record<string, number>>({});
+
     // Flatten products with variants into a single list
     const inventoryItems: InventoryItem[] = useMemo(() => {
         const items: InventoryItem[] = [];
@@ -286,6 +290,68 @@ export const MenuStockPlanner: React.FC = () => {
         setPendingTransfer({});
         await fetchDailyInventory(businessDate);
         setIsSaving(false);
+    };
+
+    // Bulk Production - Apply same production value to ALL variants of a product
+    const handleBulkProductionConfirm = async (productId: string, value: number) => {
+        if (value <= 0) return;
+
+        const items = inventoryItems.filter(i => i.productId === productId);
+
+        for (const item of items) {
+            const saved = getSavedRecord(item);
+            const stockYesterday = saved.stockYesterday ?? getYesterdayForItem(item);
+
+            await upsertDailyInventory({
+                businessDate,
+                productId: item.productId,
+                variantId: item.variantId,
+                variantName: item.isVariant ? item.name : undefined,
+                producedQty: (saved.producedQty || 0) + value,
+                toShopQty: saved.toShopQty || 0,
+                stockYesterday
+            });
+        }
+
+        // Clear bulk input
+        setBulkProduction(prev => {
+            const updated = { ...prev };
+            delete updated[productId];
+            return updated;
+        });
+
+        await fetchDailyInventory(businessDate);
+    };
+
+    // Bulk Transfer - Apply same transfer value to ALL variants of a product
+    const handleBulkTransferConfirm = async (productId: string, value: number) => {
+        if (value <= 0) return;
+
+        const items = inventoryItems.filter(i => i.productId === productId);
+
+        for (const item of items) {
+            const saved = getSavedRecord(item);
+            const stockYesterday = saved.stockYesterday ?? getYesterdayForItem(item);
+
+            await upsertDailyInventory({
+                businessDate,
+                productId: item.productId,
+                variantId: item.variantId,
+                variantName: item.isVariant ? item.name : undefined,
+                producedQty: saved.producedQty || 0,
+                toShopQty: (saved.toShopQty || 0) + value,
+                stockYesterday
+            });
+        }
+
+        // Clear bulk input
+        setBulkTransfer(prev => {
+            const updated = { ...prev };
+            delete updated[productId];
+            return updated;
+        });
+
+        await fetchDailyInventory(businessDate);
     };
 
     // Render individual item card
@@ -515,10 +581,71 @@ export const MenuStockPlanner: React.FC = () => {
                                 <div className="flex items-center gap-3">
                                     <Layers size={20} />
                                     <span className="font-bold text-lg">{product.name}</span>
-                                    <span className="bg-white/20 px-2 py-0.5 rounded-full text-sm">{items.length} variants</span>
+                                    <span className="bg-white/20 px-2 py-0.5 rounded-full text-sm">{items.length} ไส้</span>
                                 </div>
                                 {isExpanded ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
                             </button>
+
+                            {/* 🚀 BULK FILL ALL VARIANTS - Quick Actions */}
+                            <div className="bg-gradient-to-r from-purple-50 to-indigo-50 rounded-xl p-3 border border-purple-200">
+                                <div className="text-xs font-bold text-purple-700 mb-2 flex items-center gap-1">
+                                    <Sparkles size={14} />
+                                    กรอกทุกไส้พร้อมกัน (Quick Fill)
+                                </div>
+                                <div className="flex flex-wrap gap-2">
+                                    {/* Bulk Production */}
+                                    <div className="flex items-center gap-1 bg-blue-100 rounded-lg px-2 py-1">
+                                        <Flame size={14} className="text-blue-600" />
+                                        <input
+                                            type="number"
+                                            className="w-12 text-center text-sm font-bold bg-white border border-blue-200 rounded px-1"
+                                            placeholder="0"
+                                            value={bulkProduction[product.id] || ''}
+                                            onClick={e => e.stopPropagation()}
+                                            onChange={e => {
+                                                const val = Math.max(0, parseInt(e.target.value) || 0);
+                                                setBulkProduction(prev => ({ ...prev, [product.id]: val }));
+                                            }}
+                                        />
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleBulkProductionConfirm(product.id, bulkProduction[product.id] || 0);
+                                            }}
+                                            disabled={(bulkProduction[product.id] || 0) <= 0}
+                                            className="px-2 py-1 bg-blue-500 text-white text-xs rounded font-medium disabled:opacity-50"
+                                        >
+                                            ผลิตทั้งหมด
+                                        </button>
+                                    </div>
+
+                                    {/* Bulk Transfer */}
+                                    <div className="flex items-center gap-1 bg-violet-100 rounded-lg px-2 py-1">
+                                        <Truck size={14} className="text-violet-600" />
+                                        <input
+                                            type="number"
+                                            className="w-12 text-center text-sm font-bold bg-white border border-violet-200 rounded px-1"
+                                            placeholder="0"
+                                            value={bulkTransfer[product.id] || ''}
+                                            onClick={e => e.stopPropagation()}
+                                            onChange={e => {
+                                                const val = Math.max(0, parseInt(e.target.value) || 0);
+                                                setBulkTransfer(prev => ({ ...prev, [product.id]: val }));
+                                            }}
+                                        />
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleBulkTransferConfirm(product.id, bulkTransfer[product.id] || 0);
+                                            }}
+                                            disabled={(bulkTransfer[product.id] || 0) <= 0}
+                                            className="px-2 py-1 bg-violet-500 text-white text-xs rounded font-medium disabled:opacity-50"
+                                        >
+                                            ส่งทั้งหมด
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
 
                             {/* Variant Cards */}
                             {isExpanded && (
