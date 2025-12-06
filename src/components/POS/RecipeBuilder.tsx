@@ -11,7 +11,6 @@ interface RecipeBuilderProps {
 
 export const RecipeBuilder: React.FC<RecipeBuilderProps> = ({ product, onRecipeChange }) => {
     const { ingredients } = useStore();
-    console.log('RecipeBuilder Ingredients JSON:', JSON.stringify(ingredients, null, 2)); // DEBUG LOG
     const [yieldQty, setYieldQty] = useState<number>(1);
     const [items, setItems] = useState<RecipeItem[]>([]);
 

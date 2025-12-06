@@ -90,85 +90,233 @@ export const MenuManager: React.FC = () => {
     };
 
     return (
-        <div className="bg-white rounded-2xl shadow-sm border border-cafe-100 p-6">
-            <div className="flex justify-between items-center mb-6">
-                <h3 className="text-lg font-bold text-cafe-800">จัดการเมนู (Menu Management)</h3>
-                <button
-                    onClick={() => setIsModalOpen(true)}
-                    className="flex items-center gap-2 bg-cafe-600 text-white px-4 py-2 rounded-lg hover:bg-cafe-700 transition-colors"
-                >
-                    <Plus size={18} /> เพิ่มเมนูใหม่
-                </button>
+        <div className="bg-white rounded-2xl shadow-sm border border-cafe-100 overflow-hidden">
+            {/* Premium Header */}
+            <div className="bg-gradient-to-r from-cafe-100 via-amber-50 to-orange-50 p-6 border-b border-cafe-100">
+                <div className="flex justify-between items-center">
+                    <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 bg-gradient-to-br from-cafe-600 to-cafe-800 rounded-xl flex items-center justify-center text-white shadow-lg">
+                            🍰
+                        </div>
+                        <div>
+                            <h3 className="text-xl font-bold text-cafe-800 flex items-center gap-2">
+                                จัดการเมนู
+                                <span className="text-xs bg-cafe-600 text-white px-2 py-0.5 rounded-full font-medium">
+                                    {products.length} รายการ
+                                </span>
+                            </h3>
+                            <p className="text-sm text-cafe-500">Menu Management • เพิ่ม แก้ไข ลบสินค้า</p>
+                        </div>
+                    </div>
+                    <button
+                        onClick={() => setIsModalOpen(true)}
+                        className="flex items-center gap-2 bg-gradient-to-r from-cafe-600 to-cafe-800 text-white px-5 py-3 rounded-xl hover:shadow-xl hover:scale-105 transition-all duration-200 font-medium"
+                    >
+                        <Plus size={20} />
+                        <span>เพิ่มเมนูใหม่</span>
+                    </button>
+                </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {products.map((product) => (
-                    <div key={product.id} className="border border-cafe-100 rounded-xl p-4 hover:shadow-md transition-shadow relative">
-                        {/* Action buttons */}
-                        <div className="absolute top-3 right-3 flex gap-2">
-                            <button
-                                onClick={() => handleEditClick(product)}
-                                className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                                title="แก้ไข"
-                            >
-                                <Edit2 size={18} />
-                            </button>
-                            <button
-                                onClick={() => handleDeleteClick(product)}
-                                className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                                title="ลบเมนู"
-                            >
-                                <Trash2 size={18} />
-                            </button>
-                        </div>
+            {/* Body */}
+            <div className="p-6">
 
-                        <div className="flex gap-4">
-                            <div className="w-16 h-16 bg-cafe-100 rounded-lg flex items-center justify-center text-cafe-400">
-                                <ImageIcon size={24} />
-                            </div>
-                            <div className="flex-1">
-                                <h4 className="font-bold text-cafe-800">{product.name}</h4>
-                                <p className="text-xs text-cafe-500">{product.category} {product.flavor && `• ${product.flavor}`}</p>
-                                <div className="flex justify-between items-center mt-2">
-                                    <span className="text-cafe-600 font-medium">฿{product.price}</span>
-                                    <span className="text-xs text-cafe-400">ทุน: ฿{formatCurrency(product.cost)}</span>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {products.map((product) => (
+                        <div
+                            key={product.id}
+                            className="group bg-white rounded-2xl border border-cafe-100 overflow-hidden hover:shadow-xl hover:scale-[1.02] hover:border-cafe-300 transition-all duration-300"
+                        >
+                            {/* Card Header with Gradient */}
+                            <div className="relative bg-gradient-to-br from-cafe-100 via-amber-50 to-orange-50 p-4 border-b border-cafe-100">
+                                {/* Floating Action Buttons */}
+                                <div className="absolute top-3 right-3 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                                    <button
+                                        onClick={() => handleEditClick(product)}
+                                        className="p-2 bg-white/80 backdrop-blur text-blue-600 hover:bg-blue-500 hover:text-white rounded-lg transition-all shadow-sm"
+                                        title="แก้ไข"
+                                    >
+                                        <Edit2 size={16} />
+                                    </button>
+                                    <button
+                                        onClick={() => handleDeleteClick(product)}
+                                        className="p-2 bg-white/80 backdrop-blur text-red-500 hover:bg-red-500 hover:text-white rounded-lg transition-all shadow-sm"
+                                        title="ลบเมนู"
+                                    >
+                                        <Trash2 size={16} />
+                                    </button>
                                 </div>
-                                {product.recipe && (
-                                    <div className="mt-2 text-xs text-green-600 bg-green-50 px-2 py-1 rounded inline-block">
-                                        ✅ มีสูตรผลิต
+
+                                {/* Product Icon */}
+                                <div className="w-14 h-14 bg-gradient-to-br from-cafe-500 to-cafe-700 rounded-xl flex items-center justify-center text-white shadow-lg group-hover:scale-110 transition-transform duration-300">
+                                    <ImageIcon size={24} />
+                                </div>
+
+                                {/* Badges */}
+                                <div className="absolute top-3 left-3 flex flex-col gap-1">
+                                    {product.recipe && (
+                                        <span className="text-[10px] bg-emerald-500 text-white px-2 py-0.5 rounded-full font-medium shadow-sm">
+                                            📋 มีสูตร
+                                        </span>
+                                    )}
+                                    {product.variants && product.variants.length > 0 && (
+                                        <span className="text-[10px] bg-blue-500 text-white px-2 py-0.5 rounded-full font-medium shadow-sm">
+                                            🎨 {product.variants.length} ตัวเลือก
+                                        </span>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Card Body */}
+                            <div className="p-4 space-y-3">
+                                {/* Name & Category */}
+                                <div>
+                                    <h4 className="font-bold text-lg text-cafe-800 group-hover:text-cafe-600 transition-colors">
+                                        {product.name}
+                                    </h4>
+                                    <p className="text-xs text-cafe-500 flex items-center gap-1">
+                                        <span className="bg-cafe-100 px-2 py-0.5 rounded-full">{product.category}</span>
+                                        {product.flavor && (
+                                            <>
+                                                <span>•</span>
+                                                <span className="text-cafe-400">{product.flavor}</span>
+                                            </>
+                                        )}
+                                    </p>
+                                </div>
+
+                                {/* Variants Pills */}
+                                {product.variants && product.variants.length > 0 && (
+                                    <div className="flex flex-wrap gap-1.5">
+                                        {product.variants.slice(0, 4).map((variant, idx) => (
+                                            <span
+                                                key={variant.id || idx}
+                                                className="text-[11px] bg-gradient-to-r from-blue-50 to-indigo-50 text-blue-700 border border-blue-200 px-2 py-1 rounded-lg font-medium hover:scale-105 transition-transform cursor-default"
+                                            >
+                                                {variant.name}
+                                                <span className="text-blue-500 ml-1">฿{variant.price}</span>
+                                            </span>
+                                        ))}
+                                        {product.variants.length > 4 && (
+                                            <span className="text-[11px] bg-gray-100 text-gray-600 px-2 py-1 rounded-lg">
+                                                +{product.variants.length - 4} อื่นๆ
+                                            </span>
+                                        )}
+                                    </div>
+                                )}
+
+                                {/* Price & Cost */}
+                                <div className="flex justify-between items-end pt-2 border-t border-dashed border-cafe-100">
+                                    <div>
+                                        <span className="text-xs text-cafe-400 block">ราคาขาย</span>
+                                        <span className="text-xl font-black text-cafe-700">฿{product.price}</span>
+                                    </div>
+                                    <div className="text-right">
+                                        <span className="text-xs text-cafe-400 block">ต้นทุน</span>
+                                        <span className="text-sm font-medium text-cafe-500">฿{formatCurrency(product.cost)}</span>
+                                    </div>
+                                </div>
+
+                                {/* Profit Indicator */}
+                                {product.price > 0 && product.cost > 0 && (
+                                    <div className="bg-gradient-to-r from-emerald-50 to-green-50 rounded-lg p-2 flex justify-between items-center">
+                                        <span className="text-[11px] text-emerald-600 font-medium">💰 กำไร/ชิ้น</span>
+                                        <span className="text-sm font-bold text-emerald-700">
+                                            ฿{formatCurrency(product.price - product.cost)}
+                                            <span className="text-[10px] text-emerald-500 ml-1">
+                                                ({Math.round(((product.price - product.cost) / product.price) * 100)}%)
+                                            </span>
+                                        </span>
                                     </div>
                                 )}
                             </div>
                         </div>
-                    </div>
-                ))}
+                    ))}
+                </div>
             </div>
 
-            <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="เพิ่มเมนูใหม่">
+            <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="✨ เพิ่มเมนูใหม่">
                 <form onSubmit={handleSubmit} className="space-y-4">
-                    {/* Tabs */}
-                    <div className="flex border-b border-cafe-200 mb-4">
-                        <button
-                            type="button"
-                            onClick={() => setActiveTab('INFO')}
-                            className={`px-4 py-2 text-sm font-medium ${activeTab === 'INFO' ? 'text-cafe-800 border-b-2 border-cafe-800' : 'text-cafe-500'}`}
-                        >
-                            ข้อมูลทั่วไป
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => setActiveTab('VARIANTS')}
-                            className={`px-4 py-2 text-sm font-medium ${activeTab === 'VARIANTS' ? 'text-cafe-800 border-b-2 border-cafe-800' : 'text-cafe-500'}`}
-                        >
-                            ตัวเลือก (Variants)
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => setActiveTab('RECIPE')}
-                            className={`px-4 py-2 text-sm font-medium ${activeTab === 'RECIPE' ? 'text-cafe-800 border-b-2 border-cafe-800' : 'text-cafe-500'}`}
-                        >
-                            สูตรผลิต (Base Recipe)
-                        </button>
+                    {/* Premium Step Wizard Tabs */}
+                    <div className="bg-gradient-to-r from-cafe-50 to-amber-50 rounded-2xl p-4 mb-6">
+                        <div className="flex items-center justify-between">
+                            {/* Step 1 - Info */}
+                            <button
+                                type="button"
+                                onClick={() => setActiveTab('INFO')}
+                                className={`flex-1 flex flex-col items-center gap-1 p-3 rounded-xl transition-all ${activeTab === 'INFO'
+                                    ? 'bg-white shadow-lg scale-105'
+                                    : 'hover:bg-white/50'
+                                    }`}
+                            >
+                                <div className={`w-10 h-10 rounded-full flex items-center justify-center text-lg font-bold ${activeTab === 'INFO'
+                                    ? 'bg-gradient-to-br from-cafe-600 to-cafe-800 text-white'
+                                    : 'bg-cafe-100 text-cafe-500'
+                                    }`}>
+                                    📝
+                                </div>
+                                <span className={`text-xs font-bold ${activeTab === 'INFO' ? 'text-cafe-800' : 'text-cafe-500'}`}>
+                                    ข้อมูลทั่วไป
+                                </span>
+                                <span className="text-[10px] text-cafe-400">ชื่อ • หมวด • ราคา</span>
+                            </button>
+
+                            {/* Connector */}
+                            <div className="w-8 h-0.5 bg-cafe-200 -translate-y-2"></div>
+
+                            {/* Step 2 - Variants */}
+                            <button
+                                type="button"
+                                onClick={() => setActiveTab('VARIANTS')}
+                                className={`flex-1 flex flex-col items-center gap-1 p-3 rounded-xl transition-all ${activeTab === 'VARIANTS'
+                                    ? 'bg-white shadow-lg scale-105'
+                                    : 'hover:bg-white/50'
+                                    }`}
+                            >
+                                <div className={`w-10 h-10 rounded-full flex items-center justify-center text-lg font-bold ${activeTab === 'VARIANTS'
+                                    ? 'bg-gradient-to-br from-blue-500 to-indigo-600 text-white'
+                                    : 'bg-blue-50 text-blue-400'
+                                    }`}>
+                                    🎨
+                                </div>
+                                <span className={`text-xs font-bold ${activeTab === 'VARIANTS' ? 'text-blue-700' : 'text-cafe-500'}`}>
+                                    ตัวเลือก
+                                </span>
+                                <span className="text-[10px] text-cafe-400">รสชาติ • ขนาด</span>
+                                {variants.length > 0 && (
+                                    <span className="absolute -top-1 -right-1 bg-blue-500 text-white text-xs w-5 h-5 rounded-full flex items-center justify-center">
+                                        {variants.length}
+                                    </span>
+                                )}
+                            </button>
+
+                            {/* Connector */}
+                            <div className="w-8 h-0.5 bg-cafe-200 -translate-y-2"></div>
+
+                            {/* Step 3 - Recipe */}
+                            <button
+                                type="button"
+                                onClick={() => setActiveTab('RECIPE')}
+                                className={`flex-1 flex flex-col items-center gap-1 p-3 rounded-xl transition-all ${activeTab === 'RECIPE'
+                                    ? 'bg-white shadow-lg scale-105'
+                                    : 'hover:bg-white/50'
+                                    }`}
+                            >
+                                <div className={`w-10 h-10 rounded-full flex items-center justify-center text-lg font-bold ${activeTab === 'RECIPE'
+                                    ? 'bg-gradient-to-br from-emerald-500 to-green-600 text-white'
+                                    : 'bg-green-50 text-green-400'
+                                    }`}>
+                                    📋
+                                </div>
+                                <span className={`text-xs font-bold ${activeTab === 'RECIPE' ? 'text-green-700' : 'text-cafe-500'}`}>
+                                    สูตรผลิต
+                                </span>
+                                <span className="text-[10px] text-cafe-400">วัตถุดิบ • ต้นทุน</span>
+                                {recipe && (
+                                    <span className="text-green-500 text-xs">✅</span>
+                                )}
+                            </button>
+                        </div>
                     </div>
 
                     {activeTab === 'INFO' ? (

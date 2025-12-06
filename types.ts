@@ -225,11 +225,30 @@ export interface AllocationProfile {
   };
 }
 
-// Authentication Types
 export interface UserProfile {
   id: string;
   email: string;
   fullName: string;
   role: 'owner' | 'staff';
   updatedAt: string;
+}
+
+// Daily Inventory (Stock ↔ Sales Integration)
+export interface DailyInventory {
+  id: string;
+  createdAt: string;
+  businessDate: string; // YYYY-MM-DD
+  productId: string;
+  variantId?: string;    // NEW: Optional for variant-level tracking
+  variantName?: string;  // NEW: Snapshot for historical accuracy
+
+  // Input Fields
+  producedQty: number;
+  toShopQty: number;
+  soldQty: number;
+
+  // Calculated/Denormalized
+  stockYesterday: number;
+  leftoverHome: number;  // = stockYesterday + produced - toShop
+  unsoldShop: number;    // = toShop - sold
 }

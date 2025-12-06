@@ -76,7 +76,12 @@ export const ProductionPlanner: React.FC = () => {
             let matchCount = 0;
 
             forecasts.forEach(f => {
-                const actual = sales.find(s => s.productId === f.productId);
+                // FIX: Match by productId OR variantId (forecast productId could be either)
+                const actual = sales.find(s =>
+                    s.productId === f.productId ||
+                    s.variantId === f.productId ||
+                    s.productName === f.productName // Fallback to name match
+                );
                 if (actual) {
                     totalForecastQty += f.optimalQuantity;
                     totalActualQty += actual.quantitySold;
@@ -97,7 +102,15 @@ export const ProductionPlanner: React.FC = () => {
             };
         }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()); // Newest first
 
-        return comparisons;
+        // 3. Calculate overall summary
+        const totalDays = comparisons.length;
+        const daysWithData = comparisons.filter(c => c.matchCount > 0).length;
+        const overallAccuracy = daysWithData > 0
+            ? comparisons.filter(c => c.matchCount > 0).reduce((sum, c) => sum + c.accuracy, 0) / daysWithData
+            : 0;
+        const totalForecasts = comparisons.reduce((sum, c) => sum + c.forecasts.length, 0);
+
+        return { comparisons, summary: { totalDays, daysWithData, overallAccuracy, totalForecasts } };
     }, [activeTab, productionForecasts, productSales]);
 
     // Auto-Calculate Logic
@@ -220,7 +233,7 @@ export const ProductionPlanner: React.FC = () => {
                         onClick={() => setActiveTab('accuracy')}
                         className={`px-4 py-2 rounded-md text-sm font-semibold transition-all whitespace-nowrap ${activeTab === 'accuracy' ? 'bg-white text-cafe-800 shadow-sm' : 'text-cafe-500 hover:text-cafe-800'}`}
                     >
-                        🎯 ความแม่นยำ (Beta)
+                        🎯 ความแม่นยำ
                     </button>
                 </div>
             </div>
@@ -547,7 +560,45 @@ export const ProductionPlanner: React.FC = () => {
             ) : (
                 // Accuracy Tab Content
                 <div className="space-y-6 animate-in fade-in">
-                    {accuracyData?.map((data) => (
+                    {/* Summary Card */}
+                    {accuracyData?.summary && (
+                        <div className="bg-gradient-to-br from-purple-600 via-purple-700 to-indigo-800 rounded-2xl p-6 text-white shadow-xl">
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+                                <div className="text-center">
+                                    <div className="text-4xl font-black mb-1">
+                                        {accuracyData.summary.overallAccuracy.toFixed(1)}%
+                                    </div>
+                                    <div className="text-purple-200 text-sm">ความแม่นยำโดยรวม</div>
+                                </div>
+                                <div className="text-center">
+                                    <div className="text-4xl font-black mb-1">
+                                        {accuracyData.summary.totalDays}
+                                    </div>
+                                    <div className="text-purple-200 text-sm">วันที่บันทึกแผน</div>
+                                </div>
+                                <div className="text-center">
+                                    <div className="text-4xl font-black mb-1">
+                                        {accuracyData.summary.daysWithData}
+                                    </div>
+                                    <div className="text-purple-200 text-sm">วันที่มียอดขายจริง</div>
+                                </div>
+                                <div className="text-center">
+                                    <div className="text-4xl font-black mb-1">
+                                        {accuracyData.summary.totalForecasts}
+                                    </div>
+                                    <div className="text-purple-200 text-sm">รายการที่วางแผน</div>
+                                </div>
+                            </div>
+                            {accuracyData.summary.overallAccuracy >= 80 && (
+                                <div className="mt-4 text-center bg-white/10 rounded-lg p-3">
+                                    🎯 ยอดเยี่ยม! การพยากรณ์แม่นยำมาก
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {/* Daily Comparisons */}
+                    {accuracyData?.comparisons.map((data) => (
                         <div key={data.date} className="bg-white border border-cafe-200 rounded-xl p-6 shadow-sm">
                             <div className="flex justify-between items-center mb-6">
                                 <div>
@@ -559,10 +610,10 @@ export const ProductionPlanner: React.FC = () => {
                                     </p>
                                 </div>
                                 <div className="text-right">
-                                    <div className="text-3xl font-black text-purple-600">
+                                    <div className={`text-3xl font-black ${data.accuracy >= 80 ? 'text-green-600' : data.accuracy >= 50 ? 'text-yellow-600' : 'text-red-500'}`}>
                                         {data.accuracy.toFixed(1)}%
                                     </div>
-                                    <div className="text-xs text-cafe-500">ความแม่นยำรวม</div>
+                                    <div className="text-xs text-cafe-500">ความแม่นยำ</div>
                                 </div>
                             </div>
 
@@ -571,13 +622,18 @@ export const ProductionPlanner: React.FC = () => {
                                 <ResponsiveContainer width="100%" height="100%">
                                     <BarChart
                                         data={data.forecasts.map(f => {
-                                            const actual = data.sales.find(s => s.productId === f.productId);
+                                            // Use same matching logic as calculation
+                                            const actual = data.sales.find(s =>
+                                                s.productId === f.productId ||
+                                                s.variantId === f.productId ||
+                                                s.productName === f.productName
+                                            );
                                             return {
                                                 name: f.productName,
                                                 Plan: f.optimalQuantity,
                                                 Actual: actual?.quantitySold || 0
                                             };
-                                        }).slice(0, 10)} // Show top 10 for readability
+                                        }).slice(0, 10)}
                                         margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
                                     >
                                         <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
@@ -606,7 +662,12 @@ export const ProductionPlanner: React.FC = () => {
                                     </thead>
                                     <tbody className="divide-y divide-cafe-100">
                                         {data.forecasts.map(f => {
-                                            const actual = data.sales.find(s => s.productId === f.productId);
+                                            // Use same matching logic
+                                            const actual = data.sales.find(s =>
+                                                s.productId === f.productId ||
+                                                s.variantId === f.productId ||
+                                                s.productName === f.productName
+                                            );
                                             const actualQty = actual?.quantitySold || 0;
                                             const diff = actualQty - f.optimalQuantity;
 
@@ -630,11 +691,31 @@ export const ProductionPlanner: React.FC = () => {
                         </div>
                     ))}
 
-                    {accuracyData?.length === 0 && (
-                        <div className="text-center py-12 text-cafe-400 bg-cafe-50 rounded-xl border-2 border-dashed border-cafe-200">
-                            <Target size={48} className="mx-auto mb-4 opacity-50" />
-                            <p className="text-lg font-semibold text-cafe-600">ยังไม่มีข้อมูลเปรียบเทียบ</p>
-                            <p className="text-sm mt-2">ต้องมีการบันทึกแผนการผลิต และมียอดขายจริงในวันเดียวกันก่อน</p>
+                    {/* Improved Empty State */}
+                    {(!accuracyData?.comparisons || accuracyData.comparisons.length === 0) && (
+                        <div className="bg-gradient-to-br from-cafe-50 to-purple-50 rounded-2xl border-2 border-dashed border-cafe-200 p-8">
+                            <div className="text-center">
+                                <Target size={64} className="mx-auto mb-4 text-purple-400" />
+                                <h3 className="text-xl font-bold text-cafe-800 mb-2">เริ่มวัดความแม่นยำ</h3>
+                                <p className="text-cafe-600 mb-6">ทำตาม 3 ขั้นตอนนี้:</p>
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 max-w-2xl mx-auto">
+                                    <div className="bg-white rounded-xl p-4 border border-cafe-100">
+                                        <div className="text-2xl mb-2">📅</div>
+                                        <div className="font-bold text-cafe-800">1. วางแผน</div>
+                                        <div className="text-sm text-cafe-500">ไปที่ tab "แผนการผลิต" แล้วบันทึกแผน</div>
+                                    </div>
+                                    <div className="bg-white rounded-xl p-4 border border-cafe-100">
+                                        <div className="text-2xl mb-2">📝</div>
+                                        <div className="font-bold text-cafe-800">2. บันทึกยอดขาย</div>
+                                        <div className="text-sm text-cafe-500">เมื่อถึงวันนั้น บันทึกยอดขายจริง</div>
+                                    </div>
+                                    <div className="bg-white rounded-xl p-4 border border-cafe-100">
+                                        <div className="text-2xl mb-2">📊</div>
+                                        <div className="font-bold text-cafe-800">3. ดูผลลัพธ์</div>
+                                        <div className="text-sm text-cafe-500">กลับมาดูความแม่นยำที่นี่</div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     )}
                 </div>

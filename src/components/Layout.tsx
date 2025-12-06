@@ -17,6 +17,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, activeTab, onTabChange
         { id: 'dashboard', label: 'ภาพรวม', icon: LayoutDashboard },
         { id: 'sales', label: 'ขายหน้าร้าน', icon: ShoppingBag },
         { id: 'salesreport', label: 'รายงานการขาย', icon: TrendingUp },
+        { id: 'menustock', label: 'สต็อกเมนู', icon: Package },
         { id: 'production', label: 'การผลิต (AI)', icon: TrendingUp },
         { id: 'inventory', label: 'สต็อก & จัดซื้อ', icon: Package },
         { id: 'financials', label: 'การเงิน', icon: Wallet },
@@ -64,14 +65,17 @@ export const Layout: React.FC<LayoutProps> = ({ children, activeTab, onTabChange
                             key={item.id}
                             onClick={() => handleTabChange(item.id)}
                             className={cn(
-                                "w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200",
+                                "w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 relative",
                                 activeTab === item.id
-                                    ? "bg-cafe-100 text-cafe-800 font-medium shadow-sm"
-                                    : "text-cafe-500 hover:bg-cafe-50 hover:text-cafe-700"
+                                    ? "bg-cafe-100 text-cafe-800 font-semibold shadow-sm border-l-4 border-l-cafe-600 pl-3"
+                                    : "text-cafe-500 hover:bg-cafe-50 hover:text-cafe-700 border-l-4 border-l-transparent"
                             )}
                         >
-                            <item.icon size={20} />
+                            <item.icon size={20} className={activeTab === item.id ? "text-cafe-600" : ""} />
                             {item.label}
+                            {activeTab === item.id && (
+                                <span className="absolute right-3 w-2 h-2 bg-cafe-500 rounded-full animate-pulse" />
+                            )}
                         </button>
                     ))}
                 </nav>

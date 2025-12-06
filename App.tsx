@@ -8,6 +8,7 @@ import Sales from './pages/Sales';
 import Production from './pages/Production';
 import Inventory from './pages/Inventory';
 import SalesReport from './pages/SalesReport';
+import MenuStock from './pages/MenuStock';
 import { Loader2 } from 'lucide-react';
 
 const App: React.FC = () => {
@@ -49,8 +50,6 @@ const App: React.FC = () => {
   if (!session) {
     return <Login />;
   }
-
-  // Role-Based Access Control
   const renderContent = () => {
     switch (activeTab) {
       case 'dashboard': return <Dashboard onNavigate={setActiveTab} />;
@@ -58,6 +57,7 @@ const App: React.FC = () => {
         return userRole === 'owner' ? <Financials /> : <div className="p-8 text-center text-cafe-500">Access Denied</div>;
       case 'sales': return <Sales />;
       case 'salesreport': return <SalesReport />;
+      case 'menustock': return <MenuStock />;
       case 'production':
         return userRole === 'owner' ? <Production /> : <div className="p-8 text-center text-cafe-500">Access Denied</div>;
       case 'inventory': return <Inventory />;

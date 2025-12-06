@@ -4,6 +4,8 @@ import { calculateBaselineForecast } from './baselineForecast';
 import { calculateWeatherImpact, applyWeatherAdjustment, WeatherCondition } from './weatherAdjustment';
 import { calculateOptimalQuantity, NewsvendorParams, DistributionParams } from './newsvendorModel';
 import { poissonCDF, calculateMean, calculateVariance, negativeBinomialCDF } from './statisticalUtils';
+export { calculateDailyProduction, runBatchCalculatorTests, calculateStockTransfer, runStockTransferTests, runAllProductionTests } from './batchCalculator';
+export type { BatchCalculationInput, BatchCalculationResult, StockTransferInput, StockTransferResult } from './batchCalculator';
 
 export interface ForecastInput {
     marketId: string;

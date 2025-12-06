@@ -3,9 +3,9 @@ import { useStore } from '@/src/store';
 import { formatCurrency } from '@/src/lib/utils';
 import {
     TrendingUp,
+    TrendingDown,
     DollarSign,
     Package,
-    ArrowLeft,
     Calendar,
     BarChart3,
     Percent,
@@ -14,11 +14,23 @@ import {
     ChevronDown,
     ChevronUp,
     Save,
-    X
+    X,
+    Sparkles,
+    Store,
+    Clock,
+    Award,
+    Zap,
+    Target,
+    Activity,
+    Trash2
 } from 'lucide-react';
 import { RevenueTrendChart } from '@/src/components/SalesReport/RevenueTrendChart';
 import { TopProductsChart } from '@/src/components/SalesReport/TopProductsChart';
 import { MarketComparisonChart } from '@/src/components/SalesReport/MarketComparisonChart';
+import { DayOfWeekChart } from '@/src/components/SalesReport/DayOfWeekChart';
+import { WasteSummaryCard } from '@/src/components/SalesReport/WasteSummaryCard';
+import { WeatherAnalysisCard, getWeatherIcon } from '@/src/components/SalesReport/WeatherAnalysisCard';
+import { ExportPDFButton } from '@/src/components/SalesReport/ExportPDFButton';
 import { Modal } from '@/src/components/ui/Modal';
 import { NumberInput } from '@/src/components/ui/NumberInput';
 
@@ -33,16 +45,12 @@ const EditSalesModal: React.FC<EditSalesModalProps> = ({ isOpen, onClose, saleDa
     const [quantity, setQuantity] = useState(0);
 
     React.useEffect(() => {
-        if (saleData) {
-            setQuantity(saleData.quantity);
-        }
+        if (saleData) setQuantity(saleData.quantity);
     }, [saleData]);
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        if (saleData) {
-            onSave(saleData.id, quantity);
-        }
+        if (saleData) onSave(saleData.id, quantity);
     };
 
     if (!saleData) return null;
@@ -50,40 +58,27 @@ const EditSalesModal: React.FC<EditSalesModalProps> = ({ isOpen, onClose, saleDa
     return (
         <Modal isOpen={isOpen} onClose={onClose} title="แก้ไขยอดขาย">
             <form onSubmit={handleSubmit} className="space-y-4">
-                <div className="bg-cafe-50 p-4 rounded-lg mb-4">
-                    <div className="text-sm text-cafe-500 mb-1">วันที่</div>
+                <div className="bg-gradient-to-r from-cafe-50 to-amber-50 p-4 rounded-xl border border-cafe-100">
+                    <div className="text-sm text-cafe-500 mb-1">📅 วันที่</div>
                     <div className="font-bold text-cafe-900">
-                        {new Date(saleData.date).toLocaleDateString('th-TH', {
-                            day: 'numeric',
-                            month: 'long',
-                            year: 'numeric'
-                        })}
+                        {new Date(saleData.date).toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' })}
                     </div>
                 </div>
-
                 <div>
-                    <label className="block text-sm font-medium text-cafe-700 mb-1">จำนวนที่ขาย (ชิ้น)</label>
+                    <label className="block text-sm font-medium text-cafe-700 mb-2">จำนวนที่ขาย (ชิ้น)</label>
                     <NumberInput
                         value={quantity}
                         onChange={setQuantity}
-                        className="w-full p-2 border border-cafe-200 rounded-lg"
+                        className="w-full p-3 border-2 border-cafe-200 rounded-xl focus:border-cafe-500 focus:ring-2 focus:ring-cafe-200"
                         min={0}
                     />
                 </div>
-
-                <div className="flex justify-end gap-3 mt-6">
-                    <button
-                        type="button"
-                        onClick={onClose}
-                        className="px-4 py-2 text-cafe-600 hover:bg-cafe-100 rounded-lg transition-colors"
-                    >
-                        ยกเลิก
+                <div className="flex gap-3 pt-4">
+                    <button type="button" onClick={onClose} className="flex-1 px-4 py-3 bg-gray-100 hover:bg-gray-200 rounded-xl font-medium transition-colors flex items-center justify-center gap-2">
+                        <X size={18} /> ยกเลิก
                     </button>
-                    <button
-                        type="submit"
-                        className="px-4 py-2 bg-cafe-600 text-white rounded-lg hover:bg-cafe-700 transition-colors"
-                    >
-                        บันทึก
+                    <button type="submit" className="flex-1 px-4 py-3 bg-gradient-to-r from-cafe-600 to-cafe-800 text-white rounded-xl font-medium hover:shadow-lg transition-all flex items-center justify-center gap-2">
+                        <Save size={18} /> บันทึก
                     </button>
                 </div>
             </form>
@@ -91,25 +86,53 @@ const EditSalesModal: React.FC<EditSalesModalProps> = ({ isOpen, onClose, saleDa
     );
 };
 
+// Premium Stat Card Component with Growth Indicator
+const StatCard: React.FC<{
+    icon: React.ReactNode;
+    label: string;
+    value: string | number;
+    subValue?: string;
+    gradient: string;
+    delay?: number;
+    growth?: number; // NEW: Growth percentage
+}> = ({ icon, label, value, subValue, gradient, delay = 0, growth }) => (
+    <div
+        className={`relative overflow-hidden bg-gradient-to-br ${gradient} text-white rounded-2xl shadow-lg p-5 transform hover:scale-105 hover:-translate-y-1 transition-all duration-300 hover:shadow-xl`}
+        style={{ animationDelay: `${delay}ms` }}
+    >
+        <div className="absolute top-0 right-0 w-20 h-20 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2" />
+        <div className="absolute bottom-0 left-0 w-12 h-12 bg-white/5 rounded-full translate-y-1/2 -translate-x-1/2" />
+
+        {/* Growth Badge */}
+        {growth !== undefined && growth !== 0 && (
+            <div className={`absolute top-3 right-3 flex items-center gap-1 px-2 py-1 rounded-full text-xs font-bold ${growth > 0 ? 'bg-green-400/30 text-green-100' : 'bg-red-400/30 text-red-100'}`}>
+                {growth > 0 ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
+                {growth > 0 ? '+' : ''}{growth.toFixed(1)}%
+            </div>
+        )}
+
+        <div className="relative">
+            <div className="opacity-80 mb-2">{icon}</div>
+            <p className="text-white/70 text-xs mb-1">{label}</p>
+            <p className="text-2xl font-bold">{value}</p>
+            {subValue && <p className="text-xs text-white/60 mt-1">{subValue}</p>}
+        </div>
+    </div>
+);
+
 export const SalesReport: React.FC = () => {
     const { productSales, markets, products, updateProductSaleLog } = useStore();
 
-    // Filter State - Default to TODAY
-    const [datePreset, setDatePreset] = useState<'today' | 'yesterday' | 'week' | 'month' | 'custom'>('today');
+    const [datePreset, setDatePreset] = useState<'today' | 'yesterday' | 'thisWeek' | 'lastWeek' | 'thisMonth' | 'lastMonth' | '3months' | '6months' | 'thisYear' | 'custom'>('thisMonth');
     const [startDate, setStartDate] = useState(() => {
-        return new Date().toISOString().split('T')[0];
+        const now = new Date();
+        return new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
     });
     const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]);
     const [selectedMarket, setSelectedMarket] = useState<string>('all');
-
-    // Chart Toggle States
     const [topProductsMode, setTopProductsMode] = useState<'quantity' | 'revenue' | 'profit'>('revenue');
     const [marketComparisonMode, setMarketComparisonMode] = useState<'revenue' | 'profit' | 'quantity'>('revenue');
-
-    // Expanded row state
     const [expandedProduct, setExpandedProduct] = useState<string | null>(null);
-
-    // Edit Modal State
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [editingSale, setEditingSale] = useState<any>(null);
 
@@ -120,58 +143,72 @@ export const SalesReport: React.FC = () => {
 
     const handleSaveEdit = async (id: string, newQuantity: number) => {
         if (!editingSale) return;
-
-        // Find the original report to get the price/cost info for recalculation
         const product = products.find(p => p.id === editingSale.productId);
         let defaultPrice = product?.price || 0;
         let defaultCost = product?.cost || 0;
-
         if (editingSale.variantId && product?.variants) {
             const variant = product.variants.find(v => v.id === editingSale.variantId);
-            if (variant) {
-                defaultPrice = variant.price;
-                defaultCost = variant.cost;
-            }
+            if (variant) { defaultPrice = variant.price; defaultCost = variant.cost; }
         }
-
-        // Calculate from the existing sale data or product defaults
         const pricePerUnit = editingSale.quantity > 0 ? editingSale.revenue / editingSale.quantity : defaultPrice;
         const costPerUnit = editingSale.quantity > 0 ? editingSale.cost / editingSale.quantity : defaultCost;
-
-        const newRevenue = newQuantity * pricePerUnit;
-        const newCost = newQuantity * costPerUnit;
-        const newProfit = newRevenue - newCost;
-
         await updateProductSaleLog(id, {
             quantitySold: newQuantity,
-            totalRevenue: newRevenue,
-            totalCost: newCost,
-            grossProfit: newProfit
+            totalRevenue: newQuantity * pricePerUnit,
+            totalCost: newQuantity * costPerUnit,
+            grossProfit: newQuantity * (pricePerUnit - costPerUnit)
         });
-
         setIsEditModalOpen(false);
         setEditingSale(null);
     };
 
-    // Apply Date Preset
     const applyDatePreset = (preset: typeof datePreset) => {
-        const today = new Date();
-        let start = new Date();
-        let end = new Date();
+        const now = new Date();
+        let start = new Date(), end = new Date();
 
         switch (preset) {
             case 'today':
-                start = end = today;
+                start = end = new Date();
                 break;
             case 'yesterday':
-                start = end = new Date(today.setDate(today.getDate() - 1));
+                start = end = new Date(now.getTime() - 24 * 60 * 60 * 1000);
                 break;
-            case 'week':
-                start = new Date(today.setDate(today.getDate() - 7));
+            case 'thisWeek': {
+                // Start of this week (Monday)
+                const dayOfWeek = now.getDay();
+                const diff = dayOfWeek === 0 ? 6 : dayOfWeek - 1; // Monday = 0
+                start = new Date(now.getTime() - diff * 24 * 60 * 60 * 1000);
                 end = new Date();
                 break;
-            case 'month':
-                start = new Date(today.setMonth(today.getMonth() - 1));
+            }
+            case 'lastWeek': {
+                // Last week (Mon-Sun)
+                const dayOfWeek = now.getDay();
+                const diff = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+                const thisMonday = new Date(now.getTime() - diff * 24 * 60 * 60 * 1000);
+                start = new Date(thisMonday.getTime() - 7 * 24 * 60 * 60 * 1000);
+                end = new Date(thisMonday.getTime() - 24 * 60 * 60 * 1000);
+                break;
+            }
+            case 'thisMonth':
+                start = new Date(now.getFullYear(), now.getMonth(), 1);
+                end = new Date();
+                break;
+            case 'lastMonth': {
+                start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+                end = new Date(now.getFullYear(), now.getMonth(), 0); // Last day of prev month
+                break;
+            }
+            case '3months':
+                start = new Date(now.getFullYear(), now.getMonth() - 2, 1);
+                end = new Date();
+                break;
+            case '6months':
+                start = new Date(now.getFullYear(), now.getMonth() - 5, 1);
+                end = new Date();
+                break;
+            case 'thisYear':
+                start = new Date(now.getFullYear(), 0, 1);
                 end = new Date();
                 break;
         }
@@ -183,7 +220,6 @@ export const SalesReport: React.FC = () => {
         setDatePreset(preset);
     };
 
-    // Filter Sales Data
     const filteredSales = useMemo(() => {
         return productSales.filter(sale => {
             const matchDate = sale.saleDate >= startDate && sale.saleDate <= endDate;
@@ -192,45 +228,35 @@ export const SalesReport: React.FC = () => {
         });
     }, [productSales, startDate, endDate, selectedMarket]);
 
-    // Calculate Summary
     const summary = useMemo(() => {
         const totalRevenue = filteredSales.reduce((sum, s) => sum + s.totalRevenue, 0);
         const totalCost = filteredSales.reduce((sum, s) => sum + s.totalCost, 0);
         const totalProfit = filteredSales.reduce((sum, s) => sum + s.grossProfit, 0);
         const totalQuantity = filteredSales.reduce((sum, s) => sum + s.quantitySold, 0);
-
-        return {
-            totalRevenue,
-            totalCost,
-            totalProfit,
-            totalQuantity,
-            profitMargin: totalRevenue > 0 ? (totalProfit / totalRevenue) * 100 : 0,
-        };
+        return { totalRevenue, totalCost, totalProfit, totalQuantity, profitMargin: totalRevenue > 0 ? (totalProfit / totalRevenue) * 100 : 0 };
     }, [filteredSales]);
 
-    // Group by Product with daily details
     const productGroups = useMemo(() => {
         const groups = filteredSales.reduce((acc, sale) => {
             const key = sale.variantId || sale.productId;
-
-            if (!acc[key]) {
-                acc[key] = {
-                    productId: sale.productId,
-                    variantId: sale.variantId,
-                    productName: sale.variantName ? `${sale.productName} (${sale.variantName})` : sale.productName,
-                    category: sale.category,
-                    totalQuantity: 0,
-                    totalRevenue: 0,
-                    totalCost: 0,
-                    totalProfit: 0,
-                    dailySales: []
-                };
-            }
-
+            if (!acc[key]) acc[key] = {
+                productId: sale.productId,
+                variantId: sale.variantId,
+                productName: sale.variantName ? `${sale.productName} (${sale.variantName})` : sale.productName,
+                category: sale.category,
+                totalQuantity: 0,
+                totalRevenue: 0,
+                totalCost: 0,
+                totalProfit: 0,
+                totalWaste: 0, // NEW: Total waste quantity
+                dailySales: []
+            };
             acc[key].totalQuantity += sale.quantitySold;
             acc[key].totalRevenue += sale.totalRevenue;
             acc[key].totalCost += sale.totalCost;
             acc[key].totalProfit += sale.grossProfit;
+            acc[key].totalWaste += sale.wasteQty || 0; // NEW: Accumulate waste
+            // Enhanced dailySales with more data
             acc[key].dailySales.push({
                 date: sale.saleDate,
                 quantity: sale.quantitySold,
@@ -238,270 +264,314 @@ export const SalesReport: React.FC = () => {
                 cost: sale.totalCost,
                 profit: sale.grossProfit,
                 marketId: sale.marketId,
-                id: sale.id, // Add ID for editing
-                productId: sale.productId, // Add productId for price lookup
-                variantId: sale.variantId
+                id: sale.id,
+                productId: sale.productId,
+                variantId: sale.variantId,
+                pricePerUnit: sale.pricePerUnit, // NEW
+                costPerUnit: sale.costPerUnit,   // NEW
+                wasteQty: sale.wasteQty || 0,    // NEW
+                weather: sale.weatherCondition   // NEW
             });
-
             return acc;
         }, {} as Record<string, any>);
-
         return Object.values(groups).sort((a: any, b: any) => b.totalRevenue - a.totalRevenue);
     }, [filteredSales]);
 
-    // Prepare Revenue Trend Data
     const revenueTrendData = useMemo(() => {
         const dateMap = new Map<string, { revenue: number; profit: number }>();
-
         filteredSales.forEach(sale => {
             const existing = dateMap.get(sale.saleDate) || { revenue: 0, profit: 0 };
-            dateMap.set(sale.saleDate, {
-                revenue: existing.revenue + sale.totalRevenue,
-                profit: existing.profit + sale.grossProfit
-            });
+            dateMap.set(sale.saleDate, { revenue: existing.revenue + sale.totalRevenue, profit: existing.profit + sale.grossProfit });
         });
-
-        return Array.from(dateMap.entries())
-            .map(([date, data]) => ({
-                date: new Date(date).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' }),
-                revenue: data.revenue,
-                profit: data.profit
-            }))
-            .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+        return Array.from(dateMap.entries()).map(([date, data]) => ({ date: new Date(date).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' }), revenue: data.revenue, profit: data.profit })).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
     }, [filteredSales]);
 
-    // Prepare Top Products Data
-    const topProductsData = useMemo(() => {
-        return productGroups.slice(0, 10).map((product: any) => ({
-            productName: product.productName,
-            category: product.category,
-            value: topProductsMode === 'quantity'
-                ? product.totalQuantity
-                : topProductsMode === 'revenue'
-                    ? product.totalRevenue
-                    : product.totalProfit
-        }));
-    }, [productGroups, topProductsMode]);
+    const topProductsData = useMemo(() => productGroups.slice(0, 10).map((product: any) => ({ productName: product.productName, category: product.category, value: topProductsMode === 'quantity' ? product.totalQuantity : topProductsMode === 'revenue' ? product.totalRevenue : product.totalProfit })), [productGroups, topProductsMode]);
 
-    // Prepare Market Comparison Data
     const marketComparisonData = useMemo(() => {
         const marketMap = new Map<string, { revenue: number; profit: number; quantity: number }>();
-
         filteredSales.forEach(sale => {
             const existing = marketMap.get(sale.marketId) || { revenue: 0, profit: 0, quantity: 0 };
-            marketMap.set(sale.marketId, {
-                revenue: existing.revenue + sale.totalRevenue,
-                profit: existing.profit + sale.grossProfit,
-                quantity: existing.quantity + sale.quantitySold
-            });
+            marketMap.set(sale.marketId, { revenue: existing.revenue + sale.totalRevenue, profit: existing.profit + sale.grossProfit, quantity: existing.quantity + sale.quantitySold });
         });
-
-        return Array.from(marketMap.entries()).map(([marketId, data]) => {
-            const market = markets.find(m => m.id === marketId);
-            return {
-                marketName: market?.name || marketId,
-                revenue: data.revenue,
-                profit: data.profit,
-                quantity: data.quantity
-            };
-        });
+        return Array.from(marketMap.entries()).map(([marketId, data]) => ({ marketName: markets.find(m => m.id === marketId)?.name || marketId, revenue: data.revenue, profit: data.profit, quantity: data.quantity }));
     }, [filteredSales, markets]);
 
-    const toggleExpand = (productId: string) => {
-        setExpandedProduct(expandedProduct === productId ? null : productId);
-    };
+    // NEW: Waste Summary Data
+    const wasteSummary = useMemo(() => {
+        const wasteByProduct: Record<string, { productName: string; wasteQty: number; wasteCost: number }> = {};
+        let totalWasteQty = 0;
+        let totalWasteCost = 0;
+
+        filteredSales.forEach(sale => {
+            const wasteQty = sale.wasteQty || 0;
+            if (wasteQty > 0) {
+                const wasteCost = wasteQty * sale.costPerUnit;
+                totalWasteQty += wasteQty;
+                totalWasteCost += wasteCost;
+
+                const key = sale.variantId || sale.productId;
+                const productName = sale.variantName ? `${sale.productName} (${sale.variantName})` : sale.productName;
+                if (!wasteByProduct[key]) {
+                    wasteByProduct[key] = { productName, wasteQty: 0, wasteCost: 0 };
+                }
+                wasteByProduct[key].wasteQty += wasteQty;
+                wasteByProduct[key].wasteCost += wasteCost;
+            }
+        });
+
+        const sortedWasteProducts = Object.values(wasteByProduct).sort((a, b) => b.wasteCost - a.wasteCost);
+        return { totalWasteQty, totalWasteCost, wasteByProduct: sortedWasteProducts };
+    }, [filteredSales]);
+
+    // NEW: Day of Week Analysis
+    const dayOfWeekData = useMemo(() => {
+        const dayNames = ['อาทิตย์', 'จันทร์', 'อังคาร', 'พุธ', 'พฤหัสบดี', 'ศุกร์', 'เสาร์'];
+        const dayMap: Record<number, { revenue: number; profit: number; quantity: number }> = {};
+
+        filteredSales.forEach(sale => {
+            const dayIndex = new Date(sale.saleDate).getDay();
+            if (!dayMap[dayIndex]) {
+                dayMap[dayIndex] = { revenue: 0, profit: 0, quantity: 0 };
+            }
+            dayMap[dayIndex].revenue += sale.totalRevenue;
+            dayMap[dayIndex].profit += sale.grossProfit;
+            dayMap[dayIndex].quantity += sale.quantitySold;
+        });
+
+        return Object.entries(dayMap).map(([dayIndex, data]) => ({
+            day: dayNames[parseInt(dayIndex)],
+            dayIndex: parseInt(dayIndex),
+            ...data
+        }));
+    }, [filteredSales]);
+
+    // NEW: Weather Analysis
+    const weatherData = useMemo(() => {
+        const weatherMap: Record<string, { revenue: number; profit: number; quantity: number; days: Set<string> }> = {};
+
+        filteredSales.forEach(sale => {
+            const condition = sale.weatherCondition || 'unknown';
+            if (condition === 'unknown') return; // Skip if no weather data
+
+            if (!weatherMap[condition]) {
+                weatherMap[condition] = { revenue: 0, profit: 0, quantity: 0, days: new Set() };
+            }
+            weatherMap[condition].revenue += sale.totalRevenue;
+            weatherMap[condition].profit += sale.grossProfit;
+            weatherMap[condition].quantity += sale.quantitySold;
+            weatherMap[condition].days.add(sale.saleDate);
+        });
+
+        return Object.entries(weatherMap).map(([condition, data]) => ({
+            condition,
+            revenue: data.revenue,
+            profit: data.profit,
+            quantity: data.quantity,
+            days: data.days.size
+        }));
+    }, [filteredSales]);
+
+    // NEW: Growth Comparison (compare with previous period)
+    const growthData = useMemo(() => {
+        // Calculate date range length
+        const start = new Date(startDate);
+        const end = new Date(endDate);
+        const periodLength = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+
+        // Calculate previous period dates
+        const prevEnd = new Date(start);
+        prevEnd.setDate(prevEnd.getDate() - 1);
+        const prevStart = new Date(prevEnd);
+        prevStart.setDate(prevStart.getDate() - periodLength + 1);
+
+        const prevStartStr = prevStart.toISOString().split('T')[0];
+        const prevEndStr = prevEnd.toISOString().split('T')[0];
+
+        // Get previous period sales
+        const prevSales = productSales.filter(sale => {
+            const matchDate = sale.saleDate >= prevStartStr && sale.saleDate <= prevEndStr;
+            const matchMarket = selectedMarket === 'all' || sale.marketId === selectedMarket;
+            return matchDate && matchMarket;
+        });
+
+        const prevRevenue = prevSales.reduce((sum, s) => sum + s.totalRevenue, 0);
+        const prevProfit = prevSales.reduce((sum, s) => sum + s.grossProfit, 0);
+        const prevQuantity = prevSales.reduce((sum, s) => sum + s.quantitySold, 0);
+
+        const revenueGrowth = prevRevenue > 0 ? ((summary.totalRevenue - prevRevenue) / prevRevenue) * 100 : 0;
+        const profitGrowth = prevProfit > 0 ? ((summary.totalProfit - prevProfit) / prevProfit) * 100 : 0;
+        const quantityGrowth = prevQuantity > 0 ? ((summary.totalQuantity - prevQuantity) / prevQuantity) * 100 : 0;
+
+        return { revenueGrowth, profitGrowth, quantityGrowth, prevRevenue, prevProfit, prevQuantity };
+    }, [productSales, startDate, endDate, selectedMarket, summary]);
+
+    const toggleExpand = (productId: string) => setExpandedProduct(expandedProduct === productId ? null : productId);
 
     return (
         <div className="space-y-6 animate-in fade-in duration-500 pb-20">
-            {/* Header */}
-            <div className="flex items-center gap-4">
-                <button
-                    onClick={() => window.history.back()}
-                    className="p-2 hover:bg-cafe-100 rounded-lg transition-colors"
-                >
-                    <ArrowLeft size={24} className="text-cafe-700" />
-                </button>
-                <div>
-                    <h1 className="text-3xl font-bold text-cafe-900">รายงานการขาย</h1>
-                    <p className="text-cafe-500 mt-1">วิเคราะห์ยอดขายและกำไร</p>
-                </div>
-            </div>
+            {/* Premium Header */}
+            <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-cafe-900 via-cafe-800 to-amber-900 p-8 text-white shadow-2xl">
+                <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-br from-yellow-500/20 to-transparent rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl" />
+                <div className="absolute bottom-0 left-0 w-64 h-64 bg-gradient-to-tr from-amber-500/20 to-transparent rounded-full translate-y-1/2 -translate-x-1/2 blur-2xl" />
 
-            {/* Filters */}
-            <div className="bg-white rounded-2xl shadow-sm border border-cafe-100 p-5">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div>
-                        <label className="block text-sm font-semibold text-cafe-700 mb-2 flex items-center gap-2">
-                            <Calendar size={16} />
-                            ช่วงเวลา
-                        </label>
-                        <select
-                            value={datePreset}
-                            onChange={(e) => applyDatePreset(e.target.value as any)}
-                            className="w-full p-3 border-2 border-cafe-200 rounded-xl focus:ring-2 focus:ring-cafe-500 focus:border-transparent outline-none bg-white"
-                        >
-                            <option value="today">วันนี้</option>
-                            <option value="yesterday">เมื่อวาน</option>
-                            <option value="week">7 วันที่แล้ว</option>
-                            <option value="month">30 วันที่แล้ว</option>
-                            <option value="custom">กำหนดเอง</option>
-                        </select>
+                <div className="relative flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+                    <div className="flex items-center gap-4">
+                        <div className="w-16 h-16 bg-gradient-to-br from-yellow-400 to-amber-500 rounded-2xl flex items-center justify-center shadow-lg">
+                            <Activity size={32} className="text-white" />
+                        </div>
+                        <div>
+                            <h1 className="text-3xl font-bold flex items-center gap-3">
+                                รายงานการขาย
+                                <Sparkles className="text-yellow-300 animate-pulse" size={24} />
+                            </h1>
+                            <p className="text-cafe-200 mt-1">Sales Analytics Dashboard</p>
+                        </div>
                     </div>
 
-                    {datePreset === 'custom' && (
-                        <>
-                            <div>
-                                <label className="block text-sm font-semibold text-cafe-700 mb-2">วันที่เริ่ม</label>
+                    {/* Filters in Header */}
+                    <div className="flex flex-wrap gap-3">
+                        <div className="bg-white/10 backdrop-blur-lg rounded-xl p-3 flex items-center gap-2 border border-white/10">
+                            <Clock size={18} className="text-cafe-200" />
+                            <select
+                                value={datePreset}
+                                onChange={(e) => applyDatePreset(e.target.value as any)}
+                                className="bg-transparent border-none text-white font-medium focus:ring-0 cursor-pointer"
+                            >
+                                <option value="today" className="text-cafe-900">วันนี้</option>
+                                <option value="yesterday" className="text-cafe-900">เมื่อวาน</option>
+                                <option value="thisWeek" className="text-cafe-900">สัปดาห์นี้</option>
+                                <option value="lastWeek" className="text-cafe-900">สัปดาห์ที่แล้ว</option>
+                                <option value="thisMonth" className="text-cafe-900">เดือนนี้</option>
+                                <option value="lastMonth" className="text-cafe-900">เดือนที่แล้ว</option>
+                                <option value="3months" className="text-cafe-900">3 เดือนล่าสุด</option>
+                                <option value="6months" className="text-cafe-900">6 เดือนล่าสุด</option>
+                                <option value="thisYear" className="text-cafe-900">ปีนี้ทั้งหมด</option>
+                                <option value="custom" className="text-cafe-900">📅 เลือกช่วงวัน...</option>
+                            </select>
+                        </div>
+
+                        {/* Custom Date Range Picker */}
+                        {datePreset === 'custom' && (
+                            <div className="bg-white/10 backdrop-blur-lg rounded-xl px-4 py-2 flex items-center gap-2 border border-white/10">
+                                <Calendar size={16} className="text-cafe-300" />
                                 <input
                                     type="date"
                                     value={startDate}
-                                    onChange={(e) => setStartDate(e.target.value)}
-                                    className="w-full p-3 border-2 border-cafe-200 rounded-xl focus:ring-2 focus:ring-cafe-500 focus:border-transparent outline-none"
+                                    onChange={e => setStartDate(e.target.value)}
+                                    className="bg-transparent border-none text-white focus:ring-0 w-32"
                                 />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-semibold text-cafe-700 mb-2">วันที่สิ้นสุด</label>
+                                <span className="text-cafe-300">ถึง</span>
                                 <input
                                     type="date"
                                     value={endDate}
-                                    onChange={(e) => setEndDate(e.target.value)}
-                                    className="w-full p-3 border-2 border-cafe-200 rounded-xl focus:ring-2 focus:ring-cafe-500 focus:border-transparent outline-none"
+                                    onChange={e => setEndDate(e.target.value)}
+                                    className="bg-transparent border-none text-white focus:ring-0 w-32"
                                 />
                             </div>
-                        </>
-                    )}
+                        )}
 
-                    <div>
-                        <label className="block text-sm font-semibold text-cafe-700 mb-2">ตลาด</label>
-                        <select
-                            value={selectedMarket}
-                            onChange={(e) => setSelectedMarket(e.target.value)}
-                            className="w-full p-3 border-2 border-cafe-200 rounded-xl focus:ring-2 focus:ring-cafe-500 focus:border-transparent outline-none bg-white"
-                        >
-                            <option value="all">ทั้งหมด</option>
-                            {markets.map(m => (
-                                <option key={m.id} value={m.id}>{m.name}</option>
-                            ))}
-                        </select>
+                        <div className="bg-white/10 backdrop-blur-lg rounded-xl p-3 flex items-center gap-2 border border-white/10">
+                            <Store size={18} className="text-cafe-200" />
+                            <select
+                                value={selectedMarket}
+                                onChange={(e) => setSelectedMarket(e.target.value)}
+                                className="bg-transparent border-none text-white font-medium focus:ring-0 cursor-pointer"
+                            >
+                                <option value="all" className="text-cafe-900">ทุกตลาด</option>
+                                {markets.map(m => <option key={m.id} value={m.id} className="text-cafe-900">{m.name}</option>)}
+                            </select>
+                        </div>
+
+                        {/* Export PDF Button */}
+                        <ExportPDFButton
+                            summary={summary}
+                            dateRange={{ start: startDate, end: endDate }}
+                            marketName={selectedMarket === 'all' ? 'ทุกตลาด' : markets.find(m => m.id === selectedMarket)?.name || 'ตลาด'}
+                        />
                     </div>
                 </div>
             </div>
 
-            {/* Summary Cards - 5 cards */}
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                <div className="bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-2xl shadow-lg p-5">
-                    <DollarSign size={28} className="opacity-80 mb-2" />
-                    <p className="text-blue-100 text-xs mb-1">รายรับรวม</p>
-                    <p className="text-2xl font-bold">{formatCurrency(summary.totalRevenue)}</p>
+            {/* Stats Cards with Growth Indicators */}
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+                <StatCard icon={<DollarSign size={28} />} label="รายรับรวม" value={formatCurrency(summary.totalRevenue)} gradient="from-blue-500 to-blue-600" delay={0} growth={growthData.revenueGrowth} />
+                <StatCard icon={<TrendingUp size={28} />} label="กำไรสุทธิ" value={formatCurrency(summary.totalProfit)} gradient="from-emerald-500 to-green-600" delay={50} growth={growthData.profitGrowth} />
+                <StatCard icon={<Package size={28} />} label="ขายได้" value={summary.totalQuantity} subValue="ชิ้น" gradient="from-violet-500 to-purple-600" delay={100} growth={growthData.quantityGrowth} />
+                <StatCard icon={<Target size={28} />} label="Margin" value={`${summary.profitMargin.toFixed(1)}%`} gradient="from-pink-500 to-rose-600" delay={150} />
+                <StatCard icon={<ShoppingBag size={28} />} label="ต้นทุน" value={formatCurrency(summary.totalCost)} gradient="from-orange-500 to-red-500" delay={200} />
+                {/* Waste Card - Special Highlight */}
+                <div className={`relative overflow-hidden rounded-2xl shadow-lg p-5 transform hover:scale-105 hover:-translate-y-1 transition-all duration-300 hover:shadow-xl ${wasteSummary.totalWasteCost > 0 ? 'bg-gradient-to-br from-red-500 to-rose-600' : 'bg-gradient-to-br from-green-500 to-emerald-600'} text-white`}>
+                    <div className="absolute top-0 right-0 w-20 h-20 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2" />
+                    <div className="relative">
+                        <div className="opacity-80 mb-2"><Trash2 size={28} /></div>
+                        <p className="text-white/70 text-xs mb-1">🗑️ Waste</p>
+                        <p className="text-2xl font-bold">{wasteSummary.totalWasteCost > 0 ? `-${formatCurrency(wasteSummary.totalWasteCost)}` : '฿0'}</p>
+                        <p className="text-xs text-white/60 mt-1">{wasteSummary.totalWasteQty} ชิ้น</p>
+                    </div>
+                </div>
+            </div>
+
+            {/* NEW: Moneyball Insights Row */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Day of Week Chart */}
+                <div className="bg-white rounded-2xl shadow-sm border border-cafe-100 p-6 hover:shadow-lg transition-shadow">
+                    <DayOfWeekChart data={dayOfWeekData} />
                 </div>
 
-                <div className="bg-gradient-to-br from-orange-500 to-orange-600 text-white rounded-2xl shadow-lg p-5">
-                    <ShoppingBag size={28} className="opacity-80 mb-2" />
-                    <p className="text-orange-100 text-xs mb-1">ต้นทุนรวม</p>
-                    <p className="text-2xl font-bold">{formatCurrency(summary.totalCost)}</p>
-                </div>
-
-                <div className="bg-gradient-to-br from-green-500 to-green-600 text-white rounded-2xl shadow-lg p-5">
-                    <TrendingUp size={28} className="opacity-80 mb-2" />
-                    <p className="text-green-100 text-xs mb-1">กำไรรวม</p>
-                    <p className="text-2xl font-bold">{formatCurrency(summary.totalProfit)}</p>
-                </div>
-
-                <div className="bg-gradient-to-br from-purple-500 to-purple-600 text-white rounded-2xl shadow-lg p-5">
-                    <Package size={28} className="opacity-80 mb-2" />
-                    <p className="text-purple-100 text-xs mb-1">ปริมาณ</p>
-                    <p className="text-2xl font-bold">{summary.totalQuantity}</p>
-                    <p className="text-xs text-purple-100 mt-1">ชิ้น</p>
-                </div>
-
-                <div className="bg-gradient-to-br from-pink-500 to-pink-600 text-white rounded-2xl shadow-lg p-5">
-                    <Percent size={28} className="opacity-80 mb-2" />
-                    <p className="text-pink-100 text-xs mb-1">อัตรากำไร</p>
-                    <p className="text-2xl font-bold">{summary.profitMargin.toFixed(1)}%</p>
-                </div>
+                {/* Weather Analysis OR Waste Details */}
+                {weatherData.length > 0 ? (
+                    <WeatherAnalysisCard data={weatherData} />
+                ) : (
+                    <WasteSummaryCard
+                        totalWasteQty={wasteSummary.totalWasteQty}
+                        totalWasteCost={wasteSummary.totalWasteCost}
+                        wasteByProduct={wasteSummary.wasteByProduct}
+                        totalRevenue={summary.totalRevenue}
+                    />
+                )}
             </div>
 
             {/* Charts */}
             <div className="space-y-6">
-                <RevenueTrendChart data={revenueTrendData} />
+                <div className="bg-white rounded-2xl shadow-sm border border-cafe-100 p-6 hover:shadow-lg transition-shadow">
+                    <RevenueTrendChart data={revenueTrendData} />
+                </div>
 
-                {/* Charts Grid */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    {/* Top Products Chart */}
-                    <div className="bg-white rounded-2xl shadow-sm border border-cafe-100 p-6">
+                    {/* Top Products */}
+                    <div className="bg-white rounded-2xl shadow-sm border border-cafe-100 p-6 hover:shadow-lg transition-shadow">
                         <div className="flex justify-between items-center mb-4">
                             <h3 className="text-lg font-bold text-cafe-900 flex items-center gap-2">
-                                <BarChart3 size={20} />
+                                <Award className="text-yellow-500" size={20} />
                                 Top 10 สินค้า
                             </h3>
-                            <div className="flex gap-2">
-                                <button
-                                    onClick={() => setTopProductsMode('quantity')}
-                                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${topProductsMode === 'quantity'
-                                        ? 'bg-cafe-600 text-white'
-                                        : 'bg-cafe-100 text-cafe-700 hover:bg-cafe-200'
-                                        }`}
-                                >
-                                    จำนวน
-                                </button>
-                                <button
-                                    onClick={() => setTopProductsMode('revenue')}
-                                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${topProductsMode === 'revenue'
-                                        ? 'bg-cafe-600 text-white'
-                                        : 'bg-cafe-100 text-cafe-700 hover:bg-cafe-200'
-                                        }`}
-                                >
-                                    รายรับ
-                                </button>
-                                <button
-                                    onClick={() => setTopProductsMode('profit')}
-                                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${topProductsMode === 'profit'
-                                        ? 'bg-cafe-600 text-white'
-                                        : 'bg-cafe-100 text-cafe-700 hover:bg-cafe-200'
-                                        }`}
-                                >
-                                    กำไร
-                                </button>
+                            <div className="flex gap-1 bg-cafe-100 rounded-lg p-1">
+                                {['quantity', 'revenue', 'profit'].map(mode => (
+                                    <button key={mode} onClick={() => setTopProductsMode(mode as any)}
+                                        className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${topProductsMode === mode ? 'bg-white shadow text-cafe-800' : 'text-cafe-600 hover:text-cafe-800'}`}>
+                                        {mode === 'quantity' ? 'จำนวน' : mode === 'revenue' ? 'รายรับ' : 'กำไร'}
+                                    </button>
+                                ))}
                             </div>
                         </div>
                         <TopProductsChart data={topProductsData} mode={topProductsMode} />
                     </div>
 
-                    {/* Market Comparison Chart */}
-                    <div className="bg-white rounded-2xl shadow-sm border border-cafe-100 p-6">
+                    {/* Market Comparison */}
+                    <div className="bg-white rounded-2xl shadow-sm border border-cafe-100 p-6 hover:shadow-lg transition-shadow">
                         <div className="flex justify-between items-center mb-4">
                             <h3 className="text-lg font-bold text-cafe-900 flex items-center gap-2">
-                                <BarChart3 size={20} />
+                                <Zap className="text-amber-500" size={20} />
                                 เปรียบเทียบตลาด
                             </h3>
-                            <div className="flex gap-2">
-                                <button
-                                    onClick={() => setMarketComparisonMode('revenue')}
-                                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${marketComparisonMode === 'revenue'
-                                        ? 'bg-cafe-600 text-white'
-                                        : 'bg-cafe-100 text-cafe-700 hover:bg-cafe-200'
-                                        }`}
-                                >
-                                    รายรับ
-                                </button>
-                                <button
-                                    onClick={() => setMarketComparisonMode('profit')}
-                                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${marketComparisonMode === 'profit'
-                                        ? 'bg-cafe-600 text-white'
-                                        : 'bg-cafe-100 text-cafe-700 hover:bg-cafe-200'
-                                        }`}
-                                >
-                                    กำไร
-                                </button>
-                                <button
-                                    onClick={() => setMarketComparisonMode('quantity')}
-                                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${marketComparisonMode === 'quantity'
-                                        ? 'bg-cafe-600 text-white'
-                                        : 'bg-cafe-100 text-cafe-700 hover:bg-cafe-200'
-                                        }`}
-                                >
-                                    จำนวน
-                                </button>
+                            <div className="flex gap-1 bg-cafe-100 rounded-lg p-1">
+                                {['revenue', 'profit', 'quantity'].map(mode => (
+                                    <button key={mode} onClick={() => setMarketComparisonMode(mode as any)}
+                                        className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${marketComparisonMode === mode ? 'bg-white shadow text-cafe-800' : 'text-cafe-600 hover:text-cafe-800'}`}>
+                                        {mode === 'quantity' ? 'จำนวน' : mode === 'revenue' ? 'รายรับ' : 'กำไร'}
+                                    </button>
+                                ))}
                             </div>
                         </div>
                         <MarketComparisonChart data={marketComparisonData} mode={marketComparisonMode} />
@@ -509,17 +579,21 @@ export const SalesReport: React.FC = () => {
                 </div>
             </div>
 
-            {/* Data Table with Expandable Rows */}
-            <div className="bg-white rounded-2xl shadow-sm border border-cafe-100 overflow-hidden">
-                <div className="p-5 bg-cafe-50 border-b border-cafe-100 flex justify-between items-center">
-                    <h3 className="text-lg font-bold text-cafe-900">รายละเอียดการขายรายเมนู</h3>
-                    <p className="text-sm text-cafe-500">คลิกแถวเพื่อดูรายละเอียด</p>
+            {/* Data Table */}
+            <div className="bg-white rounded-2xl shadow-sm border border-cafe-100 overflow-hidden hover:shadow-lg transition-shadow">
+                <div className="p-6 bg-gradient-to-r from-cafe-50 to-white border-b border-cafe-100">
+                    <h3 className="text-lg font-bold text-cafe-900 flex items-center gap-2">
+                        <BarChart3 size={20} />
+                        รายละเอียดการขายรายเมนู
+                    </h3>
+                    <p className="text-sm text-cafe-500 mt-1">คลิกแถวเพื่อดูรายละเอียดและแก้ไขยอดขาย</p>
                 </div>
 
                 {productGroups.length === 0 ? (
-                    <div className="p-12 text-center text-cafe-500">
-                        <p>ไม่มีข้อมูลในช่วงเวลานี้</p>
-                        <p className="text-sm mt-2">ลองเปลี่ยนช่วงเวลาหรือตัวกรอง</p>
+                    <div className="p-16 text-center">
+                        <Package className="mx-auto text-cafe-200 mb-4" size={48} />
+                        <p className="text-cafe-500">ไม่มีข้อมูลในช่วงเวลานี้</p>
+                        <p className="text-sm text-cafe-400 mt-2">ลองเปลี่ยนช่วงเวลาหรือตัวกรอง</p>
                     </div>
                 ) : (
                     <div className="overflow-x-auto">
@@ -531,82 +605,113 @@ export const SalesReport: React.FC = () => {
                                     <th className="px-6 py-4 text-center text-sm font-semibold text-cafe-700">จำนวน</th>
                                     <th className="px-6 py-4 text-right text-sm font-semibold text-cafe-700">รายรับ</th>
                                     <th className="px-6 py-4 text-right text-sm font-semibold text-cafe-700">กำไร</th>
+                                    <th className="px-6 py-4 text-right text-sm font-semibold text-cafe-700">💰 กำไร/ชิ้น</th>
                                     <th className="px-6 py-4 text-center text-sm font-semibold text-cafe-700">% กำไร</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-cafe-50">
                                 {productGroups.map((product: any) => {
                                     const profitMargin = (product.totalProfit / product.totalRevenue) * 100;
+                                    const profitPerItem = product.totalQuantity > 0 ? product.totalProfit / product.totalQuantity : 0;
                                     const isExpanded = expandedProduct === (product.variantId || product.productId);
-
                                     return (
                                         <React.Fragment key={product.variantId || product.productId}>
-                                            <tr
-                                                className="hover:bg-cafe-50/50 transition-colors cursor-pointer"
-                                                onClick={() => toggleExpand(product.variantId || product.productId)}
-                                            >
-                                                <td className="px-6 py-4">
-                                                    <button className="text-cafe-500 hover:text-cafe-700">
-                                                        {isExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
-                                                    </button>
-                                                </td>
-                                                <td className="px-6 py-4">
-                                                    <div className="font-semibold text-cafe-900">{product.productName}</div>
-                                                    <div className="text-xs text-cafe-500">{product.category}</div>
-                                                </td>
+                                            <tr className="hover:bg-cafe-50/50 transition-colors cursor-pointer" onClick={() => toggleExpand(product.variantId || product.productId)}>
+                                                <td className="px-6 py-4"><button className="text-cafe-500 hover:text-cafe-700">{isExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}</button></td>
+                                                <td className="px-6 py-4"><div className="font-semibold text-cafe-900">{product.productName}</div><div className="text-xs text-cafe-500">{product.category}</div></td>
                                                 <td className="px-6 py-4 text-center font-medium text-cafe-800">{product.totalQuantity}</td>
                                                 <td className="px-6 py-4 text-right font-semibold text-cafe-900">{formatCurrency(product.totalRevenue)}</td>
                                                 <td className="px-6 py-4 text-right font-bold text-green-600">{formatCurrency(product.totalProfit)}</td>
+                                                <td className="px-6 py-4 text-right">
+                                                    <span className={`px-2 py-1 rounded-lg text-sm font-bold ${profitPerItem >= 30 ? 'bg-emerald-100 text-emerald-700' : profitPerItem >= 15 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>
+                                                        ฿{profitPerItem.toFixed(0)}
+                                                    </span>
+                                                </td>
                                                 <td className="px-6 py-4 text-center">
-                                                    <span className={`px-3 py-1 rounded-full text-sm font-bold ${profitMargin >= 60 ? 'bg-green-100 text-green-700' :
-                                                        profitMargin >= 40 ? 'bg-yellow-100 text-yellow-700' :
-                                                            'bg-red-100 text-red-700'
-                                                        }`}>
+                                                    <span className={`px-3 py-1 rounded-full text-sm font-bold ${profitMargin >= 60 ? 'bg-green-100 text-green-700' : profitMargin >= 40 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>
                                                         {profitMargin.toFixed(1)}%
                                                     </span>
                                                 </td>
                                             </tr>
-
-                                            {/* Expandable Daily Details */}
                                             {isExpanded && (
                                                 <tr>
-                                                    <td colSpan={6} className="p-0">
-                                                        <div className="bg-cafe-50 p-4 border-t border-cafe-100">
-                                                            <h4 className="text-md font-semibold text-cafe-800 mb-3">รายละเอียดรายวัน</h4>
-                                                            <table className="w-full text-sm">
-                                                                <thead>
-                                                                    <tr className="text-cafe-600">
-                                                                        <th className="text-left py-2">วันที่</th>
-                                                                        <th className="text-center py-2">ตลาด</th>
-                                                                        <th className="text-center py-2">จำนวน</th>
-                                                                        <th className="text-right py-2">รายรับ</th>
-                                                                        <th className="text-right py-2">กำไร</th>
-                                                                        <th className="text-center py-2">แก้ไข</th>
-                                                                    </tr>
-                                                                </thead>
-                                                                <tbody>
-                                                                    {product.dailySales.map((sale: any, index: number) => (
-                                                                        <tr key={index} className="border-t border-cafe-100">
-                                                                            <td className="py-2 text-left">{new Date(sale.date).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })}</td>
-                                                                            <td className="py-2 text-center">{markets.find(m => m.id === sale.marketId)?.name || sale.marketId}</td>
-                                                                            <td className="py-2 text-center">{sale.quantity}</td>
-                                                                            <td className="py-2 text-right">{formatCurrency(sale.revenue)}</td>
-                                                                            <td className="py-2 text-right text-green-600">{formatCurrency(sale.profit)}</td>
-                                                                            <td className="py-2 text-center">
-                                                                                <button
-                                                                                    onClick={() => handleEditClick(sale)}
-                                                                                    className="text-cafe-500 hover:text-cafe-700 p-1 rounded-md hover:bg-cafe-100 transition-colors"
-                                                                                >
-                                                                                    <Edit2 size={16} />
-                                                                                </button>
-                                                                            </td>
-                                                                        </tr>
-                                                                    ))}
-                                                                </tbody>
-                                                            </table>
-                                                            <p className="text-xs text-cafe-500 mt-3">
-                                                                💡 คลิกปุ่ม <Edit2 size={12} className="inline" /> เพื่อแก้ไขข้อมูลยอดขายในวันนั้น
-                                                            </p>
+                                                    <td colSpan={7} className="p-0">
+                                                        <div className="bg-gradient-to-r from-cafe-50 to-amber-50 p-5 border-t border-cafe-100">
+                                                            <div className="flex items-center justify-between mb-4">
+                                                                <h4 className="text-md font-bold text-cafe-800 flex items-center gap-2">
+                                                                    <Calendar size={16} />
+                                                                    รายละเอียดรายวัน
+                                                                </h4>
+                                                                {/* Summary badges */}
+                                                                <div className="flex gap-2">
+                                                                    {product.totalWaste > 0 && (
+                                                                        <span className="bg-red-100 text-red-700 px-3 py-1 rounded-full text-xs font-bold">
+                                                                            🗑️ Waste รวม: {product.totalWaste} ชิ้น
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+
+                                                            {/* Daily Sales Cards */}
+                                                            <div className="grid gap-3">
+                                                                {product.dailySales.map((sale: any, index: number) => (
+                                                                    <div key={index} className="bg-white rounded-xl p-4 border border-cafe-100 hover:shadow-md transition-shadow">
+                                                                        {/* Row 1: Date, Market, Weather */}
+                                                                        <div className="flex items-center justify-between mb-3 pb-3 border-b border-cafe-100">
+                                                                            <div className="flex items-center gap-4">
+                                                                                <div className="text-center min-w-[50px]">
+                                                                                    <div className="text-lg font-bold text-cafe-800">{new Date(sale.date).toLocaleDateString('th-TH', { day: 'numeric' })}</div>
+                                                                                    <div className="text-xs text-cafe-500">{new Date(sale.date).toLocaleDateString('th-TH', { month: 'short' })}</div>
+                                                                                </div>
+                                                                                <div className="h-8 w-px bg-cafe-200"></div>
+                                                                                <div>
+                                                                                    <div className="text-sm font-medium text-cafe-800">{markets.find(m => m.id === sale.marketId)?.name || '-'}</div>
+                                                                                    {sale.weather && (
+                                                                                        <div className="flex items-center gap-1 text-xs text-cafe-500 mt-0.5">
+                                                                                            {getWeatherIcon(sale.weather)}
+                                                                                            <span>{sale.weather === 'sunny' ? 'แดดออก' : sale.weather === 'cloudy' ? 'มีเมฆ' : sale.weather === 'rain' ? 'ฝนตก' : sale.weather === 'storm' ? 'พายุ' : sale.weather}</span>
+                                                                                        </div>
+                                                                                    )}
+                                                                                </div>
+                                                                            </div>
+                                                                            <button onClick={() => handleEditClick(sale)} className="p-2 text-cafe-500 hover:text-cafe-700 hover:bg-cafe-100 rounded-lg transition-colors">
+                                                                                <Edit2 size={16} />
+                                                                            </button>
+                                                                        </div>
+
+                                                                        {/* Row 2: Stats Grid */}
+                                                                        <div className="grid grid-cols-3 sm:grid-cols-6 gap-3 text-center">
+                                                                            <div className="bg-blue-50 rounded-lg p-2">
+                                                                                <div className="text-xs text-blue-600">ขายได้</div>
+                                                                                <div className="font-bold text-blue-800">{sale.quantity} ชิ้น</div>
+                                                                            </div>
+                                                                            <div className="bg-violet-50 rounded-lg p-2">
+                                                                                <div className="text-xs text-violet-600">ราคา/ชิ้น</div>
+                                                                                <div className="font-bold text-violet-800">฿{sale.pricePerUnit?.toFixed(0) || '-'}</div>
+                                                                            </div>
+                                                                            <div className="bg-orange-50 rounded-lg p-2">
+                                                                                <div className="text-xs text-orange-600">ต้นทุน/ชิ้น</div>
+                                                                                <div className="font-bold text-orange-800">฿{sale.costPerUnit?.toFixed(0) || '-'}</div>
+                                                                            </div>
+                                                                            <div className="bg-cafe-50 rounded-lg p-2">
+                                                                                <div className="text-xs text-cafe-600">รายรับรวม</div>
+                                                                                <div className="font-bold text-cafe-800">{formatCurrency(sale.revenue)}</div>
+                                                                            </div>
+                                                                            <div className="bg-green-50 rounded-lg p-2">
+                                                                                <div className="text-xs text-green-600">กำไร</div>
+                                                                                <div className="font-bold text-green-700">{formatCurrency(sale.profit)}</div>
+                                                                            </div>
+                                                                            {/* Waste */}
+                                                                            <div className={`rounded-lg p-2 ${sale.wasteQty > 0 ? 'bg-red-50' : 'bg-gray-50'}`}>
+                                                                                <div className={`text-xs ${sale.wasteQty > 0 ? 'text-red-600' : 'text-gray-500'}`}>🗑️ ของเสีย</div>
+                                                                                <div className={`font-bold ${sale.wasteQty > 0 ? 'text-red-700' : 'text-gray-400'}`}>
+                                                                                    {sale.wasteQty > 0 ? `${sale.wasteQty} ชิ้น` : '-'}
+                                                                                </div>
+                                                                            </div>
+                                                                        </div>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
                                                         </div>
                                                     </td>
                                                 </tr>
@@ -615,14 +720,17 @@ export const SalesReport: React.FC = () => {
                                     );
                                 })}
                             </tbody>
-                            <tfoot className="bg-cafe-900 text-white font-bold">
+                            <tfoot className="bg-gradient-to-r from-cafe-900 to-cafe-800 text-white font-bold">
                                 <tr>
-                                    <td className="px-6 py-4"></td>
-                                    <td className="px-6 py-4">รวมทั้งหมด</td>
-                                    <td className="px-6 py-4 text-center text-lg">{summary.totalQuantity}</td>
-                                    <td className="px-6 py-4 text-right text-lg">{formatCurrency(summary.totalRevenue)}</td>
-                                    <td className="px-6 py-4 text-right text-lg text-green-300">{formatCurrency(summary.totalProfit)}</td>
-                                    <td className="px-6 py-4 text-center text-lg">{summary.profitMargin.toFixed(1)}%</td>
+                                    <td className="px-6 py-5"></td>
+                                    <td className="px-6 py-5 text-lg">🏆 รวมทั้งหมด</td>
+                                    <td className="px-6 py-5 text-center text-xl">{summary.totalQuantity}</td>
+                                    <td className="px-6 py-5 text-right text-xl">{formatCurrency(summary.totalRevenue)}</td>
+                                    <td className="px-6 py-5 text-right text-xl text-green-300">{formatCurrency(summary.totalProfit)}</td>
+                                    <td className="px-6 py-5 text-right text-lg">
+                                        ฿{summary.totalQuantity > 0 ? (summary.totalProfit / summary.totalQuantity).toFixed(0) : 0}
+                                    </td>
+                                    <td className="px-6 py-5 text-center text-xl">{summary.profitMargin.toFixed(1)}%</td>
                                 </tr>
                             </tfoot>
                         </table>
@@ -630,12 +738,7 @@ export const SalesReport: React.FC = () => {
                 )}
             </div>
 
-            <EditSalesModal
-                isOpen={isEditModalOpen}
-                onClose={() => setIsEditModalOpen(false)}
-                saleData={editingSale}
-                onSave={handleSaveEdit}
-            />
+            <EditSalesModal isOpen={isEditModalOpen} onClose={() => setIsEditModalOpen(false)} saleData={editingSale} onSave={handleSaveEdit} />
         </div>
     );
 };

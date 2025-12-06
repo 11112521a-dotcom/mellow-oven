@@ -3,71 +3,125 @@ import { useStore } from '@/src/store';
 import { Product, DailyProductionLog, Variant } from '@/types';
 import { formatCurrency } from '@/src/lib/utils';
 import { NumberInput } from '@/src/components/ui/NumberInput';
-import { Calendar, Store, Save, ShoppingCart } from 'lucide-react';
+import { Calendar, Store, Save, ShoppingCart, Package, TrendingUp, AlertCircle, Check, X, Sparkles, ArrowRight, Sun, Cloud, CloudRain, CloudLightning } from 'lucide-react';
+
+// Weather type
+type WeatherCondition = 'sunny' | 'cloudy' | 'rain' | 'storm' | null;
+
+// Confirmation Modal (Same pattern as Stock Log)
+const ConfirmModal: React.FC<{
+    isOpen: boolean;
+    onClose: () => void;
+    onConfirm: () => void;
+    title: string;
+    children: React.ReactNode;
+}> = ({ isOpen, onClose, onConfirm, title, children }) => {
+    if (!isOpen) return null;
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden animate-in zoom-in-95 duration-200">
+                <div className="bg-gradient-to-r from-green-500 to-emerald-600 p-6 text-white">
+                    <h2 className="text-xl font-bold flex items-center gap-2">
+                        <Save size={24} />
+                        {title}
+                    </h2>
+                </div>
+                <div className="p-6">{children}</div>
+                <div className="flex gap-3 p-4 bg-gray-50 border-t">
+                    <button onClick={onClose} className="flex-1 px-4 py-3 bg-gray-100 hover:bg-gray-200 rounded-xl font-medium transition-colors flex items-center justify-center gap-2">
+                        <X size={18} /> ยกเลิก
+                    </button>
+                    <button onClick={() => { onConfirm(); onClose(); }} className="flex-1 px-4 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl font-medium transition-all hover:shadow-lg flex items-center justify-center gap-2">
+                        <Check size={18} /> ยืนยันบันทึก
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
 
 export const DailySalesForm: React.FC = () => {
-    const { products, addTransaction, updateJarBalance, deductStockByRecipe, markets, addDailyReport, addProductSaleLog } = useStore();
+    const {
+        products, addTransaction, updateJarBalance, deductStockByRecipe, markets,
+        addDailyReport, addProductSaleLog,
+        dailyInventory, fetchDailyInventory, upsertDailyInventory // NEW: Integration with Stock Log
+    } = useStore();
 
-    // State
     const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
     const [selectedMarketId, setSelectedMarketId] = useState<string>(markets[0]?.id || '');
     const [logs, setLogs] = useState<(DailyProductionLog & { product: Product, variant?: Variant })[]>([]);
-
     const [showConfirmModal, setShowConfirmModal] = useState(false);
+    const [weather, setWeather] = useState<WeatherCondition>(null); // NEW: Weather state
 
-    // Initialize logs
+    // Fetch daily inventory on date change (to get "To Shop" values)
     useEffect(() => {
-        if (products.length > 0 && logs.length === 0) {
+        fetchDailyInventory(date);
+    }, [date, fetchDailyInventory]);
+
+    // Initialize logs with "Available" from daily_inventory
+    useEffect(() => {
+        if (products.length > 0) {
             const initialLogs: (DailyProductionLog & { product: Product, variant?: Variant })[] = [];
+
             products.forEach(p => {
                 if (p.variants && p.variants.length > 0) {
+                    // For products WITH variants - look up each variant separately
                     p.variants.forEach(v => {
+                        // Match by BOTH productId AND variantId
+                        const inventoryRecord = dailyInventory.find(
+                            d => d.businessDate === date &&
+                                d.productId === p.id &&
+                                d.variantId === v.id
+                        );
+                        const availableFromStock = inventoryRecord?.toShopQty || 0;
+
                         initialLogs.push({
                             date,
                             productId: p.id,
                             variantId: v.id,
                             product: p,
                             variant: v,
-                            preparedQty: 0,
-                            soldQty: 0,
+                            preparedQty: availableFromStock,
+                            soldQty: availableFromStock, // FIX: Auto-calc = available - waste(0) - leftover(0)
                             wasteQty: 0,
-                            leftoverQty: 0,
-                            sellOutTime: '',
-                            missedOppQty: 0,
-                            wasteReason: ''
+                            leftoverQty: 0
                         });
                     });
                 } else {
+                    // For products WITHOUT variants - look up by productId only (variantId = null/undefined)
+                    const inventoryRecord = dailyInventory.find(
+                        d => d.businessDate === date &&
+                            d.productId === p.id &&
+                            !d.variantId
+                    );
+                    const availableFromStock = inventoryRecord?.toShopQty || 0;
+
                     initialLogs.push({
                         date,
                         productId: p.id,
                         product: p,
-                        preparedQty: 0,
-                        soldQty: 0,
+                        preparedQty: availableFromStock,
+                        soldQty: availableFromStock, // FIX: Auto-calc = available - waste(0) - leftover(0)
                         wasteQty: 0,
-                        leftoverQty: 0,
-                        sellOutTime: '',
-                        missedOppQty: 0,
-                        wasteReason: ''
+                        leftoverQty: 0
                     });
                 }
             });
             setLogs(initialLogs);
         }
-    }, [products]);
+    }, [products, dailyInventory, date]);
 
-    // Handle changes
     const handleLogChange = (index: number, field: keyof DailyProductionLog, value: any) => {
         const newLogs = [...logs];
         const log = newLogs[index];
         (log as any)[field] = value;
 
-        // Auto-calculate Sold = Prepared - Waste - Leftover
-        if (['preparedQty', 'wasteQty', 'leftoverQty'].includes(field)) {
-            const prepared = Number(log.preparedQty) || 0;
+        // Auto-calculate: Sold = Available - Waste - Leftover
+        if (['wasteQty', 'leftoverQty'].includes(field)) {
+            const available = Number(log.preparedQty) || 0;
             const waste = Number(log.wasteQty) || 0;
             const leftover = Number(log.leftoverQty) || 0;
-            log.soldQty = Math.max(0, prepared - waste - leftover);
+            log.soldQty = Math.max(0, available - waste - leftover);
         }
 
         setLogs(newLogs);
@@ -78,326 +132,320 @@ export const DailySalesForm: React.FC = () => {
     const totalSoldItems = logs.reduce((sum, log) => sum + log.soldQty, 0);
     const totalCOGS = logs.reduce((sum, log) => sum + (log.soldQty * (log.variant ? log.variant.cost : log.product.cost)), 0);
     const totalWasteCost = logs.reduce((sum, log) => sum + (log.wasteQty * (log.variant ? log.variant.cost : log.product.cost)), 0);
+    const totalLeftover = logs.reduce((sum, log) => sum + (log.leftoverQty || 0), 0);
     const trueProfit = totalRevenue - totalCOGS - totalWasteCost;
 
-    const handleSaveClick = () => {
-        if (totalSoldItems === 0) {
-            if (confirm('ยอดขายเป็น 0 ต้องการบันทึกหรือไม่?')) {
-                setShowConfirmModal(true);
-            }
-        } else {
-            setShowConfirmModal(true);
-        }
-    };
+    const handleSaveClick = () => setShowConfirmModal(true);
 
     const confirmSave = async () => {
         const marketName = markets.find(m => m.id === selectedMarketId)?.name || 'Unknown Market';
+
+        // Update daily_inventory with sold_qty for each product/variant (VARIANT-AWARE!)
+        for (const log of logs) {
+            // Find inventory record matching BOTH productId AND variantId
+            const inventoryRecord = dailyInventory.find(
+                d => d.businessDate === date &&
+                    d.productId === log.productId &&
+                    (d.variantId || '') === (log.variantId || '')
+            );
+            if (inventoryRecord) {
+                await upsertDailyInventory({
+                    businessDate: date,
+                    productId: log.productId,
+                    variantId: log.variantId,
+                    variantName: log.variant?.name,
+                    producedQty: inventoryRecord.producedQty,
+                    toShopQty: inventoryRecord.toShopQty,
+                    soldQty: log.soldQty,
+                    stockYesterday: inventoryRecord.stockYesterday
+                });
+            }
+        }
 
         // Add COGS to Working Capital
         updateJarBalance('Working', totalCOGS);
 
         // Add Gross Profit to Unallocated
         const { addUnallocatedProfit } = useStore.getState();
-        await addUnallocatedProfit({
-            id: crypto.randomUUID(),
-            date: date,
-            amount: trueProfit,
-            source: `${marketName} (${totalSoldItems} items)`,
-            createdAt: new Date().toISOString()
-        });
+        if (trueProfit > 0) {
+            await addUnallocatedProfit({
+                id: Date.now().toString(36) + Math.random().toString(36).substr(2),
+                date,
+                amount: trueProfit,
+                source: `ยอดขาย - ${marketName}`,
+                createdAt: new Date().toISOString()
+            });
+        }
 
-        // Record Transactions
+        // Record Income Transaction
         addTransaction({
-            id: crypto.randomUUID(),
+            id: Date.now().toString(36) + Math.random().toString(36).substr(2),
             date: new Date().toISOString(),
-            amount: totalCOGS,
+            amount: totalRevenue,
             type: 'INCOME',
             toJar: 'Working',
-            description: `💰 COGS @ ${marketName}`,
-            category: 'Sales:COGS'
+            description: `รายได้ขาย ${date} - ${marketName}`,
+            category: 'Sales',
+            marketId: selectedMarketId
         });
 
-        addTransaction({
-            id: crypto.randomUUID(),
-            date: new Date().toISOString(),
-            amount: trueProfit,
-            type: 'INCOME',
-            description: `📊 Profit @ ${marketName}`,
-            category: 'Sales:Profit'
-        });
-
-        // Record Product Sales Logs
+        // Log individual sales
         for (const log of logs) {
-            if (log.soldQty > 0) {
-                const price = log.variant ? log.variant.price : log.product.price;
-                const cost = log.variant ? log.variant.cost : log.product.cost;
-                const itemRevenue = log.soldQty * price;
-                const itemCost = log.soldQty * cost;
-
+            if (log.soldQty > 0 || log.wasteQty > 0) { // FIX: Also log if there's waste
                 await addProductSaleLog({
-                    id: crypto.randomUUID(),
+                    id: Date.now().toString(36) + Math.random().toString(36).substr(2) + log.productId.slice(0, 4),
                     recordedAt: new Date().toISOString(),
                     saleDate: date,
                     marketId: selectedMarketId,
-                    marketName: marketName,
+                    marketName,
                     productId: log.productId,
                     productName: log.product.name,
                     category: log.product.category,
                     quantitySold: log.soldQty,
-                    pricePerUnit: price,
-                    totalRevenue: itemRevenue,
-                    costPerUnit: cost,
-                    totalCost: itemCost,
-                    grossProfit: itemRevenue - itemCost,
+                    pricePerUnit: log.variant ? log.variant.price : log.product.price,
+                    totalRevenue: log.soldQty * (log.variant ? log.variant.price : log.product.price),
+                    costPerUnit: log.variant ? log.variant.cost : log.product.cost,
+                    totalCost: log.soldQty * (log.variant ? log.variant.cost : log.product.cost),
+                    grossProfit: log.soldQty * ((log.variant ? log.variant.price : log.product.price) - (log.variant ? log.variant.cost : log.product.cost)),
                     variantId: log.variantId,
-                    variantName: log.variant?.name
+                    variantName: log.variant?.name,
+                    wasteQty: log.wasteQty || 0,
+                    weatherCondition: weather // NEW: Include weather condition
                 });
+
+                // Deduct from stock (only if sold)
+                if (log.soldQty > 0) {
+                    deductStockByRecipe(log.productId, log.soldQty, log.variantId);
+                }
             }
         }
 
-        // Auto-Deduct Stock
-        for (const log of logs) {
-            if (log.soldQty > 0) await deductStockByRecipe(log.productId, log.soldQty, log.variantId);
-            if (log.wasteQty > 0) await deductStockByRecipe(log.productId, log.wasteQty, log.variantId);
-        }
-
-        // Save Daily Report
-        addDailyReport({
-            id: crypto.randomUUID(),
-            date,
-            marketId: selectedMarketId,
-            marketContext: {
-                date,
-                marketName,
-                weather: 'Sunny'
-            },
-            startCashFloat: 1000,
-            revenue: totalRevenue,
-            cogsSold: totalCOGS,
-            wasteCost: totalWasteCost,
-            opexToday: 0,
-            netProfit: trueProfit,
-            allocations: { Working: 0, CapEx: 0, Opex: 0, Emergency: 0, Owner: 0 },
-            billsCount: 0,
-            aov: 0,
-            sellThroughRate: (totalSoldItems / (totalSoldItems + logs.reduce((s, l) => s + l.wasteQty + l.leftoverQty, 0))) * 100,
-            logs
-        });
-
-        setShowConfirmModal(false);
-        alert(`✅ บันทึกสำเร็จ!\n\n💰 รายได้: ${formatCurrency(totalRevenue)}\n✅ ขายได้: ${totalSoldItems} ชิ้น\n💚 กำไร: ${formatCurrency(trueProfit)}`);
-
-        // Reset form
-        setLogs(products.map(p => ({
-            date,
-            productId: p.id,
-            product: p,
+        // Reset logs
+        setLogs(logs.map(log => ({
+            ...log,
             preparedQty: 0,
             soldQty: 0,
             wasteQty: 0,
-            leftoverQty: 0,
-            sellOutTime: '',
-            missedOppQty: 0,
-            wasteReason: ''
+            leftoverQty: 0
         })));
     };
 
+    const totalAvailable = logs.reduce((sum, log) => sum + (log.preparedQty || 0), 0);
+    const hasNoStock = totalAvailable === 0;
+
     return (
         <div className="space-y-6 animate-in fade-in duration-500">
-            {/* Header - Simplified */}
-            <div className="bg-gradient-to-r from-cafe-800 to-cafe-900 p-6 rounded-2xl shadow-lg text-white">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                        <label className="block text-sm font-medium text-cafe-200 mb-2 flex items-center gap-2">
-                            <Store size={16} />
-                            ตลาด/สาขา
-                        </label>
-                        <select
-                            value={selectedMarketId}
-                            onChange={e => setSelectedMarketId(e.target.value)}
-                            className="w-full p-3 bg-white/10 border border-white/20 rounded-xl text-white focus:ring-2 focus:ring-white/50 outline-none backdrop-blur-sm"
-                        >
-                            {markets.map(m => (
-                                <option key={m.id} value={m.id} className="text-cafe-900">{m.name}</option>
-                            ))}
-                        </select>
+            {/* Premium Header */}
+            <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-cafe-800 via-cafe-700 to-cafe-900 p-8 text-white shadow-xl">
+                <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -translate-y-1/2 translate-x-1/2" />
+
+                <div className="relative flex flex-col md:flex-row md:items-center justify-between gap-6">
+                    <div className="flex items-center gap-4">
+                        <div className="w-14 h-14 bg-white/10 backdrop-blur rounded-xl flex items-center justify-center">
+                            <ShoppingCart size={28} />
+                        </div>
+                        <div>
+                            <h1 className="text-2xl font-bold flex items-center gap-2">
+                                บันทึกยอดขาย
+                                <Sparkles className="text-yellow-300" size={20} />
+                            </h1>
+                            <p className="text-cafe-200">Daily Sales Log - เชื่อมกับสต็อกอัตโนมัติ</p>
+                        </div>
                     </div>
-                    <div>
-                        <label className="block text-sm font-medium text-cafe-200 mb-2 flex items-center gap-2">
-                            <Calendar size={16} />
-                            วันที่
-                        </label>
-                        <input
-                            type="date"
-                            value={date}
-                            onChange={e => setDate(e.target.value)}
-                            className="w-full p-3 bg-white/10 border border-white/20 rounded-xl text-white focus:ring-2 focus:ring-white/50 outline-none backdrop-blur-sm"
-                        />
+
+                    <div className="flex flex-wrap gap-4">
+                        <div className="bg-white/10 backdrop-blur rounded-xl p-3 flex items-center gap-2">
+                            <Store size={18} className="text-cafe-200" />
+                            <select
+                                value={selectedMarketId}
+                                onChange={e => setSelectedMarketId(e.target.value)}
+                                className="bg-transparent border-none text-white font-medium focus:ring-0 cursor-pointer"
+                            >
+                                {markets.map(m => (
+                                    <option key={m.id} value={m.id} className="text-cafe-900">{m.name}</option>
+                                ))}
+                            </select>
+                        </div>
+                        <div className="bg-white/10 backdrop-blur rounded-xl p-3 flex items-center gap-2">
+                            <Calendar size={18} className="text-cafe-200" />
+                            <input
+                                type="date"
+                                value={date}
+                                onChange={e => setDate(e.target.value)}
+                                className="bg-transparent border-none text-white font-medium focus:ring-0 cursor-pointer"
+                            />
+                        </div>
+
+                        {/* Weather Selector */}
+                        <div className="bg-white/10 backdrop-blur rounded-xl p-2 flex items-center gap-1">
+                            <span className="text-cafe-200 text-sm px-2">อากาศ:</span>
+                            {[
+                                { id: 'sunny', icon: <Sun size={20} />, label: 'แดด', color: 'text-yellow-300 bg-yellow-500/30' },
+                                { id: 'cloudy', icon: <Cloud size={20} />, label: 'เมฆ', color: 'text-gray-300 bg-gray-500/30' },
+                                { id: 'rain', icon: <CloudRain size={20} />, label: 'ฝน', color: 'text-blue-300 bg-blue-500/30' },
+                                { id: 'storm', icon: <CloudLightning size={20} />, label: 'พายุ', color: 'text-purple-300 bg-purple-500/30' },
+                            ].map(w => (
+                                <button
+                                    key={w.id}
+                                    type="button"
+                                    onClick={() => setWeather(weather === w.id ? null : w.id as WeatherCondition)}
+                                    className={`p-2 rounded-lg transition-all ${weather === w.id
+                                        ? w.color + ' ring-2 ring-white/50 scale-110'
+                                        : 'text-cafe-300 hover:bg-white/10'
+                                        }`}
+                                    title={w.label}
+                                >
+                                    {w.icon}
+                                </button>
+                            ))}
+                        </div>
                     </div>
                 </div>
             </div>
 
-            {/* Product Table - Simplified */}
-            <div className="bg-white rounded-2xl shadow-sm border border-cafe-100 overflow-hidden">
-                <div className="p-5 bg-gradient-to-r from-cafe-50 to-white border-b border-cafe-100">
-                    <h3 className="text-lg font-bold text-cafe-900 flex items-center gap-2">
-                        <ShoppingCart size={20} />
-                        บันทึกยอดขายรายสินค้า
-                    </h3>
-                    <p className="text-sm text-cafe-500 mt-1">กรอกจำนวนที่เตรียมมา และของเสีย ระบบจะคำนวณยอดขายให้อัตโนมัติ</p>
+            {/* Stock Connection Banner */}
+            {hasNoStock ? (
+                <div className="bg-amber-50 border-2 border-amber-200 rounded-xl p-4 flex items-center gap-3">
+                    <AlertCircle className="text-amber-500" size={24} />
+                    <div>
+                        <p className="font-bold text-amber-800">ยังไม่มีของส่งมาจากสต็อก</p>
+                        <p className="text-sm text-amber-600">กรุณาไปหน้า "สต็อกเมนู" และกรอก "ส่งไปร้าน" ก่อน</p>
+                    </div>
+                    <ArrowRight className="text-amber-400 ml-auto" />
                 </div>
+            ) : (
+                <div className="bg-green-50 border-2 border-green-200 rounded-xl p-4 flex items-center gap-3">
+                    <Package className="text-green-500" size={24} />
+                    <div>
+                        <p className="font-bold text-green-800">ของพร้อมขาย: {totalAvailable} ชิ้น</p>
+                        <p className="text-sm text-green-600">ดึงจากสต็อกเมนูอัตโนมัติ ✨</p>
+                    </div>
+                </div>
+            )}
 
-                <div className="overflow-x-auto">
-                    <table className="w-full">
-                        <thead className="bg-cafe-50 text-cafe-600 text-sm">
-                            <tr>
-                                <th className="px-6 py-4 text-left font-semibold">สินค้า</th>
-                                <th className="px-4 py-4 text-center font-semibold w-32">เตรียมมา</th>
-                                <th className="px-4 py-4 text-center font-semibold w-32">ของเสีย</th>
-                                <th className="px-4 py-4 text-center font-semibold w-32">เหลือ</th>
-                                <th className="px-6 py-4 text-center font-semibold w-40 bg-green-50">ขายได้</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-cafe-100">
-                            {logs.map((log, index) => (
-                                <tr key={log.productId} className="hover:bg-cafe-50/50 transition-colors">
-                                    <td className="px-6 py-4">
-                                        <div className="font-semibold text-cafe-900">{log.product.name}</div>
-                                        <div className="text-xs text-cafe-500">
-                                            {log.variant ? (
-                                                <span className="text-blue-600 font-bold">{log.variant.name}</span>
-                                            ) : (
-                                                log.product.flavor
-                                            )}
-                                            {' · '}
-                                            {formatCurrency(log.variant ? log.variant.price : log.product.price)}
-                                        </div>
-                                    </td>
-                                    <td className="px-4 py-3">
-                                        <NumberInput
-                                            value={log.preparedQty || 0}
-                                            onChange={val => handleLogChange(index, 'preparedQty', val)}
-                                            className="w-full p-2.5 text-center bg-blue-50 text-blue-900 font-semibold rounded-lg border-2 border-blue-200 focus:ring-2 focus:ring-blue-400 focus:border-transparent"
-                                            placeholder="0"
-                                        />
-                                    </td>
-                                    <td className="px-4 py-3">
-                                        <NumberInput
-                                            value={log.wasteQty || 0}
-                                            onChange={val => handleLogChange(index, 'wasteQty', val)}
-                                            className="w-full p-2.5 text-center bg-red-50 text-red-900 font-semibold rounded-lg border-2 border-red-200 focus:ring-2 focus:ring-red-400 focus:border-transparent"
-                                            placeholder="0"
-                                        />
-                                    </td>
-                                    <td className="px-4 py-3">
-                                        <NumberInput
-                                            value={log.leftoverQty || 0}
-                                            onChange={val => handleLogChange(index, 'leftoverQty', val)}
-                                            className="w-full p-2.5 text-center bg-orange-50 text-orange-900 font-semibold rounded-lg border-2 border-orange-200 focus:ring-2 focus:ring-orange-400 focus:border-transparent"
-                                            placeholder="0"
-                                        />
-                                    </td>
-                                    <td className="px-6 py-3 bg-green-50/50">
-                                        <div className="text-center">
-                                            <div className="text-2xl font-bold text-green-600">{log.soldQty}</div>
-                                            <div className="text-xs text-cafe-500 mt-1">
-                                                {formatCurrency(log.soldQty * log.product.price)}
-                                            </div>
-                                        </div>
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                        <tfoot className="bg-cafe-900 text-white font-bold">
-                            <tr>
-                                <td className="px-6 py-4">รวมทั้งหมด</td>
-                                <td className="px-4 py-4 text-center text-lg">
-                                    {logs.reduce((a, b) => a + (b.preparedQty || 0), 0)}
-                                </td>
-                                <td className="px-4 py-4 text-center text-lg text-red-300">
-                                    {logs.reduce((a, b) => a + (b.wasteQty || 0), 0)}
-                                </td>
-                                <td className="px-4 py-4 text-center text-lg text-orange-300">
-                                    {logs.reduce((a, b) => a + (b.leftoverQty || 0), 0)}
-                                </td>
-                                <td className="px-6 py-4 text-center text-2xl text-green-300">
-                                    {totalSoldItems}
-                                </td>
-                            </tr>
-                        </tfoot>
-                    </table>
-                </div>
+            {/* Product Cards Grid */}
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                {logs.map((log, index) => {
+                    const available = log.preparedQty || 0;
+                    const waste = log.wasteQty || 0;
+                    const leftover = log.leftoverQty || 0;
+                    const sold = log.soldQty || 0;
+                    const revenue = sold * (log.variant ? log.variant.price : log.product.price);
+
+                    return (
+                        <div key={`${log.productId}-${log.variantId || ''}`} className="bg-white rounded-2xl shadow-sm border border-cafe-100 overflow-hidden hover:shadow-lg transition-all">
+                            {/* Card Header */}
+                            <div className="p-4 border-b border-cafe-100 bg-gradient-to-r from-cafe-50 to-white">
+                                <h3 className="font-bold text-cafe-800 text-lg">{log.product.name}</h3>
+                                <div className="flex items-center gap-2 mt-1">
+                                    {log.variant && (
+                                        <span className="text-xs text-blue-600 bg-blue-100 px-2 py-0.5 rounded-full font-medium">{log.variant.name}</span>
+                                    )}
+                                    <span className="text-xs text-cafe-400">{formatCurrency(log.variant ? log.variant.price : log.product.price)}</span>
+                                </div>
+                            </div>
+
+                            <div className="p-4 space-y-4">
+                                {/* Available (from Stock) */}
+                                <div className="flex justify-between items-center p-3 bg-blue-50 rounded-xl">
+                                    <span className="text-sm font-medium text-blue-700 flex items-center gap-2">
+                                        <Package size={16} />
+                                        ของพร้อมขาย
+                                    </span>
+                                    <span className="text-xl font-bold text-blue-700">{available}</span>
+                                </div>
+
+                                {/* Waste Input */}
+                                <div className="flex justify-between items-center">
+                                    <span className="text-sm text-red-600">🗑️ ของเสีย</span>
+                                    <NumberInput
+                                        value={waste}
+                                        onChange={val => handleLogChange(index, 'wasteQty', val)}
+                                        className="w-20 p-2 text-center font-bold text-red-700 bg-red-50 border-red-200 rounded-lg"
+                                    />
+                                </div>
+
+                                {/* Leftover Input */}
+                                <div className="flex justify-between items-center">
+                                    <span className="text-sm text-amber-600">📦 เหลือ (คืนสต็อก)</span>
+                                    <NumberInput
+                                        value={leftover}
+                                        onChange={val => handleLogChange(index, 'leftoverQty', val)}
+                                        className="w-20 p-2 text-center font-bold text-amber-700 bg-amber-50 border-amber-200 rounded-lg"
+                                    />
+                                </div>
+
+                                {/* Sold (Auto-calculated) */}
+                                <div className="p-4 bg-green-100 rounded-xl text-center">
+                                    <div className="text-xs text-green-600 mb-1">ขายได้</div>
+                                    <div className="text-3xl font-bold text-green-700">{sold}</div>
+                                    <div className="text-sm text-green-600 mt-1">{formatCurrency(revenue)}</div>
+                                </div>
+                            </div>
+                        </div>
+                    );
+                })}
             </div>
 
-            {/* Footer - Simplified */}
+            {/* Summary Footer */}
             <div className="bg-gradient-to-r from-green-50 to-emerald-50 p-6 rounded-2xl border-2 border-green-200 shadow-lg">
-                <div className="flex flex-col md:flex-row justify-between items-center gap-4">
+                <div className="flex flex-col md:flex-row justify-between items-center gap-6">
                     <div className="flex-1 text-center md:text-left">
                         <p className="text-sm text-cafe-600 mb-1">ยอดขายรวม</p>
                         <h2 className="text-4xl font-bold text-cafe-900">{formatCurrency(totalRevenue)}</h2>
-                        <div className="flex gap-4 mt-3 text-sm">
+                        <div className="flex gap-4 mt-3 text-sm flex-wrap">
                             <span className="text-green-700">
-                                <span className="font-semibold">กำไร:</span> {formatCurrency(trueProfit)}
+                                <TrendingUp size={14} className="inline mr-1" />
+                                กำไร: {formatCurrency(trueProfit)}
                             </span>
-                            <span className="text-cafe-600">
-                                <span className="font-semibold">ขาย:</span> {totalSoldItems} ชิ้น
-                            </span>
+                            <span className="text-cafe-600">ขาย: {totalSoldItems} ชิ้น</span>
+                            <span className="text-amber-600">เหลือคืน: {totalLeftover} ชิ้น</span>
                         </div>
                     </div>
                     <button
                         onClick={handleSaveClick}
-                        className="bg-gradient-to-r from-cafe-800 to-cafe-900 text-white px-8 py-4 rounded-xl font-bold text-lg hover:from-cafe-900 hover:to-black shadow-xl flex items-center gap-3 transition-all active:scale-95"
+                        disabled={totalAvailable === 0}
+                        className="bg-gradient-to-r from-cafe-800 to-cafe-900 text-white px-8 py-4 rounded-xl font-bold text-lg hover:from-cafe-900 hover:to-black shadow-xl flex items-center gap-3 transition-all active:scale-95 disabled:opacity-50"
                     >
-                        <Save size={24} />
+                        <Save size={20} />
                         บันทึกยอดขาย
                     </button>
                 </div>
             </div>
 
             {/* Confirmation Modal */}
-            {showConfirmModal && (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 backdrop-blur-sm animate-in fade-in">
-                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
-                        <div className="p-6 text-center">
-                            <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                                <Save size={32} className="text-green-600" />
-                            </div>
-                            <h3 className="text-2xl font-bold text-cafe-900 mb-2">ยืนยันการบันทึก?</h3>
-                            <p className="text-cafe-500 mb-6">กรุณาตรวจสอบความถูกต้องก่อนบันทึก</p>
-
-                            <div className="bg-cafe-50 rounded-xl p-4 space-y-3 mb-6">
-                                <div className="flex justify-between items-center">
-                                    <span className="text-cafe-600">💰 รายได้รวม</span>
-                                    <span className="font-bold text-lg text-cafe-900">{formatCurrency(totalRevenue)}</span>
-                                </div>
-                                <div className="flex justify-between items-center">
-                                    <span className="text-cafe-600">📦 จำนวนที่ขาย</span>
-                                    <span className="font-bold text-lg text-cafe-900">{totalSoldItems} ชิ้น</span>
-                                </div>
-                                <div className="pt-3 border-t border-cafe-200 flex justify-between items-center">
-                                    <span className="text-green-600 font-semibold">💚 กำไรโดยประมาณ</span>
-                                    <span className="font-bold text-xl text-green-600">{formatCurrency(trueProfit)}</span>
-                                </div>
-                            </div>
-
-                            <div className="flex gap-3">
-                                <button
-                                    onClick={() => setShowConfirmModal(false)}
-                                    className="flex-1 py-3 rounded-xl font-semibold text-cafe-600 hover:bg-cafe-50 transition-colors"
-                                >
-                                    ยกเลิก
-                                </button>
-                                <button
-                                    onClick={confirmSave}
-                                    className="flex-1 py-3 rounded-xl font-bold text-white bg-green-600 hover:bg-green-700 shadow-lg shadow-green-200 transition-all active:scale-95"
-                                >
-                                    ยืนยันบันทึก
-                                </button>
-                            </div>
+            <ConfirmModal
+                isOpen={showConfirmModal}
+                onClose={() => setShowConfirmModal(false)}
+                onConfirm={confirmSave}
+                title="ยืนยันบันทึกยอดขาย"
+            >
+                <div className="space-y-4">
+                    <div className="p-4 bg-gray-50 rounded-xl">
+                        <div className="flex justify-between text-sm text-gray-600 mb-2">
+                            <span>ยอดขายรวม</span>
+                            <span className="font-bold text-xl text-cafe-800">{formatCurrency(totalRevenue)}</span>
+                        </div>
+                        <div className="flex justify-between text-sm text-gray-600 mb-2">
+                            <span>ต้นทุนสินค้า</span>
+                            <span className="text-red-600">-{formatCurrency(totalCOGS)}</span>
+                        </div>
+                        <div className="flex justify-between text-sm text-gray-600">
+                            <span>ของเสีย</span>
+                            <span className="text-red-600">-{formatCurrency(totalWasteCost)}</span>
+                        </div>
+                        <hr className="my-3" />
+                        <div className="flex justify-between font-bold text-lg">
+                            <span className="text-green-700">กำไรสุทธิ</span>
+                            <span className="text-green-700">{formatCurrency(trueProfit)}</span>
                         </div>
                     </div>
+                    <div className="text-sm text-amber-600 bg-amber-50 p-3 rounded-lg flex items-center gap-2">
+                        <AlertCircle size={16} />
+                        ของเหลือ {totalLeftover} ชิ้น จะถูกบันทึกกลับเข้าสต็อกอัตโนมัติ
+                    </div>
                 </div>
-            )}
+            </ConfirmModal>
         </div>
     );
 };

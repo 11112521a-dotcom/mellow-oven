@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { supabase } from './lib/supabase';
-import { Jar, Transaction, Ingredient, PurchaseOrder, Product, DailyReport, JarType, Market, Goal, Alert, JarHistory, JarCustomization, UnallocatedProfit, ProductSaleLog, AllocationProfile, StockLog } from '../types';
+import { Jar, Transaction, Ingredient, PurchaseOrder, Product, DailyReport, JarType, Market, Goal, Alert, JarHistory, JarCustomization, UnallocatedProfit, ProductSaleLog, AllocationProfile, StockLog, DailyInventory } from '../types';
 import type { ForecastOutput } from './lib/forecasting';
 import { ProductionForecast, forecastOutputToDbFormat } from './lib/forecasting/types';
 
@@ -125,6 +125,12 @@ interface AppState {
     signIn: (email: string, password: string) => Promise<void>;
     signOut: () => Promise<void>;
     checkSession: () => Promise<void>;
+
+    // Daily Inventory (Stock ↔ Sales Integration)
+    dailyInventory: DailyInventory[];
+    fetchDailyInventory: (date: string) => Promise<void>;
+    upsertDailyInventory: (record: Partial<DailyInventory> & { businessDate: string; productId: string; variantId?: string }) => Promise<void>;
+    getYesterdayStock: (productId: string, todayDate: string, variantId?: string) => number;
 }
 
 export const useStore = create<AppState>()(
@@ -177,7 +183,9 @@ export const useStore = create<AppState>()(
                     totalCost: s.total_cost,
                     grossProfit: s.gross_profit,
                     variantId: s.variant_id,
-                    variantName: s.variant_name
+                    variantName: s.variant_name,
+                    wasteQty: s.waste_qty || 0, // FIX: Map waste_qty from DB
+                    weatherCondition: s.weather_condition || null // FIX: Map weather_condition from DB
                 })) || [];
 
                 const mappedProductionForecasts = productionForecasts?.map(f => ({
@@ -232,31 +240,24 @@ export const useStore = create<AppState>()(
                     const dbProductMap = new Map(products?.map(p => [p.id, p]));
 
                     // 2. Merge logic:
-                    //    - Start with ALL local products (to preserve unsynced ones)
-                    //    - Update them with DB data if available (preserving local variants)
-                    //    - Add any NEW products from DB that aren't in local
+                    //    - Start with DM products (Source of Truth)
+                    //    - Merge with local state to preserve transitive UI state (like variants if missing in DB fetch)
+                    //    - Implicitly REMOVES local products that don't exist in DB (Fixes FK errors from zombie items)
 
-                    const mergedProducts = [...state.products];
+                    const mergedProducts = products?.map(dbProduct => {
+                        const localProduct = state.products.find(p => p.id === dbProduct.id);
 
-                    // Update or Add from DB
-                    products?.forEach(dbProduct => {
-                        const localIndex = mergedProducts.findIndex(p => p.id === dbProduct.id);
-
-                        if (localIndex >= 0) {
-                            // Exists locally: Merge
-                            const localProduct = mergedProducts[localIndex];
-                            mergedProducts[localIndex] = {
+                        if (localProduct) {
+                            return {
                                 ...dbProduct,
-                                // Keep local variants if DB has none (fix for missing column)
+                                // Keep local variants if DB has none (fix for missing column/partial fetch)
                                 variants: (localProduct.variants && (!dbProduct.variants || dbProduct.variants.length === 0))
                                     ? localProduct.variants
                                     : dbProduct.variants
                             };
-                        } else {
-                            // New from DB: Add
-                            mergedProducts.push(dbProduct);
                         }
-                    });
+                        return dbProduct;
+                    }) || state.products;
 
                     return {
                         ...state,
@@ -325,6 +326,165 @@ export const useStore = create<AppState>()(
 
             // Stock Logs
             stockLogs: [],
+
+            // Daily Inventory (Stock ↔ Sales Integration)
+            dailyInventory: [],
+
+            fetchDailyInventory: async (date: string) => {
+                const { data, error } = await supabase
+                    .from('daily_inventory')
+                    .select('*')
+                    .eq('business_date', date);
+
+                if (error) {
+                    console.error('Error fetching daily inventory:', error);
+                    return;
+                }
+
+                const mapped = data?.map(d => ({
+                    id: d.id,
+                    createdAt: d.created_at,
+                    businessDate: d.business_date,
+                    productId: d.product_id,
+                    variantId: d.variant_id || undefined,     // NEW: Variant support
+                    variantName: d.variant_name || undefined, // NEW: Variant support
+                    producedQty: d.produced_qty,
+                    toShopQty: d.to_shop_qty,
+                    soldQty: d.sold_qty,
+                    stockYesterday: d.stock_yesterday,
+                    leftoverHome: d.leftover_home,
+                    unsoldShop: d.unsold_shop
+                })) || [];
+
+                // Merge with existing data (to support multi-date fetching)
+                set(state => {
+                    const existingOtherDates = state.dailyInventory.filter(d => d.businessDate !== date);
+                    return { dailyInventory: [...existingOtherDates, ...mapped] };
+                });
+            },
+
+            upsertDailyInventory: async (record) => {
+                // Calculate derived fields
+                const stockYesterday = record.stockYesterday ?? 0;
+                const produced = record.producedQty ?? 0;
+                const toShop = record.toShopQty ?? 0;
+                const sold = record.soldQty ?? 0;
+
+                const leftoverHome = stockYesterday + produced - toShop;
+                const unsoldShop = toShop - sold;
+
+                const dbRecord: Record<string, any> = {
+                    business_date: record.businessDate,
+                    product_id: record.productId,
+                    produced_qty: produced,
+                    to_shop_qty: toShop,
+                    sold_qty: sold,
+                    stock_yesterday: stockYesterday,
+                    leftover_home: leftoverHome,
+                    unsold_shop: unsoldShop
+                };
+
+                // Add variant fields if provided
+                if (record.variantId) {
+                    dbRecord.variant_id = record.variantId;
+                }
+                if (record.variantName) {
+                    dbRecord.variant_name = record.variantName;
+                }
+
+                // manual check for existence to avoid ON CONFLICT inference issues
+                let existingQuery = supabase
+                    .from('daily_inventory')
+                    .select('id')
+                    .eq('business_date', record.businessDate)
+                    .eq('product_id', record.productId);
+
+                if (record.variantId) {
+                    existingQuery = existingQuery.eq('variant_id', record.variantId);
+                } else {
+                    existingQuery = existingQuery.is('variant_id', null);
+                }
+
+                const { data: existingData, error: fetchError } = await existingQuery.single();
+
+                let data, error;
+
+                if (existingData?.id) {
+                    // Update existing
+                    const result = await supabase
+                        .from('daily_inventory')
+                        .update(dbRecord)
+                        .eq('id', existingData.id)
+                        .select()
+                        .single();
+                    data = result.data;
+                    error = result.error;
+                } else {
+                    // Insert new
+                    const result = await supabase
+                        .from('daily_inventory')
+                        .insert(dbRecord)
+                        .select()
+                        .single();
+                    data = result.data;
+                    error = result.error;
+                }
+
+                if (error) {
+                    console.error('Error upserting daily inventory:', error);
+                    return;
+                }
+
+                // Update local state
+                const newRecord: DailyInventory = {
+                    id: data.id,
+                    createdAt: data.created_at,
+                    businessDate: data.business_date,
+                    productId: data.product_id,
+                    variantId: data.variant_id || undefined,
+                    variantName: data.variant_name || undefined,
+                    producedQty: data.produced_qty,
+                    toShopQty: data.to_shop_qty,
+                    soldQty: data.sold_qty,
+                    stockYesterday: data.stock_yesterday,
+                    leftoverHome: data.leftover_home,
+                    unsoldShop: data.unsold_shop
+                };
+
+                set(state => {
+                    const existingIndex = state.dailyInventory.findIndex(
+                        d => d.businessDate === record.businessDate &&
+                            d.productId === record.productId &&
+                            (d.variantId || '') === (record.variantId || '')
+                    );
+
+                    if (existingIndex >= 0) {
+                        const updated = [...state.dailyInventory];
+                        updated[existingIndex] = newRecord;
+                        return { dailyInventory: updated };
+                    }
+                    return { dailyInventory: [...state.dailyInventory, newRecord] };
+                });
+            },
+
+            getYesterdayStock: (productId: string, todayDate: string, variantId?: string) => {
+                // Lazy Initialization: Calculate yesterday's stock from previous day's data
+                const state = get();
+                const yesterday = new Date(todayDate);
+                yesterday.setDate(yesterday.getDate() - 1);
+                const yesterdayStr = yesterday.toISOString().split('T')[0];
+
+                const yesterdayRecord = state.dailyInventory.find(
+                    d => d.businessDate === yesterdayStr &&
+                        d.productId === productId &&
+                        (d.variantId || '') === (variantId || '')  // Match variant too
+                );
+
+                if (!yesterdayRecord) return 0;
+
+                // Stock = leftoverHome + unsoldShop
+                return yesterdayRecord.leftoverHome + yesterdayRecord.unsoldShop;
+            },
 
             addStockLog: async (log) => {
                 const dbLog = {
@@ -529,7 +689,9 @@ export const useStore = create<AppState>()(
                     total_cost: log.totalCost,
                     gross_profit: log.grossProfit,
                     variant_id: log.variantId,
-                    variant_name: log.variantName
+                    variant_name: log.variantName,
+                    waste_qty: log.wasteQty || 0, // FIX: Include waste quantity
+                    weather_condition: log.weatherCondition || null // FIX: Include weather
                 };
 
                 const { error } = await supabase.from('product_sales').insert(dbLog);
@@ -853,7 +1015,6 @@ export const useStore = create<AppState>()(
                     // Optional: Revert local state or show error
                     // set((state) => ({ products: state.products.filter(p => p.id !== tempId) }));
                 } else if (data) {
-                    console.log('Product synced to DB:', data);
                     // 6. Update local product with REAL ID from DB
                     set((state) => ({
                         products: state.products.map((p) =>
@@ -882,7 +1043,6 @@ export const useStore = create<AppState>()(
                     if (retryError) {
                         console.error('Error updating product in DB (kept locally):', retryError);
                     } else {
-                        console.log('Product updated in DB (without variants)');
                     }
                 }
             },
@@ -1012,11 +1172,14 @@ export const useStore = create<AppState>()(
             },
             removeMarket: async (id) => {
                 const { error } = await supabase.from('markets').delete().eq('id', id);
-                if (!error) {
-                    set((state) => ({
-                        markets: state.markets.filter((m) => m.id !== id)
-                    }));
+                if (error) {
+                    console.error('Error deleting market:', error);
+                    alert(`ไม่สามารถลบตลาดได้: ${error.message}`);
+                    return false;
                 }
+                set((state) => ({
+                    markets: state.markets.filter((m) => m.id !== id)
+                }));
             },
 
             deductStockByRecipe: (productId, quantity, variantId) => {

@@ -77,29 +77,86 @@ export const EditProductModal: React.FC<EditProductModalProps> = ({ isOpen, onCl
     return (
         <Modal isOpen={isOpen} onClose={onClose} title="✏️ แก้ไขสินค้า">
             <form onSubmit={handleSubmit} className="space-y-5">
-                {/* Tabs */}
-                <div className="flex border-b border-cafe-200 mb-4">
-                    <button
-                        type="button"
-                        onClick={() => setActiveTab('INFO')}
-                        className={`px-4 py-2 text-sm font-medium ${activeTab === 'INFO' ? 'text-cafe-800 border-b-2 border-cafe-800' : 'text-cafe-500'}`}
-                    >
-                        ข้อมูลทั่วไป
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => setActiveTab('VARIANTS')}
-                        className={`px-4 py-2 text-sm font-medium ${activeTab === 'VARIANTS' ? 'text-cafe-800 border-b-2 border-cafe-800' : 'text-cafe-500'}`}
-                    >
-                        ตัวเลือก (Variants)
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => setActiveTab('RECIPE')}
-                        className={`px-4 py-2 text-sm font-medium ${activeTab === 'RECIPE' ? 'text-cafe-800 border-b-2 border-cafe-800' : 'text-cafe-500'}`}
-                    >
-                        สูตรผลิต (Base Recipe)
-                    </button>
+                {/* Premium Step Wizard Tabs */}
+                <div className="bg-gradient-to-r from-cafe-50 to-amber-50 rounded-2xl p-4 mb-6">
+                    <div className="flex items-center justify-between">
+                        {/* Step 1 - Info */}
+                        <button
+                            type="button"
+                            onClick={() => setActiveTab('INFO')}
+                            className={`flex-1 flex flex-col items-center gap-1 p-3 rounded-xl transition-all ${activeTab === 'INFO'
+                                    ? 'bg-white shadow-lg scale-105'
+                                    : 'hover:bg-white/50'
+                                }`}
+                        >
+                            <div className={`w-10 h-10 rounded-full flex items-center justify-center text-lg font-bold ${activeTab === 'INFO'
+                                    ? 'bg-gradient-to-br from-cafe-600 to-cafe-800 text-white'
+                                    : 'bg-cafe-100 text-cafe-500'
+                                }`}>
+                                📝
+                            </div>
+                            <span className={`text-xs font-bold ${activeTab === 'INFO' ? 'text-cafe-800' : 'text-cafe-500'}`}>
+                                ข้อมูลทั่วไป
+                            </span>
+                            <span className="text-[10px] text-cafe-400">ชื่อ • หมวด • ราคา</span>
+                        </button>
+
+                        {/* Connector */}
+                        <div className="w-8 h-0.5 bg-cafe-200 -translate-y-2"></div>
+
+                        {/* Step 2 - Variants */}
+                        <button
+                            type="button"
+                            onClick={() => setActiveTab('VARIANTS')}
+                            className={`flex-1 flex flex-col items-center gap-1 p-3 rounded-xl transition-all relative ${activeTab === 'VARIANTS'
+                                    ? 'bg-white shadow-lg scale-105'
+                                    : 'hover:bg-white/50'
+                                }`}
+                        >
+                            <div className={`w-10 h-10 rounded-full flex items-center justify-center text-lg font-bold ${activeTab === 'VARIANTS'
+                                    ? 'bg-gradient-to-br from-blue-500 to-indigo-600 text-white'
+                                    : 'bg-blue-50 text-blue-400'
+                                }`}>
+                                🎨
+                            </div>
+                            <span className={`text-xs font-bold ${activeTab === 'VARIANTS' ? 'text-blue-700' : 'text-cafe-500'}`}>
+                                ตัวเลือก
+                            </span>
+                            <span className="text-[10px] text-cafe-400">รสชาติ • ขนาด</span>
+                            {variants.length > 0 && (
+                                <span className="absolute top-1 right-2 bg-blue-500 text-white text-[10px] w-4 h-4 rounded-full flex items-center justify-center">
+                                    {variants.length}
+                                </span>
+                            )}
+                        </button>
+
+                        {/* Connector */}
+                        <div className="w-8 h-0.5 bg-cafe-200 -translate-y-2"></div>
+
+                        {/* Step 3 - Recipe */}
+                        <button
+                            type="button"
+                            onClick={() => setActiveTab('RECIPE')}
+                            className={`flex-1 flex flex-col items-center gap-1 p-3 rounded-xl transition-all relative ${activeTab === 'RECIPE'
+                                    ? 'bg-white shadow-lg scale-105'
+                                    : 'hover:bg-white/50'
+                                }`}
+                        >
+                            <div className={`w-10 h-10 rounded-full flex items-center justify-center text-lg font-bold ${activeTab === 'RECIPE'
+                                    ? 'bg-gradient-to-br from-emerald-500 to-green-600 text-white'
+                                    : 'bg-green-50 text-green-400'
+                                }`}>
+                                📋
+                            </div>
+                            <span className={`text-xs font-bold ${activeTab === 'RECIPE' ? 'text-green-700' : 'text-cafe-500'}`}>
+                                สูตรผลิต
+                            </span>
+                            <span className="text-[10px] text-cafe-400">วัตถุดิบ • ต้นทุน</span>
+                            {recipe && (
+                                <span className="absolute top-1 right-2 text-green-500 text-xs">✅</span>
+                            )}
+                        </button>
+                    </div>
                 </div>
 
                 {activeTab === 'INFO' ? (
