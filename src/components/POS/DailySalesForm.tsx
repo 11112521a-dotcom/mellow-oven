@@ -43,7 +43,7 @@ const ConfirmModal: React.FC<{
 export const DailySalesForm: React.FC = () => {
     const {
         products, addTransaction, updateJarBalance, deductStockByRecipe, markets,
-        addDailyReport, addProductSaleLog,
+        addDailyReport, addProductSaleLog, fetchData,
         dailyInventory, fetchDailyInventory, upsertDailyInventory // NEW: Integration with Stock Log
     } = useStore();
 
@@ -228,6 +228,9 @@ export const DailySalesForm: React.FC = () => {
             wasteQty: 0,
             leftoverQty: 0
         })));
+
+        // FIX: Refresh data to sync across devices and update jar balances
+        await fetchData();
     };
 
     const totalAvailable = logs.reduce((sum, log) => sum + (log.preparedQty || 0), 0);
