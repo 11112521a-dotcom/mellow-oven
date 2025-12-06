@@ -326,8 +326,8 @@ export const DailySalesForm: React.FC = () => {
                 </div>
             )}
 
-            {/* Product Cards Grid */}
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {/* Product Cards - COMPACT for Mobile */}
+            <div className="space-y-2">
                 {logs.map((log, index) => {
                     const available = log.preparedQty || 0;
                     const waste = log.wasteQty || 0;
@@ -336,53 +336,54 @@ export const DailySalesForm: React.FC = () => {
                     const revenue = sold * (log.variant ? log.variant.price : log.product.price);
 
                     return (
-                        <div key={`${log.productId}-${log.variantId || ''}`} className="bg-white rounded-2xl shadow-sm border border-cafe-100 overflow-hidden hover:shadow-lg transition-all">
-                            {/* Card Header */}
-                            <div className="p-4 border-b border-cafe-100 bg-gradient-to-r from-cafe-50 to-white">
-                                <h3 className="font-bold text-cafe-800 text-lg">{log.product.name}</h3>
-                                <div className="flex items-center gap-2 mt-1">
+                        <div key={`${log.productId}-${log.variantId || ''}`} className="bg-white rounded-xl shadow-sm border border-cafe-100 p-3">
+                            {/* Row 1: Name + Available + Sold */}
+                            <div className="flex items-center justify-between mb-2">
+                                <div className="flex items-center gap-2 flex-1 min-w-0">
+                                    <span className="font-bold text-cafe-800 truncate">{log.product.name}</span>
                                     {log.variant && (
-                                        <span className="text-xs text-blue-600 bg-blue-100 px-2 py-0.5 rounded-full font-medium">{log.variant.name}</span>
+                                        <span className="text-xs text-blue-600 bg-blue-100 px-2 py-0.5 rounded-full shrink-0">{log.variant.name}</span>
                                     )}
-                                    <span className="text-xs text-cafe-400">{formatCurrency(log.variant ? log.variant.price : log.product.price)}</span>
+                                </div>
+                                <div className="flex items-center gap-3 shrink-0">
+                                    <span className="text-xs text-blue-600">
+                                        <Package size={12} className="inline mr-1" />
+                                        {available}
+                                    </span>
+                                    <div className="bg-green-100 px-3 py-1 rounded-lg text-center">
+                                        <div className="text-xs text-green-600">ขาย</div>
+                                        <div className="text-lg font-bold text-green-700">{sold}</div>
+                                    </div>
                                 </div>
                             </div>
 
-                            <div className="p-4 space-y-4">
-                                {/* Available (from Stock) */}
-                                <div className="flex justify-between items-center p-3 bg-blue-50 rounded-xl">
-                                    <span className="text-sm font-medium text-blue-700 flex items-center gap-2">
-                                        <Package size={16} />
-                                        ของพร้อมขาย
-                                    </span>
-                                    <span className="text-xl font-bold text-blue-700">{available}</span>
-                                </div>
-
-                                {/* Waste Input */}
-                                <div className="flex justify-between items-center">
-                                    <span className="text-sm text-red-600">🗑️ ของเสีย</span>
+                            {/* Row 2: Inputs */}
+                            <div className="flex items-center gap-2">
+                                {/* Waste */}
+                                <div className="flex items-center gap-1 bg-red-50 rounded-lg px-2 py-1 flex-1">
+                                    <span className="text-xs text-red-600">🗑️</span>
+                                    <span className="text-xs text-red-700">เสีย</span>
                                     <NumberInput
                                         value={waste}
                                         onChange={val => handleLogChange(index, 'wasteQty', val)}
-                                        className="w-20 p-2 text-center font-bold text-red-700 bg-red-50 border-red-200 rounded-lg"
+                                        className="w-12 text-center text-sm font-bold bg-white border border-red-200 rounded ml-auto"
                                     />
                                 </div>
 
-                                {/* Leftover Input */}
-                                <div className="flex justify-between items-center">
-                                    <span className="text-sm text-amber-600">📦 เหลือ (คืนสต็อก)</span>
+                                {/* Leftover */}
+                                <div className="flex items-center gap-1 bg-amber-50 rounded-lg px-2 py-1 flex-1">
+                                    <span className="text-xs text-amber-600">📦</span>
+                                    <span className="text-xs text-amber-700">เหลือ</span>
                                     <NumberInput
                                         value={leftover}
                                         onChange={val => handleLogChange(index, 'leftoverQty', val)}
-                                        className="w-20 p-2 text-center font-bold text-amber-700 bg-amber-50 border-amber-200 rounded-lg"
+                                        className="w-12 text-center text-sm font-bold bg-white border border-amber-200 rounded ml-auto"
                                     />
                                 </div>
 
-                                {/* Sold (Auto-calculated) */}
-                                <div className="p-4 bg-green-100 rounded-xl text-center">
-                                    <div className="text-xs text-green-600 mb-1">ขายได้</div>
-                                    <div className="text-3xl font-bold text-green-700">{sold}</div>
-                                    <div className="text-sm text-green-600 mt-1">{formatCurrency(revenue)}</div>
+                                {/* Revenue */}
+                                <div className="text-right shrink-0">
+                                    <div className="text-xs text-green-600">{formatCurrency(revenue)}</div>
                                 </div>
                             </div>
                         </div>
