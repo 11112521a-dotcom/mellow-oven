@@ -520,6 +520,7 @@ export const useStore = create<AppState>()(
                     set((state) => ({ transactions: [transaction, ...state.transactions] }));
                 } else {
                     console.error('Error adding transaction:', error);
+                    alert(`❌ บันทึก Transaction ไม่สำเร็จ: ${error.message}`);
                 }
             },
 
@@ -591,6 +592,7 @@ export const useStore = create<AppState>()(
                     set((state) => ({ unallocatedProfits: [...state.unallocatedProfits, profit] }));
                 } else {
                     console.error('Error adding unallocated profit:', error);
+                    alert(`❌ บันทึกกำไรไม่สำเร็จ: ${error.message}`);
                 }
             },
 
@@ -698,8 +700,7 @@ export const useStore = create<AppState>()(
 
                 if (error) {
                     console.error('Error adding product sale log (kept locally):', error);
-                    // We keep the local state so the user sees the sale.
-                    // In a real app, we'd queue this for retry.
+                    alert(`❌ บันทึกการขายไม่สำเร็จ: ${error.message}`);
                 }
             },
 
