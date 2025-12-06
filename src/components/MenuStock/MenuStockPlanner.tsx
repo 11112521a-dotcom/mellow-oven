@@ -354,7 +354,81 @@ export const MenuStockPlanner: React.FC = () => {
         await fetchDailyInventory(businessDate);
     };
 
-    // Render individual item card
+    // Render COMPACT card for single products (no variants) - Mobile Friendly!
+    const renderCompactCard = (item: InventoryItem) => {
+        const saved = getSavedRecord(item);
+        const stockYesterday = saved.stockYesterday ?? getYesterdayForItem(item);
+        const confirmedProduction = saved.producedQty || 0;
+        const confirmedTransfer = saved.toShopQty || 0;
+        const todayStock = stockYesterday + confirmedProduction;
+        const leftover = todayStock - confirmedTransfer;
+        const pendingProd = pendingProduction[item.id] || 0;
+        const pendingTrans = pendingTransfer[item.id] || 0;
+
+        return (
+            <div key={item.id} className="bg-white rounded-xl shadow-sm border border-cafe-100 p-3">
+                {/* Header Row */}
+                <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                        <span className="font-bold text-cafe-800">{item.name}</span>
+                        <span className="text-xs text-cafe-400 bg-cafe-100 px-2 py-0.5 rounded-full">{item.category}</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-xs">
+                        <span className="text-gray-500">เก่า: <b>{stockYesterday}</b></span>
+                        <span className="text-emerald-600 font-bold">รวม: {todayStock}</span>
+                        <span className={`font-bold ${leftover < 0 ? 'text-red-500' : 'text-amber-600'}`}>เหลือ: {leftover}</span>
+                    </div>
+                </div>
+
+                {/* Action Row - Compact */}
+                <div className="flex flex-wrap gap-2">
+                    {/* Production */}
+                    <div className="flex items-center gap-1 bg-blue-50 rounded-lg px-2 py-1 flex-1 min-w-[140px]">
+                        <Flame size={14} className="text-blue-500" />
+                        <span className="text-xs text-blue-700">ผลิต</span>
+                        {confirmedProduction > 0 && <span className="text-xs text-blue-600">+{confirmedProduction}</span>}
+                        <input
+                            type="number"
+                            className="w-12 text-center text-sm font-bold bg-white border border-blue-200 rounded ml-auto"
+                            value={pendingProd || ''}
+                            onChange={e => setPendingProduction(prev => ({ ...prev, [item.id]: Math.max(0, parseInt(e.target.value) || 0) }))}
+                            placeholder="0"
+                        />
+                        <button
+                            onClick={() => handleProductionConfirm(item, pendingProd)}
+                            disabled={pendingProd <= 0}
+                            className="p-1 bg-blue-500 text-white rounded disabled:opacity-50"
+                        >
+                            <Check size={14} />
+                        </button>
+                    </div>
+
+                    {/* Transfer */}
+                    <div className="flex items-center gap-1 bg-violet-50 rounded-lg px-2 py-1 flex-1 min-w-[140px]">
+                        <Truck size={14} className="text-violet-500" />
+                        <span className="text-xs text-violet-700">ส่ง</span>
+                        {confirmedTransfer > 0 && <span className="text-xs text-violet-600">+{confirmedTransfer}</span>}
+                        <input
+                            type="number"
+                            className="w-12 text-center text-sm font-bold bg-white border border-violet-200 rounded ml-auto"
+                            value={pendingTrans || ''}
+                            onChange={e => setPendingTransfer(prev => ({ ...prev, [item.id]: Math.max(0, parseInt(e.target.value) || 0) }))}
+                            placeholder="0"
+                        />
+                        <button
+                            onClick={() => handleTransferConfirm(item, pendingTrans)}
+                            disabled={pendingTrans <= 0}
+                            className="p-1 bg-violet-500 text-white rounded disabled:opacity-50"
+                        >
+                            <Check size={14} />
+                        </button>
+                    </div>
+                </div>
+            </div>
+        );
+    };
+
+    // Render FULL item card (for variants - detailed view)
     const renderItemCard = (item: InventoryItem, isNested: boolean = false) => {
         const saved = getSavedRecord(item);
         const stockYesterday = saved.stockYesterday ?? getYesterdayForItem(item);
@@ -566,8 +640,8 @@ export const MenuStockPlanner: React.FC = () => {
                     const isExpanded = expandedGroups.has(product.id);
 
                     if (!hasVariants) {
-                        // Simple product without variants - render directly
-                        return renderItemCard(items[0]);
+                        // Simple product without variants - use COMPACT card
+                        return renderCompactCard(items[0]);
                     }
 
                     // Product with variants - render as collapsible group
