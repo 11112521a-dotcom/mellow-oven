@@ -88,6 +88,28 @@ export const TransactionTable: React.FC<TransactionTableProps> = ({ transactions
         return acc;
     }, { income: 0, expense: 0 });
 
+    // Group transactions by date
+    const groupedTransactions = filteredTransactions.reduce((groups, tx) => {
+        const dateKey = new Date(tx.date).toLocaleDateString('th-TH', {
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric'
+        });
+        if (!groups[dateKey]) {
+            groups[dateKey] = [];
+        }
+        groups[dateKey].push(tx);
+        return groups;
+    }, {} as Record<string, Transaction[]>);
+
+    // Get sorted date keys (newest first)
+    const sortedDateKeys = Object.keys(groupedTransactions).sort((a, b) => {
+        const dateA = new Date(groupedTransactions[a][0].date);
+        const dateB = new Date(groupedTransactions[b][0].date);
+        return dateB.getTime() - dateA.getTime();
+    });
+
     const getTypeIcon = (type: string) => {
         switch (type) {
             case 'INCOME': return <ArrowDownLeft size={20} className="text-green-600" />;
@@ -244,8 +266,8 @@ export const TransactionTable: React.FC<TransactionTableProps> = ({ transactions
                                     </td>
                                     <td className="px-6 py-4 text-right">
                                         <span className={`font-bold text-lg ${tx.type === 'INCOME' ? 'text-green-600' :
-                                                tx.type === 'EXPENSE' ? 'text-red-600' :
-                                                    'text-blue-600'
+                                            tx.type === 'EXPENSE' ? 'text-red-600' :
+                                                'text-blue-600'
                                             }`}>
                                             {tx.type === 'EXPENSE' ? '-' : '+'}{formatCurrency(tx.amount)}
                                         </span>
@@ -275,67 +297,78 @@ export const TransactionTable: React.FC<TransactionTableProps> = ({ transactions
                 </table>
 
                 {/* Mobile Card View */}
-                <div className="md:hidden space-y-3 p-4 bg-cafe-50/30">
+                <div className="md:hidden p-4 bg-cafe-50/30">
                     {filteredTransactions.length === 0 ? (
                         <div className="text-center text-cafe-400 py-12">
                             ไม่พบรายการ
                         </div>
                     ) : (
-                        filteredTransactions.slice(0, 50).map((tx) => (
-                            <div key={tx.id} className="bg-white border border-cafe-100 rounded-2xl p-4 shadow-sm active:scale-[0.99] transition-transform">
-                                <div className="flex items-start gap-4">
-                                    <div className={`w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0 ${getTypeColor(tx.type)}`}>
-                                        {getTypeIcon(tx.type)}
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                        <div className="flex justify-between items-start mb-1">
-                                            <h4 className="font-bold text-cafe-900 truncate pr-2">
-                                                {translateDescription(tx.description)}
-                                            </h4>
-                                            <span className={`font-bold whitespace-nowrap ${tx.type === 'INCOME' ? 'text-green-600' :
-                                                    tx.type === 'EXPENSE' ? 'text-red-600' :
-                                                        'text-blue-600'
-                                                }`}>
-                                                {tx.type === 'EXPENSE' ? '-' : '+'}{formatCurrency(tx.amount)}
-                                            </span>
-                                        </div>
+                        sortedDateKeys.map((dateKey) => (
+                            <div key={dateKey} className="mb-6">
+                                {/* Date Header */}
+                                <div className="sticky top-0 z-10 bg-gradient-to-r from-cafe-100/90 to-cafe-50/90 backdrop-blur-sm px-4 py-2 rounded-xl mb-3 flex items-center gap-2 shadow-sm">
+                                    <Calendar size={14} className="text-cafe-600" />
+                                    <span className="text-sm font-bold text-cafe-700">{dateKey}</span>
+                                    <span className="ml-auto text-xs text-cafe-500 bg-white px-2 py-0.5 rounded-full">
+                                        {groupedTransactions[dateKey].length} รายการ
+                                    </span>
+                                </div>
+                                {/* Transactions for this date */}
+                                <div className="space-y-3">
+                                    {groupedTransactions[dateKey].map((tx) => (
+                                        <div key={tx.id} className="bg-white border border-cafe-100 rounded-2xl p-4 shadow-sm active:scale-[0.99] transition-transform">
+                                            <div className="flex items-start gap-4">
+                                                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0 ${getTypeColor(tx.type)}`}>
+                                                    {getTypeIcon(tx.type)}
+                                                </div>
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="flex justify-between items-start mb-1">
+                                                        <h4 className="font-bold text-cafe-900 truncate pr-2">
+                                                            {translateDescription(tx.description)}
+                                                        </h4>
+                                                        <span className={`font-bold whitespace-nowrap ${tx.type === 'INCOME' ? 'text-green-600' :
+                                                            tx.type === 'EXPENSE' ? 'text-red-600' :
+                                                                'text-blue-600'
+                                                            }`}>
+                                                            {tx.type === 'EXPENSE' ? '-' : '+'}{formatCurrency(tx.amount)}
+                                                        </span>
+                                                    </div>
 
-                                        <div className="flex flex-wrap gap-2 text-xs text-cafe-500 mb-3">
-                                            <span className="flex items-center gap-1">
-                                                <Calendar size={12} />
-                                                {formatDate(tx.date)}
-                                            </span>
-                                            {tx.category && (
-                                                <span className="bg-cafe-50 px-2 py-0.5 rounded-md border border-cafe-100">
-                                                    {tx.category.replace('Sales:', '')}
-                                                </span>
-                                            )}
-                                        </div>
+                                                    <div className="flex flex-wrap gap-2 text-xs text-cafe-500 mb-2">
+                                                        {tx.category && (
+                                                            <span className="bg-cafe-50 px-2 py-0.5 rounded-md border border-cafe-100">
+                                                                {tx.category.replace('Sales:', '')}
+                                                            </span>
+                                                        )}
+                                                    </div>
 
-                                        {(tx.fromJar || tx.toJar) && (
-                                            <div className="flex items-center gap-2 text-xs text-cafe-500 bg-cafe-50 p-2 rounded-lg mb-3">
-                                                <Wallet size={12} />
-                                                {tx.fromJar && <span>{translateJar(tx.fromJar)}</span>}
-                                                {tx.fromJar && tx.toJar && <ArrowRightLeft size={10} className="text-cafe-300" />}
-                                                {tx.toJar && <span>{translateJar(tx.toJar)}</span>}
+                                                    {(tx.fromJar || tx.toJar) && (
+                                                        <div className="flex items-center gap-2 text-xs text-cafe-500 bg-cafe-50 p-2 rounded-lg mb-2">
+                                                            <Wallet size={12} />
+                                                            {tx.fromJar && <span>{translateJar(tx.fromJar)}</span>}
+                                                            {tx.fromJar && tx.toJar && <ArrowRightLeft size={10} className="text-cafe-300" />}
+                                                            {tx.toJar && <span>{translateJar(tx.toJar)}</span>}
+                                                        </div>
+                                                    )}
+
+                                                    <div className="flex justify-end gap-3 border-t border-cafe-50 pt-2 mt-1">
+                                                        <button
+                                                            onClick={() => handleEdit(tx)}
+                                                            className="text-xs font-medium text-blue-600 flex items-center gap-1"
+                                                        >
+                                                            <Edit2 size={12} /> แก้ไข
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handleDeleteClick(tx)}
+                                                            className="text-xs font-medium text-red-600 flex items-center gap-1"
+                                                        >
+                                                            <Trash2 size={12} /> ลบ
+                                                        </button>
+                                                    </div>
+                                                </div>
                                             </div>
-                                        )}
-
-                                        <div className="flex justify-end gap-3 border-t border-cafe-50 pt-3 mt-1">
-                                            <button
-                                                onClick={() => handleEdit(tx)}
-                                                className="text-xs font-medium text-blue-600 flex items-center gap-1"
-                                            >
-                                                <Edit2 size={12} /> แก้ไข
-                                            </button>
-                                            <button
-                                                onClick={() => handleDeleteClick(tx)}
-                                                className="text-xs font-medium text-red-600 flex items-center gap-1"
-                                            >
-                                                <Trash2 size={12} /> ลบ
-                                            </button>
                                         </div>
-                                    </div>
+                                    ))}
                                 </div>
                             </div>
                         ))

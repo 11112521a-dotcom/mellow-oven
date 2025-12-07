@@ -1,8 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useStore } from '@/src/store';
 import { JarType, AllocationProfile } from '@/types';
 import { formatCurrency } from '@/src/lib/utils';
-import { PieChart, Save, Trash2, ArrowRight, Percent, DollarSign, Zap, Calendar, TrendingUp, Sparkles, Check, Plus } from 'lucide-react';
+import {
+    PieChart, Save, Trash2, ArrowRight, Percent, DollarSign, Zap,
+    Calendar, TrendingUp, Sparkles, Check, Plus, Eye, Wallet,
+    ArrowUpRight, ChevronDown, ChevronUp, Coins, BadgeDollarSign,
+    Boxes, Shield, Briefcase, PiggyBank
+} from 'lucide-react';
 
 interface AllocationStationProps {
     onAllocate: (amount: number, allocations: Record<JarType, number>, fromProfit: boolean, specificProfits?: { id: string, amount: number }[]) => void;
@@ -10,6 +15,18 @@ interface AllocationStationProps {
 
 type InputMode = 'percentage' | 'amount';
 type AllocationSource = 'manual' | 'profit';
+
+// Jar icon mapping
+const getJarIcon = (id: string) => {
+    switch (id) {
+        case 'Owner': return Wallet;
+        case 'Emergency': return Shield;
+        case 'CapEx': return Boxes;
+        case 'Opex': return Briefcase;
+        case 'Working': return Coins;
+        default: return PiggyBank;
+    }
+};
 
 export const AllocationStation: React.FC<AllocationStationProps> = ({ onAllocate }) => {
     const { allocationProfiles, saveAllocationProfile, deleteAllocationProfile, jars, getUnallocatedBalance, unallocatedProfits, getUnallocatedByDate } = useStore();
@@ -33,6 +50,7 @@ export const AllocationStation: React.FC<AllocationStationProps> = ({ onAllocate
     const [inputMode, setInputMode] = useState<InputMode>('percentage');
     const [allocationSource, setAllocationSource] = useState<AllocationSource>('manual');
     const [selectedProfitDate, setSelectedProfitDate] = useState<string>('all');
+    const [showPreview, setShowPreview] = useState(false);
 
     const [isEditing, setIsEditing] = useState(false);
     const [newProfileName, setNewProfileName] = useState('');
@@ -41,28 +59,49 @@ export const AllocationStation: React.FC<AllocationStationProps> = ({ onAllocate
     const availableDates = [...new Set(unallocatedProfits.map(p => p.date))].sort((a, b) => b.localeCompare(a));
     const unallocatedBalance = getUnallocatedBalance();
 
-    // Jar Colors
-    const getJarColor = (id: string) => {
+    // Premium Jar Colors with gradients
+    const getJarGradient = (id: string) => {
         switch (id) {
-            case 'Owner': return 'bg-amber-500 text-white';
-            case 'Emergency': return 'bg-red-500 text-white';
-            case 'CapEx': return 'bg-purple-500 text-white';
-            case 'Opex': return 'bg-orange-500 text-white';
-            case 'Working': return 'bg-blue-500 text-white';
-            default: return 'bg-gray-500 text-white';
+            case 'Owner': return 'from-amber-400 to-orange-500';
+            case 'Emergency': return 'from-red-400 to-rose-500';
+            case 'CapEx': return 'from-purple-400 to-indigo-500';
+            case 'Opex': return 'from-orange-400 to-amber-500';
+            case 'Working': return 'from-blue-400 to-cyan-500';
+            default: return 'from-gray-400 to-gray-500';
         }
     };
 
     const getJarBg = (id: string) => {
         switch (id) {
-            case 'Owner': return 'bg-amber-50 text-amber-700 border-amber-200';
-            case 'Emergency': return 'bg-red-50 text-red-700 border-red-200';
-            case 'CapEx': return 'bg-purple-50 text-purple-700 border-purple-200';
-            case 'Opex': return 'bg-orange-50 text-orange-700 border-orange-200';
-            case 'Working': return 'bg-blue-50 text-blue-700 border-blue-200';
-            default: return 'bg-gray-50 text-gray-700 border-gray-200';
+            case 'Owner': return 'bg-gradient-to-br from-amber-50 to-orange-50 border-amber-200 hover:shadow-amber-100';
+            case 'Emergency': return 'bg-gradient-to-br from-red-50 to-rose-50 border-red-200 hover:shadow-red-100';
+            case 'CapEx': return 'bg-gradient-to-br from-purple-50 to-indigo-50 border-purple-200 hover:shadow-purple-100';
+            case 'Opex': return 'bg-gradient-to-br from-orange-50 to-amber-50 border-orange-200 hover:shadow-orange-100';
+            case 'Working': return 'bg-gradient-to-br from-blue-50 to-cyan-50 border-blue-200 hover:shadow-blue-100';
+            default: return 'bg-gray-50 border-gray-200';
         }
     };
+
+    const getJarTextColor = (id: string) => {
+        switch (id) {
+            case 'Owner': return 'text-amber-700';
+            case 'Emergency': return 'text-red-700';
+            case 'CapEx': return 'text-purple-700';
+            case 'Opex': return 'text-orange-700';
+            case 'Working': return 'text-blue-700';
+            default: return 'text-gray-700';
+        }
+    };
+
+    // Calculate preview amounts
+    const previewAmounts = useMemo(() => {
+        const numAmount = parseFloat(amount) || 0;
+        const preview: Record<JarType, number> = {} as Record<JarType, number>;
+        jars.forEach(jar => {
+            preview[jar.id] = (numAmount * (currentAllocations[jar.id] || 0)) / 100;
+        });
+        return preview;
+    }, [amount, currentAllocations, jars]);
 
     // Load profile when selection changes
     useEffect(() => {
@@ -83,6 +122,7 @@ export const AllocationStation: React.FC<AllocationStationProps> = ({ onAllocate
                 const total = profits.reduce((sum, p) => sum + p.amount, 0);
                 setAmount(total.toString());
             }
+            setShowPreview(true);
         }
     }, [allocationSource, selectedProfitDate, unallocatedBalance, getUnallocatedByDate]);
 
@@ -118,7 +158,6 @@ export const AllocationStation: React.FC<AllocationStationProps> = ({ onAllocate
             [jarId]: value
         }));
 
-        // Recalculate percentages from amounts
         const numAmount = parseFloat(amount);
         if (!isNaN(numAmount) && numAmount > 0) {
             const newAmounts: Record<JarType, number> = {} as Record<JarType, number>;
@@ -130,12 +169,10 @@ export const AllocationStation: React.FC<AllocationStationProps> = ({ onAllocate
                 total += jarAmount;
             });
 
-            // Add the new value
             const newValue = parseFloat(value) || 0;
             newAmounts[jarId] = newValue;
             total = total - (parseFloat(currentAmounts[jarId] || '0')) + newValue;
 
-            // Update percentages
             const newAllocations: Record<JarType, number> = {} as Record<JarType, number>;
             jars.forEach(jar => {
                 newAllocations[jar.id] = total > 0 ? (newAmounts[jar.id] / total) * 100 : 0;
@@ -146,7 +183,6 @@ export const AllocationStation: React.FC<AllocationStationProps> = ({ onAllocate
     };
 
     const totalPercentage: number = Object.values(currentAllocations).reduce<number>((sum, val) => sum + (val as number), 0);
-    const totalAmount: number = Object.values(currentAmounts).reduce<number>((sum, val) => sum + (parseFloat(val as string) || 0), 0);
 
     const handleSaveProfile = () => {
         if (!newProfileName) return;
@@ -194,158 +230,270 @@ export const AllocationStation: React.FC<AllocationStationProps> = ({ onAllocate
         setCurrentAmounts({
             'Working': '', 'CapEx': '', 'Opex': '', 'Emergency': '', 'Owner': ''
         });
+        setShowPreview(false);
     };
 
-    return (
-        <div className="bg-white rounded-3xl shadow-sm border border-cafe-100 overflow-hidden">
-            {/* Header */}
-            <div className="bg-cafe-900 text-white p-6 flex justify-between items-center">
-                <div className="flex items-center gap-3">
-                    <div className="bg-white/10 p-2 rounded-xl">
-                        <PieChart size={24} className="text-amber-400" />
-                    </div>
-                    <div>
-                        <h2 className="text-xl font-bold">Allocation Station</h2>
-                        <p className="text-cafe-300 text-xs">ศูนย์บัญชาการจัดสรรเงิน</p>
-                    </div>
-                </div>
+    const numAmount = parseFloat(amount) || 0;
+    const isValidAllocation = numAmount > 0 && Math.abs(totalPercentage - 100) < 0.1;
 
-                {/* Mode Toggle */}
-                <div className="bg-cafe-800 p-1 rounded-lg flex">
-                    <button
-                        onClick={() => setInputMode('percentage')}
-                        className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all ${inputMode === 'percentage' ? 'bg-amber-500 text-white shadow' : 'text-cafe-400 hover:text-white'}`}
-                    >
-                        %
-                    </button>
-                    <button
-                        onClick={() => setInputMode('amount')}
-                        className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all ${inputMode === 'amount' ? 'bg-amber-500 text-white shadow' : 'text-cafe-400 hover:text-white'}`}
-                    >
-                        ฿
-                    </button>
+    return (
+        <div className="bg-white rounded-3xl shadow-xl border border-cafe-100 overflow-hidden">
+            {/* ═══════════════════════════════════════════════════════════════
+                🎨 PREMIUM HEADER with Gradient Animation
+               ═══════════════════════════════════════════════════════════════ */}
+            <div className="relative overflow-hidden">
+                {/* Animated gradient background */}
+                <div className="absolute inset-0 bg-gradient-to-r from-cafe-900 via-cafe-800 to-cafe-900 animate-gradient-x" />
+                <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-amber-500/20 via-transparent to-transparent" />
+
+                <div className="relative p-6 flex justify-between items-center">
+                    <div className="flex items-center gap-4">
+                        <div className="relative">
+                            <div className="absolute inset-0 bg-amber-400 blur-lg opacity-50 animate-pulse" />
+                            <div className="relative bg-gradient-to-br from-amber-400 to-orange-500 p-3 rounded-2xl shadow-lg">
+                                <PieChart size={28} className="text-white" />
+                            </div>
+                        </div>
+                        <div>
+                            <h2 className="text-2xl font-black text-white tracking-tight flex items-center gap-2">
+                                Allocation Station
+                                <Sparkles size={20} className="text-amber-400 animate-pulse" />
+                            </h2>
+                            <p className="text-cafe-300 text-sm">ศูนย์บัญชาการจัดสรรเงิน</p>
+                        </div>
+                    </div>
+
+                    {/* Mode Toggle - Premium Style */}
+                    <div className="bg-black/30 backdrop-blur-sm p-1.5 rounded-xl flex gap-1">
+                        <button
+                            onClick={() => setInputMode('percentage')}
+                            className={`px-4 py-2 rounded-lg text-sm font-bold transition-all flex items-center gap-2 ${inputMode === 'percentage'
+                                    ? 'bg-gradient-to-r from-amber-400 to-orange-500 text-white shadow-lg shadow-amber-500/30'
+                                    : 'text-cafe-400 hover:text-white hover:bg-white/10'
+                                }`}
+                        >
+                            <Percent size={16} />
+                            %
+                        </button>
+                        <button
+                            onClick={() => setInputMode('amount')}
+                            className={`px-4 py-2 rounded-lg text-sm font-bold transition-all flex items-center gap-2 ${inputMode === 'amount'
+                                    ? 'bg-gradient-to-r from-amber-400 to-orange-500 text-white shadow-lg shadow-amber-500/30'
+                                    : 'text-cafe-400 hover:text-white hover:bg-white/10'
+                                }`}
+                        >
+                            <BadgeDollarSign size={16} />
+                            ฿
+                        </button>
+                    </div>
                 </div>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-12">
+                {/* ═══════════════════════════════════════════════════════════
+                    💰 SOURCE COLUMN
+                   ═══════════════════════════════════════════════════════════ */}
+                <div className="lg:col-span-5 p-6 border-b lg:border-b-0 lg:border-r border-cafe-100 bg-gradient-to-b from-cafe-50/80 to-white">
+                    <h3 className="text-sm font-black text-cafe-500 uppercase tracking-wider mb-4 flex items-center gap-2">
+                        <span className="w-6 h-6 bg-cafe-200 rounded-full flex items-center justify-center text-xs">1</span>
+                        แหล่งเงิน (Source)
+                    </h3>
 
-                {/* LEFT COLUMN: Source (4 cols) */}
-                <div className="lg:col-span-5 p-6 border-b lg:border-b-0 lg:border-r border-cafe-100 bg-cafe-50/50">
-                    <h3 className="text-sm font-bold text-cafe-500 uppercase tracking-wider mb-4">1. แหล่งเงิน (Source)</h3>
-
-                    {/* Source Tabs */}
-                    <div className="grid grid-cols-2 gap-2 mb-6">
+                    {/* Source Tabs - Premium Glass Style */}
+                    <div className="grid grid-cols-2 gap-3 mb-6">
                         <button
-                            onClick={() => { setAllocationSource('manual'); setAmount(''); }}
-                            className={`p-3 rounded-xl border-2 text-sm font-bold transition-all flex flex-col items-center gap-2 ${allocationSource === 'manual'
-                                    ? 'border-cafe-600 bg-white text-cafe-800 shadow-md'
-                                    : 'border-transparent bg-cafe-100 text-cafe-400 hover:bg-white'
+                            onClick={() => { setAllocationSource('manual'); setAmount(''); setShowPreview(false); }}
+                            className={`group relative p-4 rounded-2xl border-2 text-sm font-bold transition-all flex flex-col items-center gap-3 overflow-hidden ${allocationSource === 'manual'
+                                    ? 'border-cafe-600 bg-white text-cafe-800 shadow-xl shadow-cafe-200/50'
+                                    : 'border-transparent bg-white/50 text-cafe-400 hover:bg-white hover:shadow-lg'
                                 }`}
                         >
-                            <DollarSign size={20} />
+                            <div className={`p-3 rounded-xl transition-all ${allocationSource === 'manual' ? 'bg-cafe-100' : 'bg-cafe-50 group-hover:bg-cafe-100'}`}>
+                                <DollarSign size={24} className={allocationSource === 'manual' ? 'text-cafe-700' : 'text-cafe-400'} />
+                            </div>
                             ระบุเอง
                         </button>
                         <button
                             onClick={() => setAllocationSource('profit')}
-                            className={`p-3 rounded-xl border-2 text-sm font-bold transition-all flex flex-col items-center gap-2 ${allocationSource === 'profit'
-                                    ? 'border-green-500 bg-green-50 text-green-700 shadow-md'
-                                    : 'border-transparent bg-cafe-100 text-cafe-400 hover:bg-white'
+                            className={`group relative p-4 rounded-2xl border-2 text-sm font-bold transition-all flex flex-col items-center gap-3 overflow-hidden ${allocationSource === 'profit'
+                                    ? 'border-emerald-500 bg-gradient-to-br from-emerald-50 to-green-50 text-emerald-700 shadow-xl shadow-emerald-200/50'
+                                    : 'border-transparent bg-white/50 text-cafe-400 hover:bg-white hover:shadow-lg'
                                 }`}
                         >
-                            <Zap size={20} />
-                            จากกำไร
+                            {allocationSource === 'profit' && (
+                                <div className="absolute inset-0 bg-gradient-to-br from-emerald-400/10 to-transparent animate-pulse" />
+                            )}
+                            <div className={`relative p-3 rounded-xl transition-all ${allocationSource === 'profit' ? 'bg-emerald-100' : 'bg-cafe-50 group-hover:bg-emerald-50'}`}>
+                                <Zap size={24} className={allocationSource === 'profit' ? 'text-emerald-600' : 'text-cafe-400'} />
+                            </div>
+                            <span className="relative">จากกำไร</span>
+                            {unallocatedBalance > 0 && (
+                                <span className="absolute -top-1 -right-1 bg-emerald-500 text-white text-xs px-2 py-0.5 rounded-full animate-bounce">
+                                    {formatCurrency(unallocatedBalance)}
+                                </span>
+                            )}
                         </button>
                     </div>
 
-                    {/* Amount Input Area */}
-                    <div className="bg-white p-6 rounded-2xl border border-cafe-200 shadow-sm text-center space-y-4">
+                    {/* Amount Input Area - Glassmorphism */}
+                    <div className="relative bg-white/80 backdrop-blur-sm p-6 rounded-2xl border border-cafe-200 shadow-lg">
                         {allocationSource === 'profit' && (
-                            <div className="w-full mb-2">
+                            <div className="mb-4">
+                                <label className="block text-xs font-bold text-emerald-600 mb-2">เลือกวันที่</label>
                                 <select
                                     value={selectedProfitDate}
                                     onChange={(e) => setSelectedProfitDate(e.target.value)}
-                                    className="w-full p-2 text-sm bg-green-50 border border-green-200 rounded-lg text-green-800 outline-none focus:ring-2 focus:ring-green-500"
+                                    className="w-full p-3 text-sm bg-emerald-50 border-2 border-emerald-200 rounded-xl text-emerald-800 outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all font-medium"
                                 >
-                                    <option value="all">ยอดรวมทั้งหมด ({formatCurrency(unallocatedBalance)})</option>
+                                    <option value="all">✨ ยอดรวมทั้งหมด ({formatCurrency(unallocatedBalance)})</option>
                                     {availableDates.map(date => (
                                         <option key={date} value={date}>
-                                            {new Date(date).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })} - {formatCurrency(getUnallocatedByDate(date).reduce((sum, p) => sum + p.amount, 0))}
+                                            📅 {new Date(date).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })} - {formatCurrency(getUnallocatedByDate(date).reduce((sum, p) => sum + p.amount, 0))}
                                         </option>
                                     ))}
                                 </select>
                             </div>
                         )}
 
-                        <div>
-                            <label className="block text-xs font-bold text-cafe-400 mb-1">ยอดเงินที่จะจัดสรร</label>
-                            <div className="relative inline-block w-full">
-                                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-cafe-300 font-bold text-xl">฿</span>
+                        <div className="text-center">
+                            <label className="block text-xs font-bold text-cafe-400 mb-2">ยอดเงินที่จะจัดสรร</label>
+                            <div className="relative">
+                                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-cafe-300 font-black text-2xl">฿</span>
                                 <input
                                     type="number"
                                     value={amount}
-                                    onChange={(e) => setAmount(e.target.value)}
+                                    onChange={(e) => { setAmount(e.target.value); setShowPreview(true); }}
                                     disabled={allocationSource === 'profit'}
-                                    className={`w-full pl-10 pr-4 py-4 text-3xl font-black text-center rounded-xl outline-none transition-all ${allocationSource === 'profit' ? 'bg-transparent text-green-600' : 'bg-cafe-50 focus:bg-white focus:ring-2 focus:ring-cafe-500 text-cafe-800'
+                                    className={`w-full pl-12 pr-4 py-5 text-4xl font-black text-center rounded-2xl outline-none transition-all ${allocationSource === 'profit'
+                                            ? 'bg-gradient-to-r from-emerald-50 to-green-50 text-emerald-600 border-2 border-emerald-200'
+                                            : 'bg-cafe-50 focus:bg-white focus:ring-4 focus:ring-cafe-200 text-cafe-800 border-2 border-transparent focus:border-cafe-300'
                                         }`}
-                                    placeholder="0.00"
+                                    placeholder="0"
                                 />
                             </div>
                         </div>
+
+                        {/* Preview Toggle Button */}
+                        {numAmount > 0 && (
+                            <button
+                                onClick={() => setShowPreview(!showPreview)}
+                                className="mt-4 w-full py-3 bg-gradient-to-r from-indigo-50 to-purple-50 border border-indigo-200 rounded-xl font-medium text-indigo-700 flex items-center justify-center gap-2 hover:shadow-md transition-all"
+                            >
+                                <Eye size={18} />
+                                {showPreview ? 'ซ่อน Preview' : 'ดู Preview ก่อนยืนยัน'}
+                                {showPreview ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                            </button>
+                        )}
                     </div>
 
+                    {/* ═══════════════════════════════════════════════════════
+                        🔮 PREVIEW PANEL - Show before confirming
+                       ═══════════════════════════════════════════════════════ */}
+                    {showPreview && numAmount > 0 && (
+                        <div className="mt-6 animate-in slide-in-from-top-4 duration-300">
+                            <div className="bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 rounded-2xl p-4 border-2 border-indigo-200 shadow-lg">
+                                <div className="flex items-center gap-2 mb-4">
+                                    <div className="p-2 bg-indigo-100 rounded-lg">
+                                        <Eye size={18} className="text-indigo-600" />
+                                    </div>
+                                    <h4 className="font-black text-indigo-800">Preview การจัดสรร</h4>
+                                </div>
+
+                                <div className="space-y-2">
+                                    {jars.map(jar => {
+                                        const JarIcon = getJarIcon(jar.id);
+                                        const previewAmt = previewAmounts[jar.id] || 0;
+                                        const percentage = currentAllocations[jar.id] || 0;
+
+                                        return (
+                                            <div key={jar.id} className="flex items-center justify-between bg-white/80 rounded-xl p-3 border border-white">
+                                                <div className="flex items-center gap-2">
+                                                    <div className={`p-1.5 rounded-lg bg-gradient-to-r ${getJarGradient(jar.id)}`}>
+                                                        <JarIcon size={14} className="text-white" />
+                                                    </div>
+                                                    <span className={`font-bold text-sm ${getJarTextColor(jar.id)}`}>{jar.name}</span>
+                                                </div>
+                                                <div className="text-right">
+                                                    <div className="font-black text-gray-800">{formatCurrency(previewAmt)}</div>
+                                                    <div className="text-xs text-gray-500">{percentage.toFixed(0)}%</div>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+
+                                <div className="mt-4 pt-4 border-t-2 border-indigo-200 flex justify-between items-center">
+                                    <span className="font-bold text-indigo-700">รวมทั้งหมด</span>
+                                    <span className="text-2xl font-black text-indigo-800">{formatCurrency(numAmount)}</span>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
                     {/* Action Button (Desktop) */}
-                    <div className="hidden lg:block mt-8">
+                    <div className="hidden lg:block mt-6">
                         <button
                             onClick={handleAllocate}
-                            disabled={!amount || parseFloat(amount) <= 0 || (inputMode === 'percentage' && Math.abs(totalPercentage - 100) > 0.1)}
-                            className={`w-full py-4 rounded-xl font-bold text-lg shadow-lg transform transition-all active:scale-95 flex items-center justify-center gap-2 ${!amount || parseFloat(amount) <= 0
+                            disabled={!isValidAllocation}
+                            className={`w-full py-5 rounded-2xl font-black text-lg shadow-xl transform transition-all active:scale-95 flex items-center justify-center gap-3 ${!isValidAllocation
                                     ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
                                     : allocationSource === 'profit'
-                                        ? 'bg-green-600 text-white hover:bg-green-700 shadow-green-200'
-                                        : 'bg-cafe-900 text-white hover:bg-cafe-800 shadow-cafe-200'
+                                        ? 'bg-gradient-to-r from-emerald-500 to-green-600 text-white hover:shadow-2xl hover:shadow-emerald-300/50 hover:-translate-y-0.5'
+                                        : 'bg-gradient-to-r from-cafe-800 to-cafe-900 text-white hover:shadow-2xl hover:shadow-cafe-300/50 hover:-translate-y-0.5'
                                 }`}
                         >
-                            {allocationSource === 'profit' ? <Sparkles /> : <Check />}
+                            {allocationSource === 'profit' ? <Sparkles className="animate-pulse" /> : <Check />}
                             ยืนยันการจัดสรร
+                            <ArrowRight size={20} />
                         </button>
                     </div>
                 </div>
 
-                {/* RIGHT COLUMN: Distribution (8 cols) */}
+                {/* ═══════════════════════════════════════════════════════════
+                    📊 DISTRIBUTION COLUMN
+                   ═══════════════════════════════════════════════════════════ */}
                 <div className="lg:col-span-7 p-6">
                     <div className="flex justify-between items-end mb-4">
-                        <h3 className="text-sm font-bold text-cafe-500 uppercase tracking-wider">2. สัดส่วน (Distribution)</h3>
+                        <h3 className="text-sm font-black text-cafe-500 uppercase tracking-wider flex items-center gap-2">
+                            <span className="w-6 h-6 bg-cafe-200 rounded-full flex items-center justify-center text-xs">2</span>
+                            สัดส่วน (Distribution)
+                        </h3>
 
-                        {/* Total Progress Bar */}
+                        {/* Total Progress - Premium Style */}
                         <div className="flex flex-col items-end">
-                            <span className={`text-xs font-bold mb-1 ${Math.abs(totalPercentage - 100) < 0.1 ? 'text-green-600' : 'text-red-500'}`}>
+                            <span className={`text-sm font-black mb-1 flex items-center gap-1 ${Math.abs(totalPercentage - 100) < 0.1 ? 'text-emerald-600' : 'text-red-500'
+                                }`}>
+                                {Math.abs(totalPercentage - 100) < 0.1 && <Check size={16} />}
                                 รวม {totalPercentage.toFixed(0)}%
                             </span>
-                            <div className="w-32 h-2 bg-gray-100 rounded-full overflow-hidden">
+                            <div className="w-40 h-3 bg-gray-100 rounded-full overflow-hidden shadow-inner">
                                 <div
-                                    className={`h-full transition-all duration-300 ${Math.abs(totalPercentage - 100) < 0.1 ? 'bg-green-500' : 'bg-red-500'}`}
+                                    className={`h-full transition-all duration-500 ease-out rounded-full ${Math.abs(totalPercentage - 100) < 0.1
+                                            ? 'bg-gradient-to-r from-emerald-400 to-green-500'
+                                            : 'bg-gradient-to-r from-red-400 to-rose-500'
+                                        }`}
                                     style={{ width: `${Math.min(totalPercentage, 100)}%` }}
                                 />
                             </div>
                         </div>
                     </div>
 
-                    {/* Profile Chips */}
-                    <div className="flex gap-2 overflow-x-auto pb-4 mb-2 no-scrollbar">
+                    {/* Profile Chips - Premium */}
+                    <div className="flex gap-2 overflow-x-auto pb-4 mb-4 no-scrollbar">
                         {allocationProfiles.map(profile => (
                             <div
                                 key={profile.id}
                                 onClick={() => setSelectedProfileId(profile.id)}
-                                className={`flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs font-bold whitespace-nowrap cursor-pointer transition-all ${selectedProfileId === profile.id
-                                        ? 'bg-cafe-800 text-white border-cafe-800 shadow-md'
-                                        : 'bg-white text-cafe-600 border-cafe-200 hover:border-cafe-400'
+                                className={`flex items-center gap-2 px-4 py-2 rounded-full border-2 text-sm font-bold whitespace-nowrap cursor-pointer transition-all ${selectedProfileId === profile.id
+                                        ? 'bg-gradient-to-r from-cafe-800 to-cafe-900 text-white border-cafe-800 shadow-lg shadow-cafe-200'
+                                        : 'bg-white text-cafe-600 border-cafe-200 hover:border-cafe-400 hover:shadow-md'
                                     }`}
                             >
                                 {profile.name}
                                 {profile.id !== 'default' && (
                                     <span
                                         onClick={(e) => handleDeleteProfile(profile.id, e)}
-                                        className="hover:text-red-400 p-0.5 rounded-full hover:bg-white/20"
+                                        className="hover:text-red-400 p-1 rounded-full hover:bg-white/20"
                                     >
                                         <Trash2 size={12} />
                                     </span>
@@ -353,96 +501,116 @@ export const AllocationStation: React.FC<AllocationStationProps> = ({ onAllocate
                             </div>
                         ))}
 
-                        {/* Save Profile Button */}
                         {isEditing ? (
-                            <div className="flex items-center gap-1 bg-cafe-100 px-2 py-1 rounded-full animate-in fade-in">
+                            <div className="flex items-center gap-2 bg-gradient-to-r from-cafe-100 to-cafe-50 px-3 py-2 rounded-full animate-in fade-in border-2 border-cafe-200">
                                 <input
                                     autoFocus
-                                    className="bg-transparent text-xs outline-none w-20"
-                                    placeholder="ชื่อ..."
+                                    className="bg-transparent text-sm outline-none w-24 font-medium"
+                                    placeholder="ชื่อโปรไฟล์..."
                                     value={newProfileName}
                                     onChange={e => setNewProfileName(e.target.value)}
                                     onKeyDown={e => e.key === 'Enter' && handleSaveProfile()}
                                 />
-                                <button onClick={handleSaveProfile} className="bg-cafe-600 text-white p-1 rounded-full"><Check size={10} /></button>
+                                <button onClick={handleSaveProfile} className="bg-cafe-600 text-white p-1.5 rounded-full hover:bg-cafe-700 transition-colors">
+                                    <Check size={12} />
+                                </button>
                             </div>
                         ) : (
-                            <button className="px-3 py-1.5 rounded-full border border-dashed border-cafe-300 text-cafe-400 text-xs font-bold hover:border-cafe-500 hover:text-cafe-600 flex items-center gap-1">
-                                <Plus size={12} /> New
+                            <button className="px-4 py-2 rounded-full border-2 border-dashed border-cafe-300 text-cafe-400 text-sm font-bold hover:border-cafe-500 hover:text-cafe-600 hover:bg-cafe-50 flex items-center gap-2 transition-all">
+                                <Plus size={14} />
+                                สร้างใหม่
                             </button>
                         )}
                     </div>
 
-                    {/* Sliders Grid */}
+                    {/* Jar Sliders - Premium Cards */}
                     <div className="space-y-3">
-                        {jars.map(jar => (
-                            <div key={jar.id} className={`p-3 rounded-xl border transition-all ${getJarBg(jar.id)}`}>
-                                <div className="flex justify-between items-center mb-2">
-                                    <div className="flex items-center gap-2">
-                                        <div className={`w-2 h-8 rounded-full ${getJarColor(jar.id)}`}></div>
-                                        <div>
-                                            <p className="font-bold text-sm">{jar.name}</p>
-                                            {amount && (
-                                                <p className="text-xs opacity-70">
-                                                    {formatCurrency((parseFloat(amount) * (currentAllocations[jar.id] || 0)) / 100)}
+                        {jars.map(jar => {
+                            const JarIcon = getJarIcon(jar.id);
+                            const percentage = currentAllocations[jar.id] || 0;
+                            const previewAmt = previewAmounts[jar.id] || 0;
+
+                            return (
+                                <div
+                                    key={jar.id}
+                                    className={`p-4 rounded-2xl border-2 transition-all duration-300 hover:shadow-lg ${getJarBg(jar.id)}`}
+                                >
+                                    <div className="flex justify-between items-center mb-3">
+                                        <div className="flex items-center gap-3">
+                                            <div className={`p-2 rounded-xl bg-gradient-to-r ${getJarGradient(jar.id)} shadow-lg`}>
+                                                <JarIcon size={20} className="text-white" />
+                                            </div>
+                                            <div>
+                                                <p className={`font-black text-base ${getJarTextColor(jar.id)}`}>{jar.name}</p>
+                                                <p className="text-xs text-gray-500">{jar.description}</p>
+                                            </div>
+                                        </div>
+                                        <div className="text-right">
+                                            {inputMode === 'percentage' ? (
+                                                <div className="flex items-center gap-1">
+                                                    <input
+                                                        type="number"
+                                                        value={percentage.toFixed(0)}
+                                                        onChange={(e) => handlePercentageChange(jar.id, e.target.value)}
+                                                        className={`w-14 text-right bg-white/70 border-2 border-current/20 rounded-lg px-2 py-1 font-black text-lg outline-none focus:bg-white focus:border-current/40 transition-all ${getJarTextColor(jar.id)}`}
+                                                    />
+                                                    <span className={`text-sm font-bold ${getJarTextColor(jar.id)}`}>%</span>
+                                                </div>
+                                            ) : (
+                                                <div className="flex items-center gap-1">
+                                                    <span className={`text-sm font-bold ${getJarTextColor(jar.id)}`}>฿</span>
+                                                    <input
+                                                        type="number"
+                                                        value={currentAmounts[jar.id]}
+                                                        onChange={(e) => handleAmountChange(jar.id, e.target.value)}
+                                                        className={`w-24 text-right bg-white/70 border-2 border-current/20 rounded-lg px-2 py-1 font-black text-lg outline-none focus:bg-white focus:border-current/40 transition-all ${getJarTextColor(jar.id)}`}
+                                                    />
+                                                </div>
+                                            )}
+                                            {numAmount > 0 && inputMode === 'percentage' && (
+                                                <p className="text-xs text-gray-500 mt-1">
+                                                    = {formatCurrency(previewAmt)}
                                                 </p>
                                             )}
                                         </div>
                                     </div>
-                                    <div className="text-right">
-                                        {inputMode === 'percentage' ? (
-                                            <div className="flex items-center gap-1">
-                                                <input
-                                                    type="number"
-                                                    value={currentAllocations[jar.id]?.toFixed(0)}
-                                                    onChange={(e) => handlePercentageChange(jar.id, e.target.value)}
-                                                    className="w-12 text-right bg-white/50 border border-black/10 rounded px-1 font-bold outline-none focus:bg-white"
-                                                />
-                                                <span className="text-xs font-bold">%</span>
-                                            </div>
-                                        ) : (
-                                            <div className="flex items-center gap-1">
-                                                <span className="text-xs font-bold">฿</span>
-                                                <input
-                                                    type="number"
-                                                    value={currentAmounts[jar.id]}
-                                                    onChange={(e) => handleAmountChange(jar.id, e.target.value)}
-                                                    className="w-20 text-right bg-white/50 border border-black/10 rounded px-1 font-bold outline-none focus:bg-white"
-                                                />
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
 
-                                {inputMode === 'percentage' && (
-                                    <input
-                                        type="range"
-                                        min="0"
-                                        max="100"
-                                        value={currentAllocations[jar.id] || 0}
-                                        onChange={(e) => handlePercentageChange(jar.id, e.target.value)}
-                                        className="w-full h-1.5 bg-black/10 rounded-lg appearance-none cursor-pointer accent-current"
-                                        style={{ color: 'currentColor' }} // Uses text color for accent
-                                    />
-                                )}
-                            </div>
-                        ))}
+                                    {inputMode === 'percentage' && (
+                                        <div className="relative">
+                                            <div className="absolute inset-0 h-2 bg-black/5 rounded-full" />
+                                            <input
+                                                type="range"
+                                                min="0"
+                                                max="100"
+                                                value={percentage}
+                                                onChange={(e) => handlePercentageChange(jar.id, e.target.value)}
+                                                className="relative w-full h-2 bg-transparent rounded-full appearance-none cursor-pointer z-10"
+                                                style={{
+                                                    background: `linear-gradient(to right, currentColor ${percentage}%, transparent ${percentage}%)`
+                                                }}
+                                            />
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })}
                     </div>
 
                     {/* Mobile Action Button */}
                     <div className="lg:hidden mt-6">
                         <button
                             onClick={handleAllocate}
-                            disabled={!amount || parseFloat(amount) <= 0 || (inputMode === 'percentage' && Math.abs(totalPercentage - 100) > 0.1)}
-                            className={`w-full py-4 rounded-xl font-bold text-lg shadow-lg flex items-center justify-center gap-2 ${!amount || parseFloat(amount) <= 0
+                            disabled={!isValidAllocation}
+                            className={`w-full py-5 rounded-2xl font-black text-lg shadow-xl flex items-center justify-center gap-3 ${!isValidAllocation
                                     ? 'bg-gray-200 text-gray-400'
                                     : allocationSource === 'profit'
-                                        ? 'bg-green-600 text-white'
-                                        : 'bg-cafe-900 text-white'
+                                        ? 'bg-gradient-to-r from-emerald-500 to-green-600 text-white'
+                                        : 'bg-gradient-to-r from-cafe-800 to-cafe-900 text-white'
                                 }`}
                         >
                             {allocationSource === 'profit' ? <Sparkles /> : <Check />}
                             ยืนยันการจัดสรร
+                            <ArrowRight size={20} />
                         </button>
                     </div>
                 </div>
