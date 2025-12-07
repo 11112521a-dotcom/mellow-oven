@@ -8,7 +8,7 @@ interface GoalCardProps {
 }
 
 export const GoalCard: React.FC<GoalCardProps> = ({ goal, onEdit }) => {
-    const progress = (goal.currentAmount / goal.targetAmount) * 100;
+    const progress = goal.targetAmount > 0 ? (goal.currentAmount / goal.targetAmount) * 100 : 0; // Edge Case: guard against targetAmount = 0
     const remaining = goal.targetAmount - goal.currentAmount;
     const isComplete = progress >= 100;
 
@@ -23,8 +23,8 @@ export const GoalCard: React.FC<GoalCardProps> = ({ goal, onEdit }) => {
     return (
         <div
             className={`relative border rounded-xl p-4 transition-all hover:shadow-md ${isComplete
-                    ? 'bg-green-50 border-green-300'
-                    : 'bg-white border-cafe-100'
+                ? 'bg-green-50 border-green-300'
+                : 'bg-white border-cafe-100'
                 }`}
         >
             {/* Edit Button */}
@@ -74,10 +74,10 @@ export const GoalCard: React.FC<GoalCardProps> = ({ goal, onEdit }) => {
                 <div className="w-full bg-cafe-100 rounded-full h-2.5 overflow-hidden">
                     <div
                         className={`h-2.5 rounded-full transition-all duration-500 ${isComplete
-                                ? 'bg-green-500'
-                                : progress >= 75
-                                    ? 'bg-yellow-500'
-                                    : 'bg-cafe-600'
+                            ? 'bg-green-500'
+                            : progress >= 75
+                                ? 'bg-yellow-500'
+                                : 'bg-cafe-600'
                             }`}
                         style={{ width: `${Math.min(100, progress)}%` }}
                     />

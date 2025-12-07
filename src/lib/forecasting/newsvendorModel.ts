@@ -30,8 +30,9 @@ export function calculateCriticalRatio(params: NewsvendorParams): number {
     const Co = params.unitCost + params.disposalCost; // Cost of Overage (waste cost)
 
     // Critical Ratio (CR) = Cu / (Cu + Co)
-    // This is the target service level
-    return Cu / (Cu + Co);
+    // Edge Case: guard against Cu + Co = 0
+    const denominator = Cu + Co;
+    return denominator > 0 ? Cu / denominator : 0.5; // Default to 50% service level if both costs are 0
 }
 
 /**
