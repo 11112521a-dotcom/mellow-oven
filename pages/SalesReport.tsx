@@ -123,10 +123,9 @@ const StatCard: React.FC<{
 export const SalesReport: React.FC = () => {
     const { productSales, markets, products, updateProductSaleLog } = useStore();
 
-    const [datePreset, setDatePreset] = useState<'today' | 'yesterday' | 'thisWeek' | 'lastWeek' | 'thisMonth' | 'lastMonth' | '3months' | '6months' | 'thisYear' | 'custom'>('thisMonth');
+    const [datePreset, setDatePreset] = useState<'today' | 'yesterday' | 'thisWeek' | 'lastWeek' | 'thisMonth' | 'lastMonth' | '3months' | '6months' | 'thisYear' | 'custom'>('today');
     const [startDate, setStartDate] = useState(() => {
-        const now = new Date();
-        return new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+        return new Date().toISOString().split('T')[0];
     });
     const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]);
     const [selectedMarket, setSelectedMarket] = useState<string>('all');
