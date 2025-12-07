@@ -428,7 +428,7 @@ export const MenuStockPlanner: React.FC = () => {
         );
     };
 
-    // Render FULL item card (for variants - detailed view)
+    // Render FULL item card (for variants - detailed view) - COMPACT MOBILE VERSION
     const renderItemCard = (item: InventoryItem, isNested: boolean = false) => {
         const saved = getSavedRecord(item);
         const stockYesterday = saved.stockYesterday ?? getYesterdayForItem(item);
@@ -452,149 +452,79 @@ export const MenuStockPlanner: React.FC = () => {
         return (
             <div
                 key={item.id}
-                className={`bg-white rounded-2xl shadow-sm border border-cafe-100 overflow-hidden hover:shadow-lg transition-all duration-300 ${isNested ? 'ml-4 border-l-4 border-l-cafe-400' : ''}`}
+                className={`bg-white rounded-xl shadow-sm border overflow-hidden ${isNested ? 'ml-2 border-l-4 border-l-cafe-400' : 'border-cafe-100'}`}
             >
-                {/* Card Header */}
-                <div className={`p-4 border-b border-cafe-100 ${isNested ? 'bg-gradient-to-r from-cafe-100 to-cafe-50' : 'bg-gradient-to-r from-cafe-50 to-white'}`}>
-                    <div className="flex items-center gap-2">
-                        {item.isVariant && <span className="text-cafe-500">↳</span>}
-                        <h3 className="font-bold text-cafe-800 text-lg">{item.name}</h3>
-                    </div>
-                    {item.parentName && (
-                        <span className="text-xs text-cafe-400">{item.parentName}</span>
-                    )}
-                    <span className="ml-2 text-xs text-cafe-400 bg-cafe-100 px-2 py-0.5 rounded-full">{item.category}</span>
-                </div>
-
-                {/* ═══════════════════════════════════════════════════════════
-                   🏠 HOME ZONE - What's at home
-                   ═══════════════════════════════════════════════════════════ */}
-                <div className="p-4 space-y-3 bg-gradient-to-b from-amber-50/50 to-white">
-                    {/* Zone Header */}
-                    <div className="flex items-center gap-2 text-amber-700 mb-2">
-                        <span className="text-lg">🏠</span>
-                        <span className="text-xs font-bold uppercase tracking-wider">ที่บ้าน (Home)</span>
-                        <div className="flex-1 h-px bg-amber-200"></div>
-                    </div>
-
-                    {/* Yesterday Stock */}
-                    <div className="flex justify-between items-center text-sm">
-                        <span className="text-gray-500">📦 ของเก่า (เมื่อวาน)</span>
-                        <span className="font-bold text-gray-700 bg-gray-100 px-3 py-1 rounded-lg">{stockYesterday}</span>
-                    </div>
-
-                    {/* Production Input */}
-                    <div className="bg-blue-50 rounded-xl p-3 border border-blue-100">
-                        <div className="flex justify-between items-center">
-                            <div className="flex items-center gap-2">
-                                <Flame className="text-blue-500" size={18} />
-                                <span className="text-sm font-medium text-blue-700">ผลิตเพิ่ม</span>
-                                {confirmedProduction > 0 && (
-                                    <span className="text-xs bg-blue-200 text-blue-800 px-2 py-0.5 rounded-full">+{confirmedProduction} แล้ว</span>
-                                )}
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <input
-                                    type="number"
-                                    className="w-16 text-center font-bold text-blue-700 bg-white border-blue-200 rounded-lg focus:ring-blue-500 focus:border-blue-500"
-                                    value={pendingProd || ''}
-                                    onChange={e => {
-                                        const val = Math.max(0, parseInt(e.target.value) || 0);
-                                        setPendingProduction(prev => ({ ...prev, [item.id]: val }));
-                                    }}
-                                    placeholder="0"
-                                />
-                                <button
-                                    onClick={() => handleProductionConfirm(item, pendingProd)}
-                                    disabled={pendingProd <= 0}
-                                    className="p-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                                >
-                                    <Check size={16} />
-                                </button>
-                            </div>
+                {/* Compact Header - Always Visible */}
+                <div className={`px-3 py-2 ${isNested ? 'bg-cafe-50' : 'bg-gradient-to-r from-cafe-100 to-cafe-50'}`}>
+                    <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                            {item.isVariant && <span className="text-cafe-400 text-xs">↳</span>}
+                            <h3 className="font-bold text-cafe-800 text-sm truncate">{item.name}</h3>
+                            <span className="text-[10px] text-cafe-400 bg-white/70 px-1.5 py-0.5 rounded shrink-0">{item.category}</span>
                         </div>
-                    </div>
-
-                    {/* TODAY STOCK */}
-                    <div className="bg-gradient-to-r from-emerald-50 to-green-50 rounded-xl p-4 border-2 border-emerald-200 text-center">
-                        <div className="flex items-center justify-center gap-2 text-emerald-600 mb-1">
-                            <Box size={18} />
-                            <span className="text-sm font-semibold">สต็อกวันนี้ (รวมที่บ้าน)</span>
+                        {/* Quick Stats Badge */}
+                        <div className="flex items-center gap-1.5 shrink-0">
+                            <span className="text-xs bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full font-bold">{todayStock}</span>
+                            <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-bold">{leftover}</span>
                         </div>
-                        <div className="text-3xl font-black text-emerald-700">{todayStock}</div>
-                        <div className="text-xs text-emerald-500 mt-1">= {stockYesterday} เก่า + {confirmedProduction} ผลิต</div>
-                    </div>
-
-                    {/* LEFTOVER - What stays at home (MOVED UP!) */}
-                    <div className={`rounded-xl p-4 text-center border-2 border-dashed ${leftover < 0 ? 'bg-red-50 border-red-300' : 'bg-amber-50 border-amber-300'}`}>
-                        <div className="flex items-center justify-center gap-2 mb-1">
-                            <span className="text-lg">🏠</span>
-                            <span className={`text-xs font-bold ${leftover < 0 ? 'text-red-600' : 'text-amber-700'}`}>คงเหลือที่บ้าน</span>
-                        </div>
-                        <div className={`text-4xl font-black ${leftover < 0 ? 'text-red-600' : 'text-amber-600'}`}>
-                            {leftover}
-                        </div>
-                        <div className="text-xs text-gray-400 mt-1">→ ยกไปพรุ่งนี้</div>
                     </div>
                 </div>
 
-                {/* ═══════════════════════════════════════════════════════════
-                   🏪 SHOP ZONE - What goes to the shop
-                   ═══════════════════════════════════════════════════════════ */}
-                <div className="p-4 space-y-3 bg-gradient-to-b from-violet-50/50 to-white border-t-2 border-dashed border-violet-200">
-                    {/* Zone Header */}
-                    <div className="flex items-center gap-2 text-violet-700 mb-2">
-                        <span className="text-lg">🏪</span>
-                        <span className="text-xs font-bold uppercase tracking-wider">ไปร้าน (Shop)</span>
-                        <div className="flex-1 h-px bg-violet-200"></div>
+                {/* Compact Input Rows */}
+                <div className="p-2 space-y-2">
+                    {/* Row 1: Yesterday + Production */}
+                    <div className="flex items-center gap-2 text-xs">
+                        <span className="text-gray-400 w-14 shrink-0">เก่า: {stockYesterday}</span>
+                        <div className="flex items-center gap-1 flex-1 bg-blue-50 rounded-lg px-2 py-1.5">
+                            <Flame size={12} className="text-blue-500 shrink-0" />
+                            <span className="text-blue-600 shrink-0">ผลิต</span>
+                            {confirmedProduction > 0 && <span className="text-blue-500 text-[10px]">+{confirmedProduction}</span>}
+                            <input
+                                type="number"
+                                className="w-12 text-center text-sm font-bold bg-white border border-blue-200 rounded ml-auto"
+                                value={pendingProd || ''}
+                                onChange={e => {
+                                    const val = Math.max(0, parseInt(e.target.value) || 0);
+                                    setPendingProduction(prev => ({ ...prev, [item.id]: val }));
+                                }}
+                                placeholder="0"
+                            />
+                            <button
+                                onClick={() => handleProductionConfirm(item, pendingProd)}
+                                disabled={pendingProd <= 0}
+                                className="p-1 bg-blue-500 text-white rounded disabled:opacity-40"
+                            >
+                                <Check size={12} />
+                            </button>
+                        </div>
                     </div>
 
-                    {/* Transfer Input */}
-                    <div className={`rounded-xl p-3 border-2 ${isOverflow ? 'bg-red-50 border-red-300' : 'bg-violet-50 border-violet-200'}`}>
-                        <div className="flex justify-between items-center">
-                            <div className="flex items-center gap-2">
-                                <Truck className={isOverflow ? 'text-red-500' : 'text-violet-500'} size={18} />
-                                <span className={`text-sm font-medium ${isOverflow ? 'text-red-700' : 'text-violet-700'}`}>ส่งไปร้าน</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <input
-                                    type="number"
-                                    className={`w-16 text-center font-bold bg-white rounded-lg focus:ring-violet-500 focus:border-violet-500 ${isOverflow ? 'text-red-600 border-red-300' : 'text-violet-700 border-violet-200'}`}
-                                    value={pendingTrans || ''}
-                                    onChange={e => {
-                                        const val = Math.max(0, parseInt(e.target.value) || 0);
-                                        setPendingTransfer(prev => ({ ...prev, [item.id]: val }));
-                                    }}
-                                    placeholder="0"
-                                />
-                                <button
-                                    onClick={() => handleTransferConfirm(item, pendingTrans)}
-                                    disabled={pendingTrans <= 0 || isOverflow}
-                                    className="p-2 bg-violet-500 text-white rounded-lg hover:bg-violet-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                                >
-                                    <Check size={16} />
-                                </button>
-                            </div>
+                    {/* Row 2: Transfer to Shop */}
+                    <div className="flex items-center gap-2 text-xs">
+                        <span className={`w-14 shrink-0 ${leftover < 0 ? 'text-red-500' : 'text-amber-500'}`}>เหลือ: {leftover}</span>
+                        <div className={`flex items-center gap-1 flex-1 rounded-lg px-2 py-1.5 ${isOverflow ? 'bg-red-50' : 'bg-violet-50'}`}>
+                            <Truck size={12} className={isOverflow ? 'text-red-500' : 'text-violet-500'} />
+                            <span className={isOverflow ? 'text-red-600' : 'text-violet-600'}>ส่ง</span>
+                            {confirmedTransfer > 0 && <span className="text-violet-500 text-[10px]">+{confirmedTransfer}</span>}
+                            <input
+                                type="number"
+                                className={`w-12 text-center text-sm font-bold bg-white rounded ml-auto ${isOverflow ? 'border-red-300 text-red-600' : 'border-violet-200 text-violet-700'}`}
+                                value={pendingTrans || ''}
+                                onChange={e => {
+                                    const val = Math.max(0, parseInt(e.target.value) || 0);
+                                    setPendingTransfer(prev => ({ ...prev, [item.id]: val }));
+                                }}
+                                placeholder="0"
+                            />
+                            <button
+                                onClick={() => handleTransferConfirm(item, pendingTrans)}
+                                disabled={pendingTrans <= 0 || isOverflow}
+                                className={`p-1 text-white rounded disabled:opacity-40 ${isOverflow ? 'bg-red-400' : 'bg-violet-500'}`}
+                            >
+                                <Check size={12} />
+                            </button>
                         </div>
-                        {isOverflow && (
-                            <div className="mt-2 text-xs text-red-600 flex items-center gap-1">
-                                <AlertCircle size={12} />
-                                เกินที่เหลือ! (เหลือ {availableForTransfer} ชิ้น)
-                            </div>
-                        )}
                     </div>
-
-                    {/* Total Sent to Shop Display */}
-                    {confirmedTransfer > 0 && (
-                        <div className="bg-violet-100 rounded-xl p-4 text-center">
-                            <div className="flex items-center justify-center gap-2 text-violet-600 mb-1">
-                                <span className="text-lg">🏪</span>
-                                <span className="text-xs font-bold">ส่งไปร้านแล้ว</span>
-                            </div>
-                            <div className="text-3xl font-black text-violet-700">{confirmedTransfer}</div>
-                            <div className="text-xs text-violet-500 mt-1">→ พร้อมขายหน้าร้าน</div>
-                        </div>
-                    )}
                 </div>
             </div>
         );
