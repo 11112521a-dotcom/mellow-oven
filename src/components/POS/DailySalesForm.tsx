@@ -231,6 +231,7 @@ export const DailySalesForm: React.FC = () => {
 
         // FIX: Refresh data to sync across devices and update jar balances
         await fetchData();
+        await fetchDailyInventory(date);  // FIX: Also refresh dailyInventory!
     };
 
     const totalAvailable = logs.reduce((sum, log) => sum + (log.preparedQty || 0), 0);
