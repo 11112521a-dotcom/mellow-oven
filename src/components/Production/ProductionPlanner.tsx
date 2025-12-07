@@ -294,11 +294,64 @@ export const ProductionPlanner: React.FC = () => {
                         </div>
                     </div>
 
-                    {/* Results Grid */}
+                    {/* AI Insight Panel - How AI Calculates */}
+                    {results.length > 0 && !isCalculating && (
+                        <div className="bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 p-[2px] rounded-2xl animate-gradient-shift">
+                            <div className="bg-white/95 backdrop-blur-sm rounded-2xl p-5">
+                                <div className="flex items-center gap-3 mb-4">
+                                    <div className="w-10 h-10 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center">
+                                        <span className="text-white text-xl">🧠</span>
+                                    </div>
+                                    <div>
+                                        <h3 className="font-bold text-gray-800">AI วิเคราะห์จากข้อมูลเหล่านี้</h3>
+                                        <p className="text-xs text-gray-500">Newsvendor Model + Holt-Winters Smoothing</p>
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                                    <div className="bg-blue-50 rounded-xl p-3 text-center">
+                                        <p className="text-xs text-blue-600 mb-1">📊 ข้อมูลย้อนหลัง</p>
+                                        <p className="text-xl font-bold text-blue-700">
+                                            {results[0]?.forecast.dataPoints || 0} <span className="text-sm font-normal">วัน</span>
+                                        </p>
+                                    </div>
+                                    <div className="bg-orange-50 rounded-xl p-3 text-center">
+                                        <p className="text-xs text-orange-600 mb-1">🔍 Outliers กรองออก</p>
+                                        <p className="text-xl font-bold text-orange-700">
+                                            {results[0]?.forecast.outliersRemoved || 0} <span className="text-sm font-normal">รายการ</span>
+                                        </p>
+                                    </div>
+                                    <div className="bg-purple-50 rounded-xl p-3 text-center">
+                                        <p className="text-xs text-purple-600 mb-1">🌤️ Weather Factor</p>
+                                        <p className="text-xl font-bold text-purple-700">
+                                            {selectedWeather === 'sunny' ? '☀️ 100%' :
+                                                selectedWeather === 'cloudy' ? '☁️ ~90%' :
+                                                    selectedWeather === 'rain' ? '🌧️ ~70%' : '⛈️ ~50%'}
+                                        </p>
+                                    </div>
+                                    <div className="bg-green-50 rounded-xl p-3 text-center">
+                                        <p className="text-xs text-green-600 mb-1">💰 Payday Boost</p>
+                                        <p className="text-xl font-bold text-green-700">
+                                            {new Date(selectedDate).getDate() >= 25 || new Date(selectedDate).getDate() <= 5 ? '+20%' : 'ปกติ'}
+                                        </p>
+                                    </div>
+                                </div>
+
+                                <div className="mt-4 p-3 bg-gray-50 rounded-xl text-xs text-gray-600">
+                                    <p className="flex items-center gap-2">
+                                        <span className="text-purple-500">💡</span>
+                                        <span><strong>สูตร:</strong> Optimal Qty = Newsvendor(Baseline × Weather × Payday) โดยที่ Baseline มาจาก Holt-Winters Exponential Smoothing ของยอดขายย้อนหลัง กรอง outliers ด้วย IQR method</span>
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Results Grid - Premium Cards */}
                     {isCalculating ? (
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 animate-pulse">
                             {[1, 2, 3, 4, 5, 6].map(i => (
-                                <div key={i} className="h-40 bg-gray-100 rounded-xl"></div>
+                                <div key={i} className="h-48 bg-gradient-to-br from-gray-100 to-gray-200 rounded-2xl"></div>
                             ))}
                         </div>
                     ) : (
@@ -306,49 +359,61 @@ export const ProductionPlanner: React.FC = () => {
                             {results.map((result) => (
                                 <div
                                     key={result.productId}
-                                    className={`bg-white p-5 rounded-xl border transition-all hover:shadow-md ${result.error ? 'border-red-200 bg-red-50' : 'border-cafe-100'
+                                    className={`group relative overflow-hidden rounded-2xl border-2 transition-all duration-300 hover:shadow-xl hover:-translate-y-1 ${result.error
+                                            ? 'border-red-200 bg-gradient-to-br from-red-50 to-orange-50'
+                                            : 'border-cafe-100 bg-gradient-to-br from-white to-cafe-50 hover:border-cafe-300'
                                         }`}
                                 >
-                                    <div className="flex justify-between items-start mb-4">
-                                        <div>
-                                            <h3 className="font-bold text-cafe-900 line-clamp-1">{result.productName}</h3>
+                                    {/* Premium Header with Gradient */}
+                                    <div className={`p-4 ${result.error ? '' : 'bg-gradient-to-r from-cafe-800 to-cafe-700'}`}>
+                                        <div className="flex justify-between items-start">
+                                            <div>
+                                                <h3 className={`font-bold line-clamp-1 ${result.error ? 'text-red-700' : 'text-white'}`}>
+                                                    {result.productName}
+                                                </h3>
+                                                {!result.error && (
+                                                    <div className="flex items-center gap-2 mt-1">
+                                                        <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${result.forecast.confidenceLevel === 'high' ? 'bg-green-400/30 text-green-100' :
+                                                                result.forecast.confidenceLevel === 'medium' ? 'bg-yellow-400/30 text-yellow-100' :
+                                                                    'bg-red-400/30 text-red-100'
+                                                            }`}>
+                                                            {result.forecast.confidenceLevel === 'high' ? '🎯 สูง' :
+                                                                result.forecast.confidenceLevel === 'medium' ? '📊 ปานกลาง' : '⚠️ ต่ำ'}
+                                                        </span>
+                                                        <span className="text-[10px] text-white/70">
+                                                            ({result.forecast.dataPoints} วัน)
+                                                        </span>
+                                                    </div>
+                                                )}
+                                            </div>
                                             {!result.error && (
-                                                <div className="flex items-center gap-2 mt-1">
-                                                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${result.forecast.confidenceLevel === 'high' ? 'bg-green-100 text-green-700' :
-                                                        result.forecast.confidenceLevel === 'medium' ? 'bg-yellow-100 text-yellow-700' :
-                                                            'bg-red-100 text-red-700'
-                                                        }`}>
-                                                        ความเชื่อมั่น: {
-                                                            result.forecast.confidenceLevel === 'high' ? 'สูง' :
-                                                                result.forecast.confidenceLevel === 'medium' ? 'ปานกลาง' : 'ต่ำ'
-                                                        }
-                                                    </span>
+                                                <div className="text-right">
+                                                    <p className="text-[10px] text-white/70">ควรผลิต</p>
+                                                    <p className="text-3xl font-black text-white">{result.forecast.optimalQuantity}</p>
                                                 </div>
                                             )}
                                         </div>
-                                        {!result.error && (
-                                            <div className="text-right">
-                                                <p className="text-xs text-cafe-500">ควรผลิต</p>
-                                                <p className="text-3xl font-black text-cafe-800">{result.forecast.optimalQuantity}</p>
-                                            </div>
-                                        )}
                                     </div>
 
                                     {result.error ? (
-                                        <div className="flex items-center gap-2 text-red-600 text-sm">
-                                            <AlertTriangle size={16} />
-                                            {result.error}
+                                        <div className="p-4">
+                                            <div className="flex items-center gap-2 text-red-600 text-sm">
+                                                <AlertTriangle size={16} />
+                                                {result.error}
+                                            </div>
                                         </div>
                                     ) : (
-                                        <div className="space-y-3">
-                                            <div className="flex justify-between items-center py-2 border-t border-cafe-50">
-                                                <div className="flex items-center gap-2 text-sm text-cafe-600">
+                                        <div className="p-4 space-y-3">
+                                            {/* Profit Row */}
+                                            <div className="flex justify-between items-center py-2 px-3 bg-green-50 rounded-lg">
+                                                <div className="flex items-center gap-2 text-sm text-green-700">
                                                     <TrendingUp size={14} />
                                                     <span>กำไรคาดการณ์</span>
                                                 </div>
-                                                <span className="font-bold text-green-600">฿{result.forecast.expectedProfit?.toLocaleString()}</span>
+                                                <span className="font-bold text-green-700">฿{result.forecast.expectedProfit?.toLocaleString()}</span>
                                             </div>
 
+                                            {/* Risk Indicators */}
                                             <div className="grid grid-cols-2 gap-2 text-xs">
                                                 <div className="bg-red-50 p-2 rounded-lg text-center">
                                                     <p className="text-red-400 mb-1">โอกาสของขาด</p>
@@ -359,6 +424,24 @@ export const ProductionPlanner: React.FC = () => {
                                                     <p className="font-bold text-orange-600">{(result.forecast.wasteProbability * 100).toFixed(0)}%</p>
                                                 </div>
                                             </div>
+
+                                            {/* Expandable Calculation Details */}
+                                            <details className="group/details">
+                                                <summary className="cursor-pointer text-xs text-cafe-500 hover:text-cafe-700 flex items-center gap-1 py-1">
+                                                    <span>📐 ดูวิธีคำนวณ</span>
+                                                    <span className="group-open/details:rotate-180 transition-transform">▼</span>
+                                                </summary>
+                                                <div className="mt-2 p-3 bg-gray-50 rounded-lg text-[11px] space-y-1 text-gray-600 animate-in slide-in-from-top-2">
+                                                    <p>• ยอดขายเฉลี่ย (Baseline): <strong>{result.forecast.baselineForecast.toFixed(1)}</strong> ชิ้น</p>
+                                                    <p>• หลังปรับสภาพอากาศ: <strong>{result.forecast.weatherAdjustedForecast.toFixed(1)}</strong> ชิ้น</p>
+                                                    <p>• ค่า Lambda (Mean): <strong>{result.forecast.lambda.toFixed(1)}</strong></p>
+                                                    <p>• Distribution: <strong>{result.forecast.distributionType === 'poisson' ? 'Poisson' : 'Negative Binomial'}</strong></p>
+                                                    <p>• Service Level: <strong>{(result.forecast.serviceLevelTarget * 100).toFixed(0)}%</strong></p>
+                                                    <p className="text-purple-600 pt-1 border-t border-gray-200">
+                                                        → Optimal = <strong>{result.forecast.optimalQuantity}</strong> (ช่วง {result.forecast.predictionInterval.lower}-{result.forecast.predictionInterval.upper})
+                                                    </p>
+                                                </div>
+                                            </details>
                                         </div>
                                     )}
                                 </div>
