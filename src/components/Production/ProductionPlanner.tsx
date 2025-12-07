@@ -360,8 +360,8 @@ export const ProductionPlanner: React.FC = () => {
                                 <div
                                     key={result.productId}
                                     className={`group relative overflow-hidden rounded-2xl border-2 transition-all duration-300 hover:shadow-xl hover:-translate-y-1 ${result.error
-                                            ? 'border-red-200 bg-gradient-to-br from-red-50 to-orange-50'
-                                            : 'border-cafe-100 bg-gradient-to-br from-white to-cafe-50 hover:border-cafe-300'
+                                        ? 'border-red-200 bg-gradient-to-br from-red-50 to-orange-50'
+                                        : 'border-cafe-100 bg-gradient-to-br from-white to-cafe-50 hover:border-cafe-300'
                                         }`}
                                 >
                                     {/* Premium Header with Gradient */}
@@ -374,8 +374,8 @@ export const ProductionPlanner: React.FC = () => {
                                                 {!result.error && (
                                                     <div className="flex items-center gap-2 mt-1">
                                                         <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${result.forecast.confidenceLevel === 'high' ? 'bg-green-400/30 text-green-100' :
-                                                                result.forecast.confidenceLevel === 'medium' ? 'bg-yellow-400/30 text-yellow-100' :
-                                                                    'bg-red-400/30 text-red-100'
+                                                            result.forecast.confidenceLevel === 'medium' ? 'bg-yellow-400/30 text-yellow-100' :
+                                                                'bg-red-400/30 text-red-100'
                                                             }`}>
                                                             {result.forecast.confidenceLevel === 'high' ? '🎯 สูง' :
                                                                 result.forecast.confidenceLevel === 'medium' ? '📊 ปานกลาง' : '⚠️ ต่ำ'}
@@ -603,10 +603,138 @@ export const ProductionPlanner: React.FC = () => {
                         </div>
                     </div>
 
-                    {/* Bottom Row: ABC Analysis */}
+                    {/* 🤖 AI Recommendation Cards - NEW! */}
+                    <div className="bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 p-[2px] rounded-2xl">
+                        <div className="bg-white rounded-2xl p-5">
+                            <div className="flex items-center justify-between mb-4">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center">
+                                        <Sparkles className="text-white" size={20} />
+                                    </div>
+                                    <div>
+                                        <h3 className="font-bold text-gray-800">🤖 AI แนะนำสิ่งที่ควรทำ</h3>
+                                        <p className="text-xs text-gray-500">จากการวิเคราะห์ Menu Engineering</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                {/* Star Recommendations */}
+                                {analyticsData?.matrix.data.filter(d => d.class === 'Star').slice(0, 2).map((item, idx) => (
+                                    <div key={`star-${idx}`} className="p-3 bg-green-50 rounded-xl border border-green-200">
+                                        <div className="flex items-center gap-2 mb-2">
+                                            <span className="text-lg">⭐</span>
+                                            <span className="font-bold text-green-800 text-sm">{item.name}</span>
+                                        </div>
+                                        <p className="text-xs text-green-700">
+                                            💡 ดันต่อไป! ขายได้ {item.soldQty} ชิ้น กำไร ฿{item.profitPerUnit}/ชิ้น
+                                        </p>
+                                        <p className="text-xs text-green-600 mt-1">→ พิจารณาเพิ่มการผลิตและ stock</p>
+                                    </div>
+                                ))}
+
+                                {/* Puzzle Recommendations */}
+                                {analyticsData?.matrix.data.filter(d => d.class === 'Puzzle').slice(0, 2).map((item, idx) => (
+                                    <div key={`puzzle-${idx}`} className="p-3 bg-blue-50 rounded-xl border border-blue-200">
+                                        <div className="flex items-center gap-2 mb-2">
+                                            <span className="text-lg">🧩</span>
+                                            <span className="font-bold text-blue-800 text-sm">{item.name}</span>
+                                        </div>
+                                        <p className="text-xs text-blue-700">
+                                            💡 กำไรดี ฿{item.profitPerUnit}/ชิ้น แต่ขายแค่ {item.soldQty} ชิ้น
+                                        </p>
+                                        <p className="text-xs text-blue-600 mt-1">→ โปรโมทเพิ่ม! หรือลองวางขายหน้าร้าน</p>
+                                    </div>
+                                ))}
+
+                                {/* Plowhorse Recommendations */}
+                                {analyticsData?.matrix.data.filter(d => d.class === 'Plowhorse').slice(0, 2).map((item, idx) => (
+                                    <div key={`plowhorse-${idx}`} className="p-3 bg-yellow-50 rounded-xl border border-yellow-200">
+                                        <div className="flex items-center gap-2 mb-2">
+                                            <span className="text-lg">🐎</span>
+                                            <span className="font-bold text-yellow-800 text-sm">{item.name}</span>
+                                        </div>
+                                        <p className="text-xs text-yellow-700">
+                                            💡 ขายดี {item.soldQty} ชิ้น แต่กำไรแค่ ฿{item.profitPerUnit}/ชิ้น
+                                        </p>
+                                        <p className="text-xs text-yellow-600 mt-1">→ ลองขึ้นราคา หรือลดต้นทุนวัตถุดิบ</p>
+                                    </div>
+                                ))}
+
+                                {/* Dog Warning */}
+                                {analyticsData?.matrix.data.filter(d => d.class === 'Dog').slice(0, 2).map((item, idx) => (
+                                    <div key={`dog-${idx}`} className="p-3 bg-red-50 rounded-xl border border-red-200">
+                                        <div className="flex items-center gap-2 mb-2">
+                                            <span className="text-lg">🐕</span>
+                                            <span className="font-bold text-red-800 text-sm">{item.name}</span>
+                                        </div>
+                                        <p className="text-xs text-red-700">
+                                            ⚠️ ขายแค่ {item.soldQty} ชิ้น กำไร ฿{item.profitPerUnit}/ชิ้น
+                                        </p>
+                                        <p className="text-xs text-red-600 mt-1">→ พิจารณาปรับสูตร หรือเลิกขาย</p>
+                                    </div>
+                                ))}
+                            </div>
+
+                            {analyticsData?.matrix.data.length === 0 && (
+                                <div className="text-center py-8 text-gray-400">ยังไม่มีข้อมูลการขายเพียงพอ</div>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Bottom Row: ABC Analysis with Profit Heatmap */}
                     <div className="bg-white border border-cafe-200 rounded-xl p-4 shadow-sm">
-                        <h3 className="text-lg font-bold text-cafe-800 mb-4">📊 วิเคราะห์ ABC (สัดส่วนรายได้)</h3>
-                        <div className="overflow-x-auto">
+                        <div className="flex items-center justify-between mb-4">
+                            <h3 className="text-lg font-bold text-cafe-800">📊 วิเคราะห์ ABC (สัดส่วนรายได้)</h3>
+                            <button
+                                onClick={() => {
+                                    const csv = analyticsData?.abcItems.map(item =>
+                                        `${item.class},${item.name},${item.revenue},${item.cumulativePercent.toFixed(1)}%`
+                                    ).join('\n');
+                                    const blob = new Blob([`เกรด,สินค้า,รายได้,สะสม%\n${csv}`], { type: 'text/csv' });
+                                    const url = URL.createObjectURL(blob);
+                                    const a = document.createElement('a');
+                                    a.href = url;
+                                    a.download = `abc-analysis-${new Date().toISOString().split('T')[0]}.csv`;
+                                    a.click();
+                                }}
+                                className="flex items-center gap-2 px-3 py-1.5 bg-cafe-100 hover:bg-cafe-200 rounded-lg text-sm text-cafe-700 transition-colors"
+                            >
+                                📥 Export CSV
+                            </button>
+                        </div>
+
+                        {/* Mobile Cards View */}
+                        <div className="md:hidden space-y-2">
+                            {analyticsData?.abcItems.slice(0, 10).map((item) => (
+                                <div
+                                    key={item.id}
+                                    className={`p-3 rounded-xl border-2 ${item.class === 'A' ? 'bg-gradient-to-r from-green-50 to-emerald-50 border-green-200' :
+                                            item.class === 'B' ? 'bg-gradient-to-r from-yellow-50 to-amber-50 border-yellow-200' :
+                                                'bg-gradient-to-r from-gray-50 to-slate-50 border-gray-200'
+                                        }`}
+                                >
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-2">
+                                            <span className={`px-2 py-1 rounded text-xs font-bold ${item.class === 'A' ? 'bg-green-500 text-white' :
+                                                    item.class === 'B' ? 'bg-yellow-500 text-white' :
+                                                        'bg-gray-400 text-white'
+                                                }`}>
+                                                {item.class}
+                                            </span>
+                                            <span className="font-semibold text-cafe-800 text-sm">{item.name}</span>
+                                        </div>
+                                        <div className="text-right">
+                                            <div className="font-bold text-cafe-900">฿{item.revenue.toLocaleString()}</div>
+                                            <div className="text-xs text-cafe-500">{item.cumulativePercent.toFixed(1)}%</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+
+                        {/* Desktop Table View */}
+                        <div className="hidden md:block overflow-x-auto">
                             <table className="w-full">
                                 <thead className="bg-cafe-50">
                                     <tr>
@@ -614,24 +742,40 @@ export const ProductionPlanner: React.FC = () => {
                                         <th className="px-4 py-2 text-left text-sm font-semibold text-cafe-700">สินค้า</th>
                                         <th className="px-4 py-2 text-right text-sm font-semibold text-cafe-700">รายได้</th>
                                         <th className="px-4 py-2 text-right text-sm font-semibold text-cafe-700">สะสม %</th>
+                                        <th className="px-4 py-2 text-center text-sm font-semibold text-cafe-700">Heatmap</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-cafe-100">
-                                    {analyticsData?.abcItems.slice(0, 10).map((item) => (
-                                        <tr key={item.id} className="hover:bg-cafe-50">
-                                            <td className="px-4 py-2">
-                                                <span className={`px-2 py-1 rounded text-xs font-bold ${item.class === 'A' ? 'bg-green-100 text-green-700' :
-                                                    item.class === 'B' ? 'bg-yellow-100 text-yellow-700' :
-                                                        'bg-gray-100 text-gray-700'
-                                                    }`}>
-                                                    เกรด {item.class}
-                                                </span>
-                                            </td>
-                                            <td className="px-4 py-2 text-sm text-cafe-900">{item.name}</td>
-                                            <td className="px-4 py-2 text-right text-sm text-cafe-900">฿{item.revenue.toLocaleString()}</td>
-                                            <td className="px-4 py-2 text-right text-sm text-cafe-500">{item.cumulativePercent.toFixed(1)}%</td>
-                                        </tr>
-                                    ))}
+                                    {analyticsData?.abcItems.slice(0, 10).map((item, idx) => {
+                                        const maxRevenue = analyticsData.abcItems[0]?.revenue || 1;
+                                        const heatLevel = Math.round((item.revenue / maxRevenue) * 100);
+                                        return (
+                                            <tr key={item.id} className="hover:bg-cafe-50 transition-colors">
+                                                <td className="px-4 py-2">
+                                                    <span className={`px-2 py-1 rounded text-xs font-bold ${item.class === 'A' ? 'bg-green-100 text-green-700' :
+                                                        item.class === 'B' ? 'bg-yellow-100 text-yellow-700' :
+                                                            'bg-gray-100 text-gray-700'
+                                                        }`}>
+                                                        เกรด {item.class}
+                                                    </span>
+                                                </td>
+                                                <td className="px-4 py-2 text-sm text-cafe-900 font-medium">{item.name}</td>
+                                                <td className="px-4 py-2 text-right text-sm text-cafe-900 font-bold">฿{item.revenue.toLocaleString()}</td>
+                                                <td className="px-4 py-2 text-right text-sm text-cafe-500">{item.cumulativePercent.toFixed(1)}%</td>
+                                                <td className="px-4 py-3">
+                                                    <div className="w-full bg-gray-100 rounded-full h-2.5 overflow-hidden">
+                                                        <div
+                                                            className={`h-2.5 rounded-full transition-all ${heatLevel > 70 ? 'bg-gradient-to-r from-green-400 to-emerald-500' :
+                                                                    heatLevel > 40 ? 'bg-gradient-to-r from-yellow-400 to-amber-500' :
+                                                                        'bg-gradient-to-r from-red-300 to-red-400'
+                                                                }`}
+                                                            style={{ width: `${heatLevel}%` }}
+                                                        />
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
                                 </tbody>
                             </table>
                             {analyticsData?.abcItems && analyticsData.abcItems.length > 10 && (
