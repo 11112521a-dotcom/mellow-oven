@@ -162,32 +162,32 @@ export const DailySalesForm: React.FC = () => {
             }
         }
 
-        // Add COGS to Working Capital
-        updateJarBalance('Working', totalCOGS);
-
-        // Add Gross Profit to Unallocated
+        // FIX: Add Gross Profit to Unallocated (for user to allocate later)
         const { addUnallocatedProfit } = useStore.getState();
         if (trueProfit > 0) {
             await addUnallocatedProfit({
                 id: Date.now().toString(36) + Math.random().toString(36).substr(2),
                 date,
                 amount: trueProfit,
-                source: `ยอดขาย - ${marketName}`,
+                source: `กำไร - ${marketName}`,
                 createdAt: new Date().toISOString()
             });
         }
 
-        // Record Income Transaction
-        addTransaction({
-            id: Date.now().toString(36) + Math.random().toString(36).substr(2),
-            date: new Date().toISOString(),
-            amount: totalRevenue,
-            type: 'INCOME',
-            toJar: 'Working',
-            description: `รายได้ขาย ${date} - ${marketName}`,
-            category: 'Sales',
-            marketId: selectedMarketId
-        });
+        // FIX: Record COGS Transaction to Working Capital (cost recovery only!)
+        // This prevents double-counting: COGS goes to Working, Profit goes to Unallocated
+        if (totalCOGS > 0) {
+            await addTransaction({
+                id: Date.now().toString(36) + Math.random().toString(36).substr(2),
+                date: new Date().toISOString(),
+                amount: totalCOGS,
+                type: 'INCOME',
+                toJar: 'Working',
+                description: `คืนต้นทุน ${date} - ${marketName}`,
+                category: 'COGS',
+                marketId: selectedMarketId
+            });
+        }
 
         // Log individual sales
         for (const log of logs) {
