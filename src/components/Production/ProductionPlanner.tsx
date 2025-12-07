@@ -12,7 +12,7 @@ import {
     ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, ReferenceArea, Cell,
     BarChart, Bar, Legend
 } from 'recharts';
-import { Save, Loader2, Calendar, CloudSun, Store, AlertTriangle, TrendingUp, Package, Target, ArrowUpRight, ArrowDownRight } from 'lucide-react';
+import { Save, Loader2, Calendar, CloudSun, Store, AlertTriangle, TrendingUp, Package, Target, ArrowUpRight, ArrowDownRight, Sparkles } from 'lucide-react';
 
 interface ForecastResult {
     productId: string;
@@ -710,15 +710,15 @@ export const ProductionPlanner: React.FC = () => {
                                 <div
                                     key={item.id}
                                     className={`p-3 rounded-xl border-2 ${item.class === 'A' ? 'bg-gradient-to-r from-green-50 to-emerald-50 border-green-200' :
-                                            item.class === 'B' ? 'bg-gradient-to-r from-yellow-50 to-amber-50 border-yellow-200' :
-                                                'bg-gradient-to-r from-gray-50 to-slate-50 border-gray-200'
+                                        item.class === 'B' ? 'bg-gradient-to-r from-yellow-50 to-amber-50 border-yellow-200' :
+                                            'bg-gradient-to-r from-gray-50 to-slate-50 border-gray-200'
                                         }`}
                                 >
                                     <div className="flex items-center justify-between">
                                         <div className="flex items-center gap-2">
                                             <span className={`px-2 py-1 rounded text-xs font-bold ${item.class === 'A' ? 'bg-green-500 text-white' :
-                                                    item.class === 'B' ? 'bg-yellow-500 text-white' :
-                                                        'bg-gray-400 text-white'
+                                                item.class === 'B' ? 'bg-yellow-500 text-white' :
+                                                    'bg-gray-400 text-white'
                                                 }`}>
                                                 {item.class}
                                             </span>
@@ -766,8 +766,8 @@ export const ProductionPlanner: React.FC = () => {
                                                     <div className="w-full bg-gray-100 rounded-full h-2.5 overflow-hidden">
                                                         <div
                                                             className={`h-2.5 rounded-full transition-all ${heatLevel > 70 ? 'bg-gradient-to-r from-green-400 to-emerald-500' :
-                                                                    heatLevel > 40 ? 'bg-gradient-to-r from-yellow-400 to-amber-500' :
-                                                                        'bg-gradient-to-r from-red-300 to-red-400'
+                                                                heatLevel > 40 ? 'bg-gradient-to-r from-yellow-400 to-amber-500' :
+                                                                    'bg-gradient-to-r from-red-300 to-red-400'
                                                                 }`}
                                                             style={{ width: `${heatLevel}%` }}
                                                         />
