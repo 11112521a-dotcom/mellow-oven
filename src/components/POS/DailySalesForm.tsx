@@ -48,7 +48,7 @@ export const DailySalesForm: React.FC = () => {
     } = useStore();
 
     const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
-    const [selectedMarketId, setSelectedMarketId] = useState<string>(markets[0]?.id || '');
+    const [selectedMarketId, setSelectedMarketId] = useState<string>(''); // Start empty - require user to select
     const [logs, setLogs] = useState<(DailyProductionLog & { product: Product, variant?: Variant })[]>([]);
     const [showConfirmModal, setShowConfirmModal] = useState(false);
     const [weather, setWeather] = useState<WeatherCondition>(null); // NEW: Weather state
@@ -179,7 +179,14 @@ export const DailySalesForm: React.FC = () => {
     const totalLeftover = logs.reduce((sum, log) => sum + (log.leftoverQty || 0), 0);
     const trueProfit = totalRevenue - totalCOGS - totalWasteCost;
 
-    const handleSaveClick = () => setShowConfirmModal(true);
+    const handleSaveClick = () => {
+        // Validate market selection
+        if (!selectedMarketId) {
+            alert('⚠️ กรุณาเลือกตลาดก่อนบันทึกยอดขาย!');
+            return;
+        }
+        setShowConfirmModal(true);
+    };
 
     const confirmSave = async () => {
         const marketName = markets.find(m => m.id === selectedMarketId)?.name || 'Unknown Market';
