@@ -956,6 +956,34 @@ export const MenuStockPlanner: React.FC = () => {
                                     กรอกทุกไส้พร้อมกัน (Quick Fill)
                                 </div>
                                 <div className="flex flex-wrap gap-2">
+                                    {/* 🎯 Target Production - NEW! */}
+                                    <div className="flex items-center gap-1 bg-gradient-to-r from-emerald-100 to-green-100 rounded-lg px-2 py-1.5 border border-emerald-200">
+                                        <Target size={14} className="text-emerald-600" />
+                                        <span className="text-xs text-emerald-700 font-medium">เป้า</span>
+                                        <input
+                                            type="number"
+                                            className="w-12 text-center text-sm font-bold bg-white border border-emerald-300 rounded px-1"
+                                            placeholder="15"
+                                            onClick={e => e.stopPropagation()}
+                                            onChange={e => {
+                                                const targetVal = Math.max(0, parseInt(e.target.value) || 0);
+                                                if (targetVal > 0) {
+                                                    openTargetModal(product.id, product.name, items);
+                                                    setTimeout(() => calculateTargetProduction(targetVal), 100);
+                                                }
+                                            }}
+                                        />
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                openTargetModal(product.id, product.name, items);
+                                            }}
+                                            className="px-2 py-1 bg-gradient-to-r from-emerald-500 to-green-600 text-white text-xs rounded font-medium hover:shadow-md transition-all"
+                                        >
+                                            ตั้งเป้า
+                                        </button>
+                                    </div>
+
                                     {/* Bulk Production */}
                                     <div className="flex items-center gap-1 bg-blue-100 rounded-lg px-2 py-1">
                                         <Flame size={14} className="text-blue-600" />
@@ -982,31 +1010,17 @@ export const MenuStockPlanner: React.FC = () => {
                                         </button>
                                     </div>
 
-                                    {/* Bulk Transfer */}
-                                    <div className="flex items-center gap-1 bg-violet-100 rounded-lg px-2 py-1">
-                                        <Truck size={14} className="text-violet-600" />
-                                        <input
-                                            type="number"
-                                            className="w-12 text-center text-sm font-bold bg-white border border-violet-200 rounded px-1"
-                                            placeholder="0"
-                                            value={bulkTransfer[product.id] || ''}
-                                            onClick={e => e.stopPropagation()}
-                                            onChange={e => {
-                                                const val = Math.max(0, parseInt(e.target.value) || 0);
-                                                setBulkTransfer(prev => ({ ...prev, [product.id]: val }));
-                                            }}
-                                        />
-                                        <button
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                handleBulkTransferConfirm(product.id, bulkTransfer[product.id] || 0);
-                                            }}
-                                            disabled={(bulkTransfer[product.id] || 0) <= 0}
-                                            className="px-2 py-1 bg-violet-500 text-white text-xs rounded font-medium disabled:opacity-50"
-                                        >
-                                            ส่งทั้งหมด
-                                        </button>
-                                    </div>
+                                    {/* 🚚 Smart Send All - NEW! */}
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            openSendAllModal(product.id, product.name, items);
+                                        }}
+                                        className="flex items-center gap-1 px-3 py-1.5 bg-gradient-to-r from-violet-500 to-purple-600 text-white text-xs rounded-lg font-medium hover:shadow-md transition-all"
+                                    >
+                                        <Truck size={14} />
+                                        ส่งทั้งหมด
+                                    </button>
                                 </div>
                             </div>
 
@@ -1087,6 +1101,89 @@ export const MenuStockPlanner: React.FC = () => {
                     currentTransfer={editModal.currentTransfer}
                     stockYesterday={editModal.stockYesterday}
                 />
+            )}
+
+            {/* 🎯 Target Production Modal */}
+            {targetModal && (
+                <BulkActionModal
+                    isOpen={targetModal.isOpen}
+                    onClose={() => setTargetModal(null)}
+                    onConfirm={confirmTargetProduction}
+                    title={`🎯 ตั้งเป้าผลิต - ${targetModal.productName}`}
+                    icon={<Target size={20} />}
+                    gradient="from-emerald-500 to-green-600"
+                    confirmText="✓ ยืนยันผลิตตามเป้า"
+                >
+                    <div className="space-y-3">
+                        {/* Target Input */}
+                        <div className="flex items-center gap-3 p-3 bg-emerald-50 rounded-xl border border-emerald-200">
+                            <span className="text-emerald-700 font-medium">ตั้งเป้า:</span>
+                            <input
+                                type="number"
+                                className="w-20 text-center text-xl font-bold bg-white border-2 border-emerald-300 rounded-lg px-2 py-1"
+                                value={targetModal.targetValue}
+                                onChange={e => calculateTargetProduction(Math.max(0, parseInt(e.target.value) || 0))}
+                            />
+                            <span className="text-emerald-600">ชิ้น/ไส้</span>
+                        </div>
+
+                        {/* Preview List */}
+                        <div className="text-sm font-bold text-gray-700 mt-2">Preview:</div>
+                        <div className="max-h-60 overflow-y-auto space-y-1.5">
+                            {targetModal.items.map(({ item, stockYesterday, confirmedProduction, neededProduction }) => (
+                                <div key={item.id} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg text-sm">
+                                    <span className="font-medium text-gray-700">{item.name}</span>
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-gray-500">เก่า {stockYesterday + confirmedProduction}</span>
+                                        <span className="text-emerald-600">→</span>
+                                        <span className={`font-bold ${neededProduction > 0 ? 'text-blue-600' : 'text-gray-400'}`}>
+                                            ผลิต {neededProduction}
+                                        </span>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+
+                        {/* Summary */}
+                        <div className="p-3 bg-blue-50 rounded-xl text-blue-700 text-sm">
+                            💡 ระบบจะกรอกจำนวนผลิตลงช่องให้อัตโนมัติ สำหรับไส้ที่ขาด
+                        </div>
+                    </div>
+                </BulkActionModal>
+            )}
+
+            {/* 🚚 Bulk Action Modal (Send All) */}
+            {bulkActionModal && (
+                <BulkActionModal
+                    isOpen={bulkActionModal.isOpen}
+                    onClose={() => setBulkActionModal(null)}
+                    onConfirm={confirmBulkAction}
+                    title={bulkActionModal.type === 'sendAll' ? `🚚 ส่งทั้งหมด - ${bulkActionModal.productName}` : `🔥 ผลิตทั้งหมด - ${bulkActionModal.productName}`}
+                    icon={bulkActionModal.type === 'sendAll' ? <Truck size={20} /> : <Flame size={20} />}
+                    gradient={bulkActionModal.type === 'sendAll' ? 'from-violet-500 to-purple-600' : 'from-blue-500 to-indigo-600'}
+                    confirmText={bulkActionModal.type === 'sendAll' ? '✓ ยืนยันส่งทั้งหมด' : '✓ ยืนยันผลิตทั้งหมด'}
+                >
+                    <div className="space-y-3">
+                        {/* Preview List */}
+                        <div className="max-h-60 overflow-y-auto space-y-1.5">
+                            {bulkActionModal.items.map(({ item, value, label }) => (
+                                <div key={item.id} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg text-sm">
+                                    <span className="font-medium text-gray-700">{item.name}</span>
+                                    <span className={`font-bold ${bulkActionModal.type === 'sendAll' ? 'text-violet-600' : 'text-blue-600'}`}>
+                                        {bulkActionModal.type === 'sendAll' ? `ส่ง ${value}` : `ผลิต ${value}`}
+                                    </span>
+                                </div>
+                            ))}
+                        </div>
+
+                        {/* Summary */}
+                        <div className={`p-3 rounded-xl text-sm ${bulkActionModal.type === 'sendAll' ? 'bg-violet-50 text-violet-700' : 'bg-blue-50 text-blue-700'}`}>
+                            💡 {bulkActionModal.type === 'sendAll'
+                                ? 'ส่งสต็อกที่มีทั้งหมดไปหน้าร้าน'
+                                : 'กรอกจำนวนผลิตให้ทุกไส้'}
+                        </div>
+                    </div>
+                </BulkActionModal>
             )}
         </div>
     );
