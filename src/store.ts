@@ -147,6 +147,7 @@ export const useStore = create<AppState>()(
                 const { data: transactions } = await supabase.from('transactions').select('*').order('date', { ascending: false });
                 const { data: productSales } = await supabase.from('product_sales').select('*').order('sale_date', { ascending: false });
                 const { data: productionForecasts } = await supabase.from('production_forecasts').select('*').order('forecast_for_date', { ascending: false });
+                const { data: unallocatedProfitsData } = await supabase.from('unallocated_profits').select('*').order('date', { ascending: false }); // FIX: Load unallocated profits!
 
                 // Map snake_case from DB to camelCase for App
                 const mappedIngredients = ingredients?.map(i => ({
@@ -267,6 +268,13 @@ export const useStore = create<AppState>()(
                         transactions: transactions ? mappedTransactions : state.transactions,
                         productSales: productSales ? mappedProductSales : state.productSales,
                         productionForecasts: productionForecasts ? mappedProductionForecasts : state.productionForecasts,
+                        unallocatedProfits: unallocatedProfitsData?.map(p => ({
+                            id: p.id,
+                            date: p.date,
+                            amount: p.amount,
+                            source: p.source,
+                            createdAt: p.created_at
+                        })) || state.unallocatedProfits, // FIX: Load unallocated profits from DB!
                         jars: state.jars.map(jar => ({
                             ...jar,
                             balance: calculatedBalances[jar.id] || 0
