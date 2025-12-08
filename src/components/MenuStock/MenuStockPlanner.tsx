@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useStore } from '@/src/store';
-import { Package, Save, Calendar, AlertCircle, Flame, Truck, X, Check, Sparkles, ChevronDown, ChevronUp, Layers, Box } from 'lucide-react';
+import { Package, Save, Calendar, AlertCircle, Flame, Truck, X, Check, Sparkles, ChevronDown, ChevronUp, Layers, Box, Edit2, RotateCcw } from 'lucide-react';
 import { Product, Variant } from '@/types';
 
 // Type for flattened product/variant item
@@ -69,6 +69,112 @@ const ConfirmModal: React.FC<{
     );
 };
 
+// Edit Inventory Modal Component
+const EditInventoryModal: React.FC<{
+    isOpen: boolean;
+    onClose: () => void;
+    onSave: (producedQty: number, toShopQty: number) => void;
+    itemName: string;
+    currentProduced: number;
+    currentTransfer: number;
+    stockYesterday: number;
+}> = ({ isOpen, onClose, onSave, itemName, currentProduced, currentTransfer, stockYesterday }) => {
+    const [produced, setProduced] = useState(currentProduced);
+    const [transfer, setTransfer] = useState(currentTransfer);
+
+    useEffect(() => {
+        setProduced(currentProduced);
+        setTransfer(currentTransfer);
+    }, [currentProduced, currentTransfer, isOpen]);
+
+    if (!isOpen) return null;
+
+    const todayStock = stockYesterday + produced;
+    const leftover = todayStock - transfer;
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden animate-in zoom-in-95 duration-200">
+                {/* Header */}
+                <div className="bg-gradient-to-r from-purple-500 to-indigo-600 p-6 text-white">
+                    <div className="flex items-center gap-3">
+                        <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center">
+                            <Edit2 size={24} />
+                        </div>
+                        <div>
+                            <h2 className="text-xl font-bold">แก้ไขข้อมูล</h2>
+                            <p className="text-white/80 text-sm">{itemName}</p>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Body */}
+                <div className="p-6 space-y-4">
+                    <div className="bg-gray-50 p-3 rounded-xl text-sm text-gray-600">
+                        📦 ของเก่า (เมื่อวาน): <strong>{stockYesterday}</strong> ชิ้น
+                    </div>
+
+                    <div className="space-y-3">
+                        <div className="bg-blue-50 p-4 rounded-xl border border-blue-200">
+                            <label className="flex items-center gap-2 text-sm font-medium text-blue-700 mb-2">
+                                <Flame size={16} /> ผลิตแล้ว
+                            </label>
+                            <input
+                                type="number"
+                                value={produced}
+                                onChange={e => setProduced(Math.max(0, parseInt(e.target.value) || 0))}
+                                className="w-full p-3 text-lg font-bold text-center border-2 border-blue-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                            />
+                        </div>
+
+                        <div className="bg-violet-50 p-4 rounded-xl border border-violet-200">
+                            <label className="flex items-center gap-2 text-sm font-medium text-violet-700 mb-2">
+                                <Truck size={16} /> ส่งไปร้าน
+                            </label>
+                            <input
+                                type="number"
+                                value={transfer}
+                                onChange={e => setTransfer(Math.max(0, parseInt(e.target.value) || 0))}
+                                className="w-full p-3 text-lg font-bold text-center border-2 border-violet-200 rounded-xl focus:border-violet-500 focus:ring-2 focus:ring-violet-200"
+                            />
+                        </div>
+                    </div>
+
+                    {/* Preview */}
+                    <div className="grid grid-cols-2 gap-3 pt-2">
+                        <div className="bg-emerald-50 p-3 rounded-xl text-center border border-emerald-200">
+                            <p className="text-xs text-emerald-600">สต็อกวันนี้</p>
+                            <p className="text-2xl font-black text-emerald-700">{todayStock}</p>
+                        </div>
+                        <div className={`p-3 rounded-xl text-center border ${leftover < 0 ? 'bg-red-50 border-red-200' : 'bg-amber-50 border-amber-200'}`}>
+                            <p className={`text-xs ${leftover < 0 ? 'text-red-600' : 'text-amber-600'}`}>เหลือที่บ้าน</p>
+                            <p className={`text-2xl font-black ${leftover < 0 ? 'text-red-600' : 'text-amber-700'}`}>{leftover}</p>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Footer */}
+                <div className="flex gap-3 p-4 bg-gray-50 border-t">
+                    <button
+                        onClick={onClose}
+                        className="flex-1 px-4 py-3 bg-gray-100 hover:bg-gray-200 rounded-xl font-medium transition-colors flex items-center justify-center gap-2"
+                    >
+                        <X size={18} />
+                        ยกเลิก
+                    </button>
+                    <button
+                        onClick={() => { onSave(produced, transfer); onClose(); }}
+                        className="flex-1 px-4 py-3 bg-gradient-to-r from-purple-500 to-indigo-600 text-white rounded-xl font-medium transition-all hover:shadow-lg flex items-center justify-center gap-2"
+                    >
+                        <Save size={18} />
+                        บันทึก
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 export const MenuStockPlanner: React.FC = () => {
     const { products, dailyInventory, fetchDailyInventory, upsertDailyInventory, getYesterdayStock } = useStore();
 
@@ -90,6 +196,15 @@ export const MenuStockPlanner: React.FC = () => {
         itemName: string;
         type: 'production' | 'transfer';
         value: number;
+    } | null>(null);
+
+    // Edit Modal State
+    const [editModal, setEditModal] = useState<{
+        isOpen: boolean;
+        item: InventoryItem;
+        currentProduced: number;
+        currentTransfer: number;
+        stockYesterday: number;
     } | null>(null);
 
     // Bulk Fill State (for filling all variants at once)
@@ -216,6 +331,39 @@ export const MenuStockPlanner: React.FC = () => {
             type: 'transfer',
             value
         });
+    };
+
+    // Handle Edit Save with confirmation
+    const handleEditSave = async (producedQty: number, toShopQty: number) => {
+        if (!editModal) return;
+
+        const item = editModal.item;
+        const stockYesterday = editModal.stockYesterday;
+
+        // Show confirmation before saving
+        const confirmed = window.confirm(
+            `ยืนยันการแก้ไขข้อมูล?\n\n` +
+            `📦 ผลิตแล้ว: ${editModal.currentProduced} → ${producedQty}\n` +
+            `🚚 ส่งไปร้าน: ${editModal.currentTransfer} → ${toShopQty}`
+        );
+
+        if (!confirmed) return;
+
+        setIsSaving(true);
+        try {
+            await upsertDailyInventory({
+                businessDate,
+                productId: item.productId,
+                variantId: item.variantId || null,
+                stockYesterday,
+                producedQty,
+                toShopQty
+            });
+            await fetchDailyInventory(businessDate);
+        } finally {
+            setIsSaving(false);
+            setEditModal(null);
+        }
     };
 
     // Apply confirmed action - ADD to existing values in DB
@@ -462,10 +610,25 @@ export const MenuStockPlanner: React.FC = () => {
                             <h3 className="font-bold text-cafe-800 text-sm truncate">{item.name}</h3>
                             <span className="text-[10px] text-cafe-400 bg-white/70 px-1.5 py-0.5 rounded shrink-0">{item.category}</span>
                         </div>
-                        {/* Quick Stats Badge */}
+                        {/* Quick Stats + Edit Button */}
                         <div className="flex items-center gap-1.5 shrink-0">
                             <span className="text-xs bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full font-bold">{todayStock}</span>
                             <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-bold">{leftover}</span>
+                            {(confirmedProduction > 0 || confirmedTransfer > 0) && (
+                                <button
+                                    onClick={() => setEditModal({
+                                        isOpen: true,
+                                        item,
+                                        currentProduced: confirmedProduction,
+                                        currentTransfer: confirmedTransfer,
+                                        stockYesterday
+                                    })}
+                                    className="p-1 text-purple-500 hover:bg-purple-100 rounded transition-colors"
+                                    title="แก้ไขข้อมูล"
+                                >
+                                    <Edit2 size={14} />
+                                </button>
+                            )}
                         </div>
                     </div>
                 </div>
@@ -714,6 +877,19 @@ export const MenuStockPlanner: React.FC = () => {
                         </div>
                     }
                     confirmText={confirmModal.type === 'production' ? 'ยืนยันผลิต' : 'ยืนยันส่ง'}
+                />
+            )}
+
+            {/* Edit Modal */}
+            {editModal && (
+                <EditInventoryModal
+                    isOpen={editModal.isOpen}
+                    onClose={() => setEditModal(null)}
+                    onSave={handleEditSave}
+                    itemName={editModal.item.parentName ? `${editModal.item.parentName} - ${editModal.item.name}` : editModal.item.name}
+                    currentProduced={editModal.currentProduced}
+                    currentTransfer={editModal.currentTransfer}
+                    stockYesterday={editModal.stockYesterday}
                 />
             )}
         </div>
