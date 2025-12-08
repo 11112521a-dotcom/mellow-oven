@@ -525,6 +525,21 @@ export const MenuStockPlanner: React.FC = () => {
                         <span className="text-gray-500">เก่า: <b>{stockYesterday}</b></span>
                         <span className="text-emerald-600 font-bold">รวม: {todayStock}</span>
                         <span className={`font-bold ${leftover < 0 ? 'text-red-500' : 'text-amber-600'}`}>เหลือ: {leftover}</span>
+                        {(confirmedProduction > 0 || confirmedTransfer > 0) && (
+                            <button
+                                onClick={() => setEditModal({
+                                    isOpen: true,
+                                    item,
+                                    currentProduced: confirmedProduction,
+                                    currentTransfer: confirmedTransfer,
+                                    stockYesterday
+                                })}
+                                className="p-1 text-purple-500 hover:bg-purple-100 rounded transition-colors"
+                                title="แก้ไขข้อมูล"
+                            >
+                                <Edit2 size={14} />
+                            </button>
+                        )}
                     </div>
                 </div>
 
