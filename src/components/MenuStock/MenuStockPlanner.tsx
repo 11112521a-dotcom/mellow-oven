@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useStore } from '@/src/store';
-import { Package, Save, Calendar, AlertCircle, Flame, Truck, X, Check, Sparkles, ChevronDown, ChevronUp, Layers, Box, Edit2, RotateCcw } from 'lucide-react';
+import { Package, Save, Calendar, AlertCircle, Flame, Truck, X, Check, Sparkles, ChevronDown, ChevronUp, Layers, Box, Edit2, RotateCcw, Target, Zap } from 'lucide-react';
 import { Product, Variant } from '@/types';
 
 // Type for flattened product/variant item
@@ -59,6 +59,59 @@ const ConfirmModal: React.FC<{
                     <button
                         onClick={() => { onConfirm(); onClose(); }}
                         className={`flex-1 px-4 py-3 bg-gradient-to-r ${bgColor} text-white rounded-xl font-medium transition-all hover:shadow-lg flex items-center justify-center gap-2`}
+                    >
+                        <Check size={18} />
+                        {confirmText}
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+// Bulk Action Modal Component (Target Production / Produce All / Send All)
+const BulkActionModal: React.FC<{
+    isOpen: boolean;
+    onClose: () => void;
+    onConfirm: () => void;
+    title: string;
+    icon: React.ReactNode;
+    gradient: string;
+    children: React.ReactNode;
+    confirmText?: string;
+}> = ({ isOpen, onClose, onConfirm, title, icon, gradient, children, confirmText = 'ยืนยัน' }) => {
+    if (!isOpen) return null;
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[80vh] overflow-hidden animate-in zoom-in-95 duration-200">
+                {/* Header */}
+                <div className={`bg-gradient-to-r ${gradient} p-5 text-white`}>
+                    <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
+                            {icon}
+                        </div>
+                        <h2 className="text-lg font-bold">{title}</h2>
+                    </div>
+                </div>
+
+                {/* Body */}
+                <div className="p-4 max-h-[50vh] overflow-y-auto">
+                    {children}
+                </div>
+
+                {/* Footer */}
+                <div className="flex gap-3 p-4 bg-gray-50 border-t">
+                    <button
+                        onClick={onClose}
+                        className="flex-1 px-4 py-3 bg-gray-100 hover:bg-gray-200 rounded-xl font-medium transition-colors flex items-center justify-center gap-2"
+                    >
+                        <X size={18} />
+                        ยกเลิก
+                    </button>
+                    <button
+                        onClick={() => { onConfirm(); onClose(); }}
+                        className={`flex-1 px-4 py-3 bg-gradient-to-r ${gradient} text-white rounded-xl font-medium transition-all hover:shadow-lg flex items-center justify-center gap-2`}
                     >
                         <Check size={18} />
                         {confirmText}
@@ -210,6 +263,24 @@ export const MenuStockPlanner: React.FC = () => {
     // Bulk Fill State (for filling all variants at once)
     const [bulkProduction, setBulkProduction] = useState<Record<string, number>>({});
     const [bulkTransfer, setBulkTransfer] = useState<Record<string, number>>({});
+
+    // Target Production Modal State
+    const [targetModal, setTargetModal] = useState<{
+        isOpen: boolean;
+        productId: string;
+        productName: string;
+        targetValue: number;
+        items: { item: InventoryItem; stockYesterday: number; confirmedProduction: number; neededProduction: number }[];
+    } | null>(null);
+
+    // Bulk Action Modal State (Produce All / Send All)
+    const [bulkActionModal, setBulkActionModal] = useState<{
+        isOpen: boolean;
+        type: 'produceAll' | 'sendAll';
+        productId: string;
+        productName: string;
+        items: { item: InventoryItem; value: number; label: string }[];
+    } | null>(null);
 
     // Flatten products with variants into a single list
     const inventoryItems: InventoryItem[] = useMemo(() => {
@@ -364,6 +435,120 @@ export const MenuStockPlanner: React.FC = () => {
             setIsSaving(false);
             setEditModal(null);
         }
+    };
+
+    // ==================== BULK ACTION HANDLERS ====================
+
+    // Open Target Production Modal
+    const openTargetModal = (productId: string, productName: string, items: InventoryItem[]) => {
+        const targetItems = items.map(item => {
+            const saved = getSavedRecord(item);
+            const stockYesterday = saved.stockYesterday ?? getYesterdayForItem(item);
+            const confirmedProduction = saved.producedQty || 0;
+            return {
+                item,
+                stockYesterday,
+                confirmedProduction,
+                neededProduction: 0
+            };
+        });
+
+        setTargetModal({
+            isOpen: true,
+            productId,
+            productName,
+            targetValue: 15, // Default target
+            items: targetItems
+        });
+    };
+
+    // Calculate needed production for target
+    const calculateTargetProduction = (targetValue: number) => {
+        if (!targetModal) return;
+
+        const updatedItems = targetModal.items.map(itemData => {
+            const totalStock = itemData.stockYesterday + itemData.confirmedProduction;
+            const needed = Math.max(0, targetValue - totalStock);
+            return { ...itemData, neededProduction: needed };
+        });
+
+        setTargetModal({ ...targetModal, targetValue, items: updatedItems });
+    };
+
+    // Confirm Target Production - set pending production for all items
+    const confirmTargetProduction = () => {
+        if (!targetModal) return;
+
+        targetModal.items.forEach(itemData => {
+            if (itemData.neededProduction > 0) {
+                setPendingProduction(prev => ({
+                    ...prev,
+                    [itemData.item.id]: itemData.neededProduction
+                }));
+            }
+        });
+
+        setTargetModal(null);
+    };
+
+    // Open Produce All Modal
+    const openProduceAllModal = (productId: string, productName: string, items: InventoryItem[], produceValue: number) => {
+        const modalItems = items.map(item => ({
+            item,
+            value: produceValue,
+            label: `${item.name}: ผลิต ${produceValue} ชิ้น`
+        }));
+
+        setBulkActionModal({
+            isOpen: true,
+            type: 'produceAll',
+            productId,
+            productName,
+            items: modalItems
+        });
+    };
+
+    // Open Send All Modal
+    const openSendAllModal = (productId: string, productName: string, items: InventoryItem[]) => {
+        const modalItems = items.map(item => {
+            const saved = getSavedRecord(item);
+            const stockYesterday = saved.stockYesterday ?? getYesterdayForItem(item);
+            const todayStock = stockYesterday + (saved.producedQty || 0) + (pendingProduction[item.id] || 0);
+            return {
+                item,
+                value: todayStock,
+                label: `${item.name}: ส่ง ${todayStock} ชิ้น`
+            };
+        });
+
+        setBulkActionModal({
+            isOpen: true,
+            type: 'sendAll',
+            productId,
+            productName,
+            items: modalItems
+        });
+    };
+
+    // Confirm Bulk Action (Produce All / Send All)
+    const confirmBulkAction = () => {
+        if (!bulkActionModal) return;
+
+        if (bulkActionModal.type === 'produceAll') {
+            bulkActionModal.items.forEach(({ item, value }) => {
+                if (value > 0) {
+                    setPendingProduction(prev => ({ ...prev, [item.id]: value }));
+                }
+            });
+        } else if (bulkActionModal.type === 'sendAll') {
+            bulkActionModal.items.forEach(({ item, value }) => {
+                if (value > 0) {
+                    setPendingTransfer(prev => ({ ...prev, [item.id]: value }));
+                }
+            });
+        }
+
+        setBulkActionModal(null);
     };
 
     // Apply confirmed action - ADD to existing values in DB
