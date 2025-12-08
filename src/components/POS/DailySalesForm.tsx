@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useStore } from '@/src/store';
 import { Product, DailyProductionLog, Variant } from '@/types';
 import { formatCurrency } from '@/src/lib/utils';
 import { NumberInput } from '@/src/components/ui/NumberInput';
-import { Calendar, Store, Save, ShoppingCart, Package, TrendingUp, AlertCircle, Check, X, Sparkles, ArrowRight, Sun, Cloud, CloudRain, CloudLightning } from 'lucide-react';
+import { Calendar, Store, Save, ShoppingCart, Package, TrendingUp, AlertCircle, Check, X, Sparkles, ArrowRight, Sun, Cloud, CloudRain, CloudLightning, ChevronDown, ChevronUp } from 'lucide-react';
 
 // Weather type
 type WeatherCondition = 'sunny' | 'cloudy' | 'rain' | 'storm' | null;
@@ -52,6 +52,7 @@ export const DailySalesForm: React.FC = () => {
     const [logs, setLogs] = useState<(DailyProductionLog & { product: Product, variant?: Variant })[]>([]);
     const [showConfirmModal, setShowConfirmModal] = useState(false);
     const [weather, setWeather] = useState<WeatherCondition>(null); // NEW: Weather state
+    const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set()); // NEW: For collapsible groups
 
     // Fetch daily inventory on date change (to get "To Shop" values)
     useEffect(() => {
@@ -125,6 +126,49 @@ export const DailySalesForm: React.FC = () => {
         }
 
         setLogs(newLogs);
+    };
+
+    // Group logs by product for grid display
+    const groupedLogs = useMemo(() => {
+        const groups: Map<string, {
+            product: Product;
+            items: (DailyProductionLog & { product: Product, variant?: Variant, logIndex: number })[];
+            hasVariants: boolean;
+            totalAvailable: number;
+            totalSold: number;
+        }> = new Map();
+
+        logs.forEach((log, index) => {
+            const productId = log.productId;
+            if (!groups.has(productId)) {
+                groups.set(productId, {
+                    product: log.product,
+                    items: [],
+                    hasVariants: !!log.variant,
+                    totalAvailable: 0,
+                    totalSold: 0
+                });
+            }
+            const group = groups.get(productId)!;
+            group.items.push({ ...log, logIndex: index });
+            group.totalAvailable += log.preparedQty || 0;
+            group.totalSold += log.soldQty || 0;
+        });
+
+        return groups;
+    }, [logs]);
+
+    // Toggle group expansion
+    const toggleGroup = (productId: string) => {
+        setExpandedGroups(prev => {
+            const newSet = new Set(prev);
+            if (newSet.has(productId)) {
+                newSet.delete(productId);
+            } else {
+                newSet.add(productId);
+            }
+            return newSet;
+        });
     };
 
     // Calculations
@@ -327,66 +371,101 @@ export const DailySalesForm: React.FC = () => {
                 </div>
             )}
 
-            {/* Product Cards - COMPACT for Mobile */}
-            <div className="space-y-2">
-                {logs.map((log, index) => {
-                    const available = log.preparedQty || 0;
-                    const waste = log.wasteQty || 0;
-                    const leftover = log.leftoverQty || 0;
-                    const sold = log.soldQty || 0;
-                    const revenue = sold * (log.variant ? log.variant.price : log.product.price);
+            {/* Product Cards - Grouped Grid Layout */}
+            <div className="space-y-4">
+                {Array.from(groupedLogs.entries()).map(([productId, group]) => {
+                    const isExpanded = expandedGroups.has(productId);
+                    const hasVariants = group.hasVariants;
 
                     return (
-                        <div key={`${log.productId}-${log.variantId || ''}`} className="bg-white rounded-xl shadow-sm border border-cafe-100 p-3">
-                            {/* Row 1: Name + Available + Sold */}
-                            <div className="flex items-center justify-between mb-2">
-                                <div className="flex items-center gap-2 flex-1 min-w-0">
-                                    <span className="font-bold text-cafe-800 truncate">{log.product.name}</span>
-                                    {log.variant && (
-                                        <span className="text-xs text-blue-600 bg-blue-100 px-2 py-0.5 rounded-full shrink-0">{log.variant.name}</span>
+                        <div key={productId} className="bg-white rounded-2xl shadow-sm border border-cafe-100 overflow-hidden">
+                            {/* Group Header */}
+                            <div
+                                className={`px-4 py-3 flex items-center justify-between cursor-pointer transition-colors ${hasVariants ? 'bg-gradient-to-r from-cafe-600 to-cafe-700 text-white hover:from-cafe-700 hover:to-cafe-800' : 'bg-gradient-to-r from-cafe-100 to-cafe-50'}`}
+                                onClick={() => hasVariants && toggleGroup(productId)}
+                            >
+                                <div className="flex items-center gap-3">
+                                    <span className={`font-bold ${hasVariants ? 'text-white' : 'text-cafe-800'}`}>
+                                        {group.product.name}
+                                    </span>
+                                    {hasVariants && (
+                                        <span className="text-xs bg-white/20 px-2 py-0.5 rounded-full">
+                                            {group.items.length} รส
+                                        </span>
                                     )}
                                 </div>
-                                <div className="flex items-center gap-3 shrink-0">
-                                    <span className="text-xs text-blue-600">
-                                        <Package size={12} className="inline mr-1" />
-                                        {available}
+                                <div className="flex items-center gap-2">
+                                    <span className={`text-xs px-2 py-1 rounded-full font-bold ${hasVariants ? 'bg-blue-400/30 text-white' : 'bg-blue-100 text-blue-700'}`}>
+                                        📦 {group.totalAvailable}
                                     </span>
-                                    <div className="bg-green-100 px-3 py-1 rounded-lg text-center">
-                                        <div className="text-xs text-green-600">ขาย</div>
-                                        <div className="text-lg font-bold text-green-700">{sold}</div>
+                                    <span className={`text-xs px-2 py-1 rounded-full font-bold ${hasVariants ? 'bg-green-400/30 text-white' : 'bg-green-100 text-green-700'}`}>
+                                        ✅ {group.totalSold}
+                                    </span>
+                                    {hasVariants && (
+                                        isExpanded ? <ChevronUp size={20} /> : <ChevronDown size={20} />
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Items Grid - Always show for single products, toggle for groups */}
+                            {(!hasVariants || isExpanded) && (
+                                <div className={`p-3 ${hasVariants ? 'bg-cafe-50' : ''}`}>
+                                    <div className={`grid gap-3 ${hasVariants ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3' : ''}`}>
+                                        {group.items.map(item => {
+                                            const available = item.preparedQty || 0;
+                                            const waste = item.wasteQty || 0;
+                                            const leftover = item.leftoverQty || 0;
+                                            const sold = item.soldQty || 0;
+
+                                            return (
+                                                <div
+                                                    key={`${item.productId}-${item.variantId || ''}`}
+                                                    className="bg-white rounded-xl shadow-sm border border-cafe-100 p-3"
+                                                >
+                                                    {/* Header Row */}
+                                                    <div className="flex items-center justify-between mb-2">
+                                                        <div className="flex items-center gap-2 min-w-0 flex-1">
+                                                            {item.variant && (
+                                                                <span className="font-bold text-cafe-800 truncate">{item.variant.name}</span>
+                                                            )}
+                                                            {!item.variant && (
+                                                                <span className="text-xs text-cafe-400">{item.product.category}</span>
+                                                            )}
+                                                        </div>
+                                                        <div className="flex items-center gap-2 shrink-0">
+                                                            <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-bold">{available}</span>
+                                                            <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-bold">{sold}</span>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Input Row */}
+                                                    <div className="flex items-center gap-2">
+                                                        {/* Waste */}
+                                                        <div className="flex items-center gap-1 bg-red-50 rounded-lg px-2 py-1.5 flex-1">
+                                                            <span className="text-xs text-red-600">🗑️ เสีย</span>
+                                                            <NumberInput
+                                                                value={waste}
+                                                                onChange={val => handleLogChange(item.logIndex, 'wasteQty', val)}
+                                                                className="w-12 text-center text-sm font-bold bg-white border border-red-200 rounded ml-auto"
+                                                            />
+                                                        </div>
+
+                                                        {/* Leftover */}
+                                                        <div className="flex items-center gap-1 bg-amber-50 rounded-lg px-2 py-1.5 flex-1">
+                                                            <span className="text-xs text-amber-600">📦 เหลือ</span>
+                                                            <NumberInput
+                                                                value={leftover}
+                                                                onChange={val => handleLogChange(item.logIndex, 'leftoverQty', val)}
+                                                                className="w-12 text-center text-sm font-bold bg-white border border-amber-200 rounded ml-auto"
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
                                     </div>
                                 </div>
-                            </div>
-
-                            {/* Row 2: Inputs */}
-                            <div className="flex items-center gap-2">
-                                {/* Waste */}
-                                <div className="flex items-center gap-1 bg-red-50 rounded-lg px-2 py-1 flex-1">
-                                    <span className="text-xs text-red-600">🗑️</span>
-                                    <span className="text-xs text-red-700">เสีย</span>
-                                    <NumberInput
-                                        value={waste}
-                                        onChange={val => handleLogChange(index, 'wasteQty', val)}
-                                        className="w-12 text-center text-sm font-bold bg-white border border-red-200 rounded ml-auto"
-                                    />
-                                </div>
-
-                                {/* Leftover */}
-                                <div className="flex items-center gap-1 bg-amber-50 rounded-lg px-2 py-1 flex-1">
-                                    <span className="text-xs text-amber-600">📦</span>
-                                    <span className="text-xs text-amber-700">เหลือ</span>
-                                    <NumberInput
-                                        value={leftover}
-                                        onChange={val => handleLogChange(index, 'leftoverQty', val)}
-                                        className="w-12 text-center text-sm font-bold bg-white border border-amber-200 rounded ml-auto"
-                                    />
-                                </div>
-
-                                {/* Revenue */}
-                                <div className="text-right shrink-0">
-                                    <div className="text-xs text-green-600">{formatCurrency(revenue)}</div>
-                                </div>
-                            </div>
+                            )}
                         </div>
                     );
                 })}
