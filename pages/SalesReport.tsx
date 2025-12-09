@@ -610,7 +610,7 @@ export const SalesReport: React.FC = () => {
                             </thead>
                             <tbody className="divide-y divide-cafe-50">
                                 {productGroups.map((product: any) => {
-                                    const profitMargin = (product.totalProfit / product.totalRevenue) * 100;
+                                    const profitMargin = product.totalRevenue > 0 ? (product.totalProfit / product.totalRevenue) * 100 : 0;
                                     const profitPerItem = product.totalQuantity > 0 ? product.totalProfit / product.totalQuantity : 0;
                                     const isExpanded = expandedProduct === (product.variantId || product.productId);
                                     return (

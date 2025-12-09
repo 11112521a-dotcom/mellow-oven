@@ -53,11 +53,18 @@ export const DailySalesForm: React.FC = () => {
     const [showConfirmModal, setShowConfirmModal] = useState(false);
     const [weather, setWeather] = useState<WeatherCondition>(null); // NEW: Weather state
     const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set()); // NEW: For collapsible groups
+    const [hasSaved, setHasSaved] = useState(false); // FIX: Track if already saved to prevent duplicate entries
 
     // Fetch daily inventory on date change (to get "To Shop" values)
     useEffect(() => {
         fetchDailyInventory(date);
+        setHasSaved(false); // FIX: Reset hasSaved when date changes
     }, [date, fetchDailyInventory]);
+
+    // FIX: Reset hasSaved when market changes
+    useEffect(() => {
+        setHasSaved(false);
+    }, [selectedMarketId]);
 
     // Initialize logs with "Available" from daily_inventory
     useEffect(() => {
@@ -172,10 +179,11 @@ export const DailySalesForm: React.FC = () => {
     };
 
     // Calculations
+    // FIX: Use variant.cost OR fallback to product.cost if variant.cost is 0/undefined
     const totalRevenue = logs.reduce((sum, log) => sum + (log.soldQty * (log.variant ? log.variant.price : log.product.price)), 0);
     const totalSoldItems = logs.reduce((sum, log) => sum + log.soldQty, 0);
-    const totalCOGS = logs.reduce((sum, log) => sum + (log.soldQty * (log.variant ? log.variant.cost : log.product.cost)), 0);
-    const totalWasteCost = logs.reduce((sum, log) => sum + (log.wasteQty * (log.variant ? log.variant.cost : log.product.cost)), 0);
+    const totalCOGS = logs.reduce((sum, log) => sum + (log.soldQty * (log.variant ? (log.variant.cost || log.product.cost) : log.product.cost)), 0);
+    const totalWasteCost = logs.reduce((sum, log) => sum + (log.wasteQty * (log.variant ? (log.variant.cost || log.product.cost) : log.product.cost)), 0);
     const totalLeftover = logs.reduce((sum, log) => sum + (log.leftoverQty || 0), 0);
     const trueProfit = totalRevenue - totalCOGS - totalWasteCost;
 
@@ -184,6 +192,15 @@ export const DailySalesForm: React.FC = () => {
         if (!selectedMarketId) {
             alert('⚠️ กรุณาเลือกตลาดก่อนบันทึกยอดขาย!');
             return;
+        }
+        // FIX: Warn if already saved to prevent duplicate entries
+        if (hasSaved) {
+            const confirmAgain = window.confirm(
+                '⚠️ คุณบันทึกยอดขายสำหรับวันนี้ไปแล้ว!\n\n' +
+                'การบันทึกซ้ำอาจทำให้ข้อมูลซ้ำซ้อน\n' +
+                'ต้องการบันทึกอีกครั้งหรือไม่?'
+            );
+            if (!confirmAgain) return;
         }
         setShowConfirmModal(true);
     };
@@ -283,6 +300,10 @@ export const DailySalesForm: React.FC = () => {
         // FIX: Refresh data to sync across devices and update jar balances
         await fetchData();
         await fetchDailyInventory(date);  // FIX: Also refresh dailyInventory!
+
+        // FIX: Mark as saved to prevent duplicate entries
+        setHasSaved(true);
+        alert('✅ บันทึกยอดขายสำเร็จ!');
     };
 
     const totalAvailable = logs.reduce((sum, log) => sum + (log.preparedQty || 0), 0);

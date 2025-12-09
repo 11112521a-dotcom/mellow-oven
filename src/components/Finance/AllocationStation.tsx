@@ -6,7 +6,7 @@ import {
     PieChart, Save, Trash2, ArrowRight, Percent, DollarSign, Zap,
     Calendar, TrendingUp, Sparkles, Check, Plus, Eye, Wallet,
     ArrowUpRight, ChevronDown, ChevronUp, Coins, BadgeDollarSign,
-    Boxes, Shield, Briefcase, PiggyBank
+    Boxes, Shield, Briefcase, PiggyBank, Lock, Unlock
 } from 'lucide-react';
 
 interface AllocationStationProps {
@@ -54,6 +54,7 @@ export const AllocationStation: React.FC<AllocationStationProps> = ({ onAllocate
 
     const [isEditing, setIsEditing] = useState(false);
     const [newProfileName, setNewProfileName] = useState('');
+    const [isLocked, setIsLocked] = useState(false); // FIX: Lock to prevent accidental edits on mobile
 
     // Get unique dates with unallocated profits
     const availableDates = [...new Set(unallocatedProfits.map(p => p.date))].sort((a, b) => b.localeCompare(a));
@@ -268,8 +269,8 @@ export const AllocationStation: React.FC<AllocationStationProps> = ({ onAllocate
                         <button
                             onClick={() => setInputMode('percentage')}
                             className={`px-4 py-2 rounded-lg text-sm font-bold transition-all flex items-center gap-2 ${inputMode === 'percentage'
-                                    ? 'bg-gradient-to-r from-amber-400 to-orange-500 text-white shadow-lg shadow-amber-500/30'
-                                    : 'text-cafe-400 hover:text-white hover:bg-white/10'
+                                ? 'bg-gradient-to-r from-amber-400 to-orange-500 text-white shadow-lg shadow-amber-500/30'
+                                : 'text-cafe-400 hover:text-white hover:bg-white/10'
                                 }`}
                         >
                             <Percent size={16} />
@@ -278,8 +279,8 @@ export const AllocationStation: React.FC<AllocationStationProps> = ({ onAllocate
                         <button
                             onClick={() => setInputMode('amount')}
                             className={`px-4 py-2 rounded-lg text-sm font-bold transition-all flex items-center gap-2 ${inputMode === 'amount'
-                                    ? 'bg-gradient-to-r from-amber-400 to-orange-500 text-white shadow-lg shadow-amber-500/30'
-                                    : 'text-cafe-400 hover:text-white hover:bg-white/10'
+                                ? 'bg-gradient-to-r from-amber-400 to-orange-500 text-white shadow-lg shadow-amber-500/30'
+                                : 'text-cafe-400 hover:text-white hover:bg-white/10'
                                 }`}
                         >
                             <BadgeDollarSign size={16} />
@@ -304,8 +305,8 @@ export const AllocationStation: React.FC<AllocationStationProps> = ({ onAllocate
                         <button
                             onClick={() => { setAllocationSource('manual'); setAmount(''); setShowPreview(false); }}
                             className={`group relative p-4 rounded-2xl border-2 text-sm font-bold transition-all flex flex-col items-center gap-3 overflow-hidden ${allocationSource === 'manual'
-                                    ? 'border-cafe-600 bg-white text-cafe-800 shadow-xl shadow-cafe-200/50'
-                                    : 'border-transparent bg-white/50 text-cafe-400 hover:bg-white hover:shadow-lg'
+                                ? 'border-cafe-600 bg-white text-cafe-800 shadow-xl shadow-cafe-200/50'
+                                : 'border-transparent bg-white/50 text-cafe-400 hover:bg-white hover:shadow-lg'
                                 }`}
                         >
                             <div className={`p-3 rounded-xl transition-all ${allocationSource === 'manual' ? 'bg-cafe-100' : 'bg-cafe-50 group-hover:bg-cafe-100'}`}>
@@ -316,8 +317,8 @@ export const AllocationStation: React.FC<AllocationStationProps> = ({ onAllocate
                         <button
                             onClick={() => setAllocationSource('profit')}
                             className={`group relative p-4 rounded-2xl border-2 text-sm font-bold transition-all flex flex-col items-center gap-3 overflow-hidden ${allocationSource === 'profit'
-                                    ? 'border-emerald-500 bg-gradient-to-br from-emerald-50 to-green-50 text-emerald-700 shadow-xl shadow-emerald-200/50'
-                                    : 'border-transparent bg-white/50 text-cafe-400 hover:bg-white hover:shadow-lg'
+                                ? 'border-emerald-500 bg-gradient-to-br from-emerald-50 to-green-50 text-emerald-700 shadow-xl shadow-emerald-200/50'
+                                : 'border-transparent bg-white/50 text-cafe-400 hover:bg-white hover:shadow-lg'
                                 }`}
                         >
                             {allocationSource === 'profit' && (
@@ -365,8 +366,8 @@ export const AllocationStation: React.FC<AllocationStationProps> = ({ onAllocate
                                     onChange={(e) => { setAmount(e.target.value); setShowPreview(true); }}
                                     disabled={allocationSource === 'profit'}
                                     className={`w-full pl-12 pr-4 py-5 text-4xl font-black text-center rounded-2xl outline-none transition-all ${allocationSource === 'profit'
-                                            ? 'bg-gradient-to-r from-emerald-50 to-green-50 text-emerald-600 border-2 border-emerald-200'
-                                            : 'bg-cafe-50 focus:bg-white focus:ring-4 focus:ring-cafe-200 text-cafe-800 border-2 border-transparent focus:border-cafe-300'
+                                        ? 'bg-gradient-to-r from-emerald-50 to-green-50 text-emerald-600 border-2 border-emerald-200'
+                                        : 'bg-cafe-50 focus:bg-white focus:ring-4 focus:ring-cafe-200 text-cafe-800 border-2 border-transparent focus:border-cafe-300'
                                         }`}
                                     placeholder="0"
                                 />
@@ -436,10 +437,10 @@ export const AllocationStation: React.FC<AllocationStationProps> = ({ onAllocate
                             onClick={handleAllocate}
                             disabled={!isValidAllocation}
                             className={`w-full py-5 rounded-2xl font-black text-lg shadow-xl transform transition-all active:scale-95 flex items-center justify-center gap-3 ${!isValidAllocation
-                                    ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                                    : allocationSource === 'profit'
-                                        ? 'bg-gradient-to-r from-emerald-500 to-green-600 text-white hover:shadow-2xl hover:shadow-emerald-300/50 hover:-translate-y-0.5'
-                                        : 'bg-gradient-to-r from-cafe-800 to-cafe-900 text-white hover:shadow-2xl hover:shadow-cafe-300/50 hover:-translate-y-0.5'
+                                ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                                : allocationSource === 'profit'
+                                    ? 'bg-gradient-to-r from-emerald-500 to-green-600 text-white hover:shadow-2xl hover:shadow-emerald-300/50 hover:-translate-y-0.5'
+                                    : 'bg-gradient-to-r from-cafe-800 to-cafe-900 text-white hover:shadow-2xl hover:shadow-cafe-300/50 hover:-translate-y-0.5'
                                 }`}
                         >
                             {allocationSource === 'profit' ? <Sparkles className="animate-pulse" /> : <Check />}
@@ -459,6 +460,17 @@ export const AllocationStation: React.FC<AllocationStationProps> = ({ onAllocate
                             สัดส่วน (Distribution)
                         </h3>
 
+                        {/* Lock Button */}
+                        <button
+                            onClick={() => setIsLocked(!isLocked)}
+                            className={`p-2 rounded-xl transition-all ${isLocked
+                                ? 'bg-red-100 text-red-600 shadow-md'
+                                : 'bg-gray-100 text-gray-400 hover:bg-gray-200'}`}
+                            title={isLocked ? 'ปลดล็อก' : 'ล็อกป้องกันแก้ไข'}
+                        >
+                            {isLocked ? <Lock size={18} /> : <Unlock size={18} />}
+                        </button>
+
                         {/* Total Progress - Premium Style */}
                         <div className="flex flex-col items-end">
                             <span className={`text-sm font-black mb-1 flex items-center gap-1 ${Math.abs(totalPercentage - 100) < 0.1 ? 'text-emerald-600' : 'text-red-500'
@@ -469,8 +481,8 @@ export const AllocationStation: React.FC<AllocationStationProps> = ({ onAllocate
                             <div className="w-40 h-3 bg-gray-100 rounded-full overflow-hidden shadow-inner">
                                 <div
                                     className={`h-full transition-all duration-500 ease-out rounded-full ${Math.abs(totalPercentage - 100) < 0.1
-                                            ? 'bg-gradient-to-r from-emerald-400 to-green-500'
-                                            : 'bg-gradient-to-r from-red-400 to-rose-500'
+                                        ? 'bg-gradient-to-r from-emerald-400 to-green-500'
+                                        : 'bg-gradient-to-r from-red-400 to-rose-500'
                                         }`}
                                     style={{ width: `${Math.min(totalPercentage, 100)}%` }}
                                 />
@@ -485,8 +497,8 @@ export const AllocationStation: React.FC<AllocationStationProps> = ({ onAllocate
                                 key={profile.id}
                                 onClick={() => setSelectedProfileId(profile.id)}
                                 className={`flex items-center gap-2 px-4 py-2 rounded-full border-2 text-sm font-bold whitespace-nowrap cursor-pointer transition-all ${selectedProfileId === profile.id
-                                        ? 'bg-gradient-to-r from-cafe-800 to-cafe-900 text-white border-cafe-800 shadow-lg shadow-cafe-200'
-                                        : 'bg-white text-cafe-600 border-cafe-200 hover:border-cafe-400 hover:shadow-md'
+                                    ? 'bg-gradient-to-r from-cafe-800 to-cafe-900 text-white border-cafe-800 shadow-lg shadow-cafe-200'
+                                    : 'bg-white text-cafe-600 border-cafe-200 hover:border-cafe-400 hover:shadow-md'
                                     }`}
                             >
                                 {profile.name}
@@ -552,7 +564,8 @@ export const AllocationStation: React.FC<AllocationStationProps> = ({ onAllocate
                                                         type="number"
                                                         value={percentage.toFixed(0)}
                                                         onChange={(e) => handlePercentageChange(jar.id, e.target.value)}
-                                                        className={`w-14 text-right bg-white/70 border-2 border-current/20 rounded-lg px-2 py-1 font-black text-lg outline-none focus:bg-white focus:border-current/40 transition-all ${getJarTextColor(jar.id)}`}
+                                                        disabled={isLocked}
+                                                        className={`w-14 text-right bg-white/70 border-2 border-current/20 rounded-lg px-2 py-1 font-black text-lg outline-none focus:bg-white focus:border-current/40 transition-all ${getJarTextColor(jar.id)} ${isLocked ? 'opacity-50 cursor-not-allowed' : ''}`}
                                                     />
                                                     <span className={`text-sm font-bold ${getJarTextColor(jar.id)}`}>%</span>
                                                 </div>
@@ -563,7 +576,8 @@ export const AllocationStation: React.FC<AllocationStationProps> = ({ onAllocate
                                                         type="number"
                                                         value={currentAmounts[jar.id]}
                                                         onChange={(e) => handleAmountChange(jar.id, e.target.value)}
-                                                        className={`w-24 text-right bg-white/70 border-2 border-current/20 rounded-lg px-2 py-1 font-black text-lg outline-none focus:bg-white focus:border-current/40 transition-all ${getJarTextColor(jar.id)}`}
+                                                        disabled={isLocked}
+                                                        className={`w-24 text-right bg-white/70 border-2 border-current/20 rounded-lg px-2 py-1 font-black text-lg outline-none focus:bg-white focus:border-current/40 transition-all ${getJarTextColor(jar.id)} ${isLocked ? 'opacity-50 cursor-not-allowed' : ''}`}
                                                     />
                                                 </div>
                                             )}
@@ -584,7 +598,8 @@ export const AllocationStation: React.FC<AllocationStationProps> = ({ onAllocate
                                                 max="100"
                                                 value={percentage}
                                                 onChange={(e) => handlePercentageChange(jar.id, e.target.value)}
-                                                className="relative w-full h-2 bg-transparent rounded-full appearance-none cursor-pointer z-10"
+                                                disabled={isLocked}
+                                                className={`relative w-full h-2 bg-transparent rounded-full appearance-none z-10 ${isLocked ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
                                                 style={{
                                                     background: `linear-gradient(to right, currentColor ${percentage}%, transparent ${percentage}%)`
                                                 }}
@@ -602,10 +617,10 @@ export const AllocationStation: React.FC<AllocationStationProps> = ({ onAllocate
                             onClick={handleAllocate}
                             disabled={!isValidAllocation}
                             className={`w-full py-5 rounded-2xl font-black text-lg shadow-xl flex items-center justify-center gap-3 ${!isValidAllocation
-                                    ? 'bg-gray-200 text-gray-400'
-                                    : allocationSource === 'profit'
-                                        ? 'bg-gradient-to-r from-emerald-500 to-green-600 text-white'
-                                        : 'bg-gradient-to-r from-cafe-800 to-cafe-900 text-white'
+                                ? 'bg-gray-200 text-gray-400'
+                                : allocationSource === 'profit'
+                                    ? 'bg-gradient-to-r from-emerald-500 to-green-600 text-white'
+                                    : 'bg-gradient-to-r from-cafe-800 to-cafe-900 text-white'
                                 }`}
                         >
                             {allocationSource === 'profit' ? <Sparkles /> : <Check />}
