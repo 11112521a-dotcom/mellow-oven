@@ -81,7 +81,9 @@ export const DailySalesForm: React.FC = () => {
                                 d.productId === p.id &&
                                 d.variantId === v.id
                         );
-                        const availableFromStock = inventoryRecord?.toShopQty || 0;
+                        // FIX: Show REMAINING stock = toShopQty - already sold
+                        const alreadySold = inventoryRecord?.soldQty || 0;
+                        const availableFromStock = Math.max(0, (inventoryRecord?.toShopQty || 0) - alreadySold);
 
                         initialLogs.push({
                             date,
@@ -90,7 +92,7 @@ export const DailySalesForm: React.FC = () => {
                             product: p,
                             variant: v,
                             preparedQty: availableFromStock,
-                            soldQty: availableFromStock, // FIX: Auto-calc = available - waste(0) - leftover(0)
+                            soldQty: availableFromStock, // Default: assume all remaining sold
                             wasteQty: 0,
                             leftoverQty: 0
                         });
@@ -102,14 +104,16 @@ export const DailySalesForm: React.FC = () => {
                             d.productId === p.id &&
                             !d.variantId
                     );
-                    const availableFromStock = inventoryRecord?.toShopQty || 0;
+                    // FIX: Show REMAINING stock = toShopQty - already sold
+                    const alreadySold = inventoryRecord?.soldQty || 0;
+                    const availableFromStock = Math.max(0, (inventoryRecord?.toShopQty || 0) - alreadySold);
 
                     initialLogs.push({
                         date,
                         productId: p.id,
                         product: p,
                         preparedQty: availableFromStock,
-                        soldQty: availableFromStock, // FIX: Auto-calc = available - waste(0) - leftover(0)
+                        soldQty: availableFromStock, // Default: assume all remaining sold
                         wasteQty: 0,
                         leftoverQty: 0
                     });
