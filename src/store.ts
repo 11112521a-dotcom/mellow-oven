@@ -359,6 +359,7 @@ export const useStore = create<AppState>()(
                     producedQty: d.produced_qty,
                     toShopQty: d.to_shop_qty,
                     soldQty: d.sold_qty,
+                    wasteQty: d.waste_qty || 0,               // NEW: Waste at home
                     stockYesterday: d.stock_yesterday,
                     leftoverHome: d.leftover_home,
                     unsoldShop: d.unsold_shop
@@ -377,8 +378,9 @@ export const useStore = create<AppState>()(
                 const produced = record.producedQty ?? 0;
                 const toShop = record.toShopQty ?? 0;
                 const sold = record.soldQty ?? 0;
+                const waste = record.wasteQty ?? 0; // NEW: Waste at home
 
-                const leftoverHome = stockYesterday + produced - toShop;
+                const leftoverHome = stockYesterday + produced - toShop - waste; // NEW: Subtract waste
                 const unsoldShop = toShop - sold;
 
                 const dbRecord: Record<string, any> = {
@@ -387,6 +389,7 @@ export const useStore = create<AppState>()(
                     produced_qty: produced,
                     to_shop_qty: toShop,
                     sold_qty: sold,
+                    waste_qty: waste, // NEW: Save waste to DB
                     stock_yesterday: stockYesterday,
                     leftover_home: leftoverHome,
                     unsold_shop: unsoldShop

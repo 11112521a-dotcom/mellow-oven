@@ -29,7 +29,7 @@ const getJarIcon = (id: string) => {
 };
 
 export const AllocationStation: React.FC<AllocationStationProps> = ({ onAllocate }) => {
-    const { allocationProfiles, saveAllocationProfile, deleteAllocationProfile, jars, getUnallocatedBalance, unallocatedProfits, getUnallocatedByDate } = useStore();
+    const { allocationProfiles, saveAllocationProfile, deleteAllocationProfile, jars, getUnallocatedBalance, unallocatedProfits, getUnallocatedByDate, dailyInventory, products, fetchDailyInventory } = useStore();
 
     const [amount, setAmount] = useState<string>('');
     const [selectedProfileId, setSelectedProfileId] = useState<string>('default');
@@ -59,6 +59,38 @@ export const AllocationStation: React.FC<AllocationStationProps> = ({ onAllocate
     // Get unique dates with unallocated profits
     const availableDates = [...new Set(unallocatedProfits.map(p => p.date))].sort((a, b) => b.localeCompare(a));
     const unallocatedBalance = getUnallocatedBalance();
+
+    // Calculate COGS for selected date
+    const cogsData = useMemo(() => {
+        const targetDate = selectedProfitDate === 'all'
+            ? (availableDates[0] || new Date().toISOString().split('T')[0])
+            : selectedProfitDate;
+
+        const dayInventory = dailyInventory.filter(d => d.businessDate === targetDate);
+
+        let totalCOGS = 0;
+        let totalWasteCost = 0;
+
+        dayInventory.forEach(record => {
+            const product = products.find(p => p.id === record.productId);
+            if (!product) return;
+
+            // Get cost from variant or product
+            let unitCost = product.cost;
+            if (record.variantId && product.variants) {
+                const variant = product.variants.find(v => v.id === record.variantId);
+                if (variant?.cost) unitCost = variant.cost;
+            }
+
+            const soldQty = record.soldQty || 0;
+            const wasteQty = record.wasteQty || 0;
+
+            totalCOGS += soldQty * unitCost;
+            totalWasteCost += wasteQty * unitCost;
+        });
+
+        return { targetDate, totalCOGS, totalWasteCost, total: totalCOGS + totalWasteCost };
+    }, [selectedProfitDate, availableDates, dailyInventory, products]);
 
     // Premium Jar Colors with gradients
     const getJarGradient = (id: string) => {
@@ -426,6 +458,38 @@ export const AllocationStation: React.FC<AllocationStationProps> = ({ onAllocate
                                 <div className="mt-4 pt-4 border-t-2 border-indigo-200 flex justify-between items-center">
                                     <span className="font-bold text-indigo-700">รวมทั้งหมด</span>
                                     <span className="text-2xl font-black text-indigo-800">{formatCurrency(numAmount)}</span>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* ═══════════════════════════════════════════════════════
+                        📊 COGS DISPLAY - Show cost breakdown
+                       ═══════════════════════════════════════════════════════ */}
+                    {cogsData.total > 0 && (
+                        <div className="mt-4 animate-in fade-in duration-300">
+                            <div className="bg-gradient-to-br from-orange-50 via-amber-50 to-yellow-50 rounded-2xl p-4 border-2 border-orange-200 shadow-lg">
+                                <div className="flex items-center gap-2 mb-3">
+                                    <div className="p-2 bg-orange-100 rounded-lg">
+                                        <TrendingUp size={18} className="text-orange-600" />
+                                    </div>
+                                    <h4 className="font-black text-orange-800">📊 ต้นทุนวันที่ {new Date(cogsData.targetDate).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })}</h4>
+                                </div>
+
+                                <div className="space-y-2">
+                                    <div className="flex justify-between items-center bg-white/80 rounded-xl p-3 border border-white">
+                                        <span className="text-orange-700 font-medium">ต้นทุนขาย (COGS)</span>
+                                        <span className="font-black text-orange-800">{formatCurrency(cogsData.totalCOGS)}</span>
+                                    </div>
+                                    <div className="flex justify-between items-center bg-red-50/80 rounded-xl p-3 border border-red-200">
+                                        <span className="text-red-700 font-medium">🗑️ ของเสีย (Waste)</span>
+                                        <span className="font-black text-red-600">{formatCurrency(cogsData.totalWasteCost)}</span>
+                                    </div>
+                                </div>
+
+                                <div className="mt-3 pt-3 border-t-2 border-orange-200 flex justify-between items-center">
+                                    <span className="font-bold text-orange-700">รวมต้นทุน</span>
+                                    <span className="text-xl font-black text-orange-800">{formatCurrency(cogsData.total)}</span>
                                 </div>
                             </div>
                         </div>

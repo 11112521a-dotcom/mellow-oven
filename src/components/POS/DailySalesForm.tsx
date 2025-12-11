@@ -341,6 +341,7 @@ export const DailySalesForm: React.FC = () => {
                                 onChange={e => setSelectedMarketId(e.target.value)}
                                 className="bg-transparent border-none text-white font-medium focus:ring-0 cursor-pointer"
                             >
+                                <option value="" className="text-cafe-900">-- เลือกตลาด --</option>
                                 {markets.map(m => (
                                     <option key={m.id} value={m.id} className="text-cafe-900">{m.name}</option>
                                 ))}

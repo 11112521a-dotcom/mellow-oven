@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useStore } from '@/src/store';
-import { Package, Save, Calendar, AlertCircle, Flame, Truck, X, Check, Sparkles, ChevronDown, ChevronUp, Layers, Box, Edit2, RotateCcw, Target, Zap } from 'lucide-react';
+import { Package, Save, Calendar, AlertCircle, Flame, Truck, X, Check, Sparkles, ChevronDown, ChevronUp, Layers, Box, Edit2, RotateCcw, Target, Zap, Trash2 } from 'lucide-react';
 import { Product, Variant } from '@/types';
 
 // Type for flattened product/variant item
@@ -263,6 +263,7 @@ export const MenuStockPlanner: React.FC = () => {
     // Bulk Fill State (for filling all variants at once)
     const [bulkProduction, setBulkProduction] = useState<Record<string, number>>({});
     const [bulkTransfer, setBulkTransfer] = useState<Record<string, number>>({});
+    const [pendingWaste, setPendingWaste] = useState<Record<string, number>>({});  // NEW: Waste at home
 
     // Target Production Modal State
     const [targetModal, setTargetModal] = useState<{
@@ -344,7 +345,7 @@ export const MenuStockPlanner: React.FC = () => {
             d.productId === item.productId &&
             (d.variantId || '') === (item.variantId || '')
         );
-        return saved || { producedQty: 0, toShopQty: 0, stockYesterday: getYesterdayForItem(item) };
+        return saved || { producedQty: 0, toShopQty: 0, wasteQty: 0, stockYesterday: getYesterdayForItem(item) };
     };
 
     // Calculate today's stock = yesterday + ALL confirmed production
@@ -355,12 +356,13 @@ export const MenuStockPlanner: React.FC = () => {
         return stockYesterday + confirmedProduction;
     };
 
-    // Calculate leftover = today stock - confirmed transfer
+    // Calculate leftover = today stock - confirmed transfer - waste
     const calculateLeftover = (item: InventoryItem) => {
         const todayStock = getTodayStock(item);
         const saved = getSavedRecord(item);
         const confirmedTransfer = saved.toShopQty || 0;
-        return todayStock - confirmedTransfer;
+        const confirmedWaste = saved.wasteQty || 0;
+        return todayStock - confirmedTransfer - confirmedWaste;
     };
 
     // Toggle group expansion
@@ -530,24 +532,45 @@ export const MenuStockPlanner: React.FC = () => {
         });
     };
 
-    // Confirm Bulk Action (Produce All / Send All)
-    const confirmBulkAction = () => {
+    // Confirm Bulk Action (Produce All / Send All) - NOW SAVES DIRECTLY TO DB!
+    const confirmBulkAction = async () => {
         if (!bulkActionModal) return;
 
-        if (bulkActionModal.type === 'produceAll') {
-            bulkActionModal.items.forEach(({ item, value }) => {
-                if (value > 0) {
-                    setPendingProduction(prev => ({ ...prev, [item.id]: value }));
-                }
-            });
-        } else if (bulkActionModal.type === 'sendAll') {
-            bulkActionModal.items.forEach(({ item, value }) => {
-                if (value > 0) {
-                    setPendingTransfer(prev => ({ ...prev, [item.id]: value }));
-                }
-            });
+        setIsSaving(true);
+
+        for (const { item, value } of bulkActionModal.items) {
+            if (value <= 0) continue;
+
+            const saved = getSavedRecord(item);
+            const stockYesterday = saved.stockYesterday ?? getYesterdayForItem(item);
+
+            if (bulkActionModal.type === 'produceAll') {
+                // ADD to existing production and save
+                await upsertDailyInventory({
+                    businessDate,
+                    productId: item.productId,
+                    variantId: item.variantId,
+                    variantName: item.isVariant ? item.name : undefined,
+                    producedQty: (saved.producedQty || 0) + value,
+                    toShopQty: saved.toShopQty || 0,
+                    stockYesterday
+                });
+            } else if (bulkActionModal.type === 'sendAll') {
+                // ADD to existing transfer and save
+                await upsertDailyInventory({
+                    businessDate,
+                    productId: item.productId,
+                    variantId: item.variantId,
+                    variantName: item.isVariant ? item.name : undefined,
+                    producedQty: saved.producedQty || 0,
+                    toShopQty: (saved.toShopQty || 0) + value,
+                    stockYesterday
+                });
+            }
         }
 
+        await fetchDailyInventory(businessDate);
+        setIsSaving(false);
         setBulkActionModal(null);
     };
 
@@ -596,6 +619,34 @@ export const MenuStockPlanner: React.FC = () => {
         });
 
         // Refetch to get updated values
+        await fetchDailyInventory(businessDate);
+    };
+
+    // Handle Waste Confirmation - Items discarded at home (before shop)
+    const handleWasteConfirm = async (item: InventoryItem, value: number) => {
+        if (value <= 0) return;
+
+        const saved = getSavedRecord(item);
+        const stockYesterday = saved.stockYesterday ?? getYesterdayForItem(item);
+
+        await upsertDailyInventory({
+            businessDate,
+            productId: item.productId,
+            variantId: item.variantId,
+            variantName: item.isVariant ? item.name : undefined,
+            producedQty: saved.producedQty || 0,
+            toShopQty: saved.toShopQty || 0,
+            wasteQty: (saved.wasteQty || 0) + value, // ADD to existing waste
+            stockYesterday
+        });
+
+        // Clear pending waste input
+        setPendingWaste(prev => {
+            const updated = { ...prev };
+            delete updated[item.id];
+            return updated;
+        });
+
         await fetchDailyInventory(businessDate);
     };
 
@@ -769,6 +820,27 @@ export const MenuStockPlanner: React.FC = () => {
                             <Check size={14} />
                         </button>
                     </div>
+
+                    {/* Waste */}
+                    <div className="flex items-center gap-1 bg-red-50 rounded-lg px-2 py-1 flex-1 min-w-[140px]">
+                        <Trash2 size={14} className="text-red-500" />
+                        <span className="text-xs text-red-700">ทิ้ง</span>
+                        {saved.wasteQty > 0 && <span className="text-xs text-red-600">+{saved.wasteQty}</span>}
+                        <input
+                            type="number"
+                            className="w-12 text-center text-sm font-bold bg-white border border-red-200 rounded ml-auto"
+                            value={pendingWaste[item.id] || ''}
+                            onChange={e => setPendingWaste(prev => ({ ...prev, [item.id]: Math.max(0, parseInt(e.target.value) || 0) }))}
+                            placeholder="0"
+                        />
+                        <button
+                            onClick={() => handleWasteConfirm(item, pendingWaste[item.id] || 0)}
+                            disabled={(pendingWaste[item.id] || 0) <= 0}
+                            className="p-1 bg-red-500 text-white rounded disabled:opacity-50"
+                        >
+                            <Check size={14} />
+                        </button>
+                    </div>
                 </div>
             </div>
         );
@@ -879,6 +951,32 @@ export const MenuStockPlanner: React.FC = () => {
                                 onClick={() => handleTransferConfirm(item, pendingTrans)}
                                 disabled={pendingTrans <= 0 || isOverflow}
                                 className={`p-1 text-white rounded disabled:opacity-40 ${isOverflow ? 'bg-red-400' : 'bg-violet-500'}`}
+                            >
+                                <Check size={12} />
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Row 3: Waste/Discard */}
+                    <div className="flex items-center gap-2 text-xs">
+                        <span className="text-gray-400 w-14 shrink-0">ทิ้ง: {saved.wasteQty || 0}</span>
+                        <div className="flex items-center gap-1 flex-1 bg-red-50 rounded-lg px-2 py-1.5">
+                            <Trash2 size={12} className="text-red-500 shrink-0" />
+                            <span className="text-red-600 shrink-0">ทิ้ง</span>
+                            <input
+                                type="number"
+                                className="w-12 text-center text-sm font-bold bg-white border border-red-200 rounded ml-auto"
+                                value={pendingWaste[item.id] || ''}
+                                onChange={e => {
+                                    const val = Math.max(0, parseInt(e.target.value) || 0);
+                                    setPendingWaste(prev => ({ ...prev, [item.id]: val }));
+                                }}
+                                placeholder="0"
+                            />
+                            <button
+                                onClick={() => handleWasteConfirm(item, pendingWaste[item.id] || 0)}
+                                disabled={(pendingWaste[item.id] || 0) <= 0}
+                                className="p-1 bg-red-500 text-white rounded disabled:opacity-40"
                             >
                                 <Check size={12} />
                             </button>

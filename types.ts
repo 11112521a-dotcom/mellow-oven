@@ -246,9 +246,10 @@ export interface DailyInventory {
   producedQty: number;
   toShopQty: number;
   soldQty: number;
+  wasteQty?: number;     // NEW: Items discarded at home (before shop)
 
   // Calculated/Denormalized
   stockYesterday: number;
-  leftoverHome: number;  // = stockYesterday + produced - toShop
+  leftoverHome: number;  // = stockYesterday + produced - toShop - waste
   unsoldShop: number;    // = toShop - sold
 }
