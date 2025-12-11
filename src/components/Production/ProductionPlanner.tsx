@@ -32,7 +32,7 @@ export const ProductionPlanner: React.FC = () => {
         return tomorrow.toISOString().split('T')[0];
     });
     const [selectedWeather, setSelectedWeather] = useState<string>('sunny');
-    const [selectedMarket, setSelectedMarket] = useState<string>('storefront');
+    const [selectedMarket, setSelectedMarket] = useState<string>(''); // Start empty, will sync with markets
     const [isCalculating, setIsCalculating] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
     const [results, setResults] = useState<ForecastResult[]>([]);
@@ -40,6 +40,13 @@ export const ProductionPlanner: React.FC = () => {
     const getMarketName = (marketId: string) => {
         return markets.find(m => m.id === marketId)?.name || marketId;
     };
+
+    // Auto-select first market when markets load (FIX: ensure valid market ID for forecast)
+    useEffect(() => {
+        if (markets.length > 0 && !selectedMarket) {
+            setSelectedMarket(markets[0].id);
+        }
+    }, [markets, selectedMarket]);
 
     // Analytics Calculations
     const analyticsData = useMemo(() => {
