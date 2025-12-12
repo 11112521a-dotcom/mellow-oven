@@ -9,6 +9,7 @@ export type { BatchCalculationInput, BatchCalculationResult, StockTransferInput,
 
 export interface ForecastInput {
     marketId: string;
+    marketName?: string; // NEW: Fallback for market matching
     productId: string;
     variantId?: string;
     weatherForecast: WeatherCondition;
@@ -81,7 +82,9 @@ export async function calculateOptimalProduction(
             input.marketId,
             input.productId,
             input.variantId,
-            THAI_HOLIDAYS
+            THAI_HOLIDAYS,
+            180, // maxHistoryDays
+            input.marketName // NEW: Fallback matching by name
         );
 
         const { cleanedData, stats } = cleaningResult;

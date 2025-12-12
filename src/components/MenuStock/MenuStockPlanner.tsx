@@ -238,6 +238,7 @@ export const MenuStockPlanner: React.FC = () => {
     const [pendingProduction, setPendingProduction] = useState<Record<string, number>>({});
     const [pendingTransfer, setPendingTransfer] = useState<Record<string, number>>({});
 
+
     const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
 
     // Modal States
@@ -263,6 +264,7 @@ export const MenuStockPlanner: React.FC = () => {
     // Bulk Fill State (for filling all variants at once)
     const [bulkProduction, setBulkProduction] = useState<Record<string, number>>({});
     const [bulkTransfer, setBulkTransfer] = useState<Record<string, number>>({});
+    const [bulkTarget, setBulkTarget] = useState<Record<string, number>>({}); // NEW: Target Input State
     const [pendingWaste, setPendingWaste] = useState<Record<string, number>>({});  // NEW: Waste at home
 
     // Target Production Modal State
@@ -676,33 +678,63 @@ export const MenuStockPlanner: React.FC = () => {
         setIsSaving(false);
     };
 
-    // Bulk Production - Apply same production value to ALL variants of a product
-    const handleBulkProductionConfirm = async (productId: string, value: number) => {
-        if (value <= 0) return;
+    // Bulk Production - Smart Logic (Add Value OR Fill to Target)
+    const handleBulkProductionConfirm = async (productId: string, value: number, targetValue: number = 0) => {
+        // Condition 1: Add Value Mode (Priority) - if value is entered, just add it
+        if (value > 0) {
+            const items = inventoryItems.filter(i => i.productId === productId);
+            for (const item of items) {
+                const saved = getSavedRecord(item);
+                const stockYesterday = saved.stockYesterday ?? getYesterdayForItem(item);
 
-        const items = inventoryItems.filter(i => i.productId === productId);
-
-        for (const item of items) {
-            const saved = getSavedRecord(item);
-            const stockYesterday = saved.stockYesterday ?? getYesterdayForItem(item);
-
-            await upsertDailyInventory({
-                businessDate,
-                productId: item.productId,
-                variantId: item.variantId,
-                variantName: item.isVariant ? item.name : undefined,
-                producedQty: (saved.producedQty || 0) + value,
-                toShopQty: saved.toShopQty || 0,
-                stockYesterday
+                await upsertDailyInventory({
+                    businessDate,
+                    productId: item.productId,
+                    variantId: item.variantId,
+                    variantName: item.isVariant ? item.name : undefined,
+                    producedQty: (saved.producedQty || 0) + value, // ADD mode
+                    toShopQty: saved.toShopQty || 0,
+                    stockYesterday
+                });
+            }
+            // Clear bulk input
+            setBulkProduction(prev => {
+                const updated = { ...prev };
+                delete updated[productId];
+                return updated;
             });
         }
+        // Condition 2: Fill to Target Mode - if value is empty/0 but target is set
+        else if (targetValue > 0) {
+            const items = inventoryItems.filter(i => i.productId === productId);
+            for (const item of items) {
+                const saved = getSavedRecord(item);
+                const stockYesterday = saved.stockYesterday ?? getYesterdayForItem(item);
+                const currentStock = stockYesterday + (saved.producedQty || 0);
 
-        // Clear bulk input
-        setBulkProduction(prev => {
-            const updated = { ...prev };
-            delete updated[productId];
-            return updated;
-        });
+                // Calculate how much more we need to reach target
+                const needed = Math.max(0, targetValue - currentStock);
+
+                if (needed > 0) {
+                    await upsertDailyInventory({
+                        businessDate,
+                        productId: item.productId,
+                        variantId: item.variantId,
+                        variantName: item.isVariant ? item.name : undefined,
+                        producedQty: (saved.producedQty || 0) + needed, // Add ONLY what's needed
+                        toShopQty: saved.toShopQty || 0,
+                        stockYesterday
+                    });
+                }
+            }
+            // Clear target input (optional, or keep it to show target?) -> Let's keep it based on user behavior usually
+            // But maybe clear it to indicate action done? Let's clear for feedback
+            setBulkTarget(prev => {
+                const updated = { ...prev };
+                delete updated[productId];
+                return updated;
+            });
+        }
 
         await fetchDailyInventory(businessDate);
     };
@@ -744,8 +776,9 @@ export const MenuStockPlanner: React.FC = () => {
         const stockYesterday = saved.stockYesterday ?? getYesterdayForItem(item);
         const confirmedProduction = saved.producedQty || 0;
         const confirmedTransfer = saved.toShopQty || 0;
+        const confirmedWaste = saved.wasteQty || 0;
         const todayStock = stockYesterday + confirmedProduction;
-        const leftover = todayStock - confirmedTransfer;
+        const leftover = todayStock - confirmedTransfer - confirmedWaste;
         const pendingProd = pendingProduction[item.id] || 0;
         const pendingTrans = pendingTransfer[item.id] || 0;
 
@@ -856,8 +889,9 @@ export const MenuStockPlanner: React.FC = () => {
         // Today stock = yesterday + confirmed production
         const todayStock = stockYesterday + confirmedProduction;
 
-        // Leftover = today stock - confirmed transfer
-        const leftover = todayStock - confirmedTransfer;
+        // Leftover = today stock - confirmed transfer - waste
+        const confirmedWaste = saved.wasteQty || 0;
+        const leftover = todayStock - confirmedTransfer - confirmedWaste;
 
         // Pending inputs (before confirm)
         const pendingProd = pendingProduction[item.id] || 0;
@@ -1062,19 +1096,21 @@ export const MenuStockPlanner: React.FC = () => {
                                             type="number"
                                             className="w-12 text-center text-sm font-bold bg-white border border-emerald-300 rounded px-1"
                                             placeholder="15"
+                                            value={bulkTarget[product.id] || ''}
                                             onClick={e => e.stopPropagation()}
                                             onChange={e => {
                                                 const targetVal = Math.max(0, parseInt(e.target.value) || 0);
-                                                if (targetVal > 0) {
-                                                    openTargetModal(product.id, product.name, items);
-                                                    setTimeout(() => calculateTargetProduction(targetVal), 100);
-                                                }
+                                                setBulkTarget(prev => ({ ...prev, [product.id]: targetVal }));
                                             }}
                                         />
                                         <button
                                             onClick={(e) => {
                                                 e.stopPropagation();
-                                                openTargetModal(product.id, product.name, items);
+                                                // Keep old functionality if clicked directly
+                                                if (bulkTarget[product.id] > 0) {
+                                                    openTargetModal(product.id, product.name, items);
+                                                    setTimeout(() => calculateTargetProduction(bulkTarget[product.id]), 100);
+                                                }
                                             }}
                                             className="px-2 py-1 bg-gradient-to-r from-emerald-500 to-green-600 text-white text-xs rounded font-medium hover:shadow-md transition-all"
                                         >
@@ -1099,9 +1135,9 @@ export const MenuStockPlanner: React.FC = () => {
                                         <button
                                             onClick={(e) => {
                                                 e.stopPropagation();
-                                                handleBulkProductionConfirm(product.id, bulkProduction[product.id] || 0);
+                                                handleBulkProductionConfirm(product.id, bulkProduction[product.id] || 0, bulkTarget[product.id] || 0);
                                             }}
-                                            disabled={(bulkProduction[product.id] || 0) <= 0}
+                                            disabled={!((bulkProduction[product.id] || 0) > 0 || ((bulkTarget[product.id] || 0) > 0 && !(bulkProduction[product.id] > 0)))}
                                             className="px-2 py-1 bg-blue-500 text-white text-xs rounded font-medium disabled:opacity-50"
                                         >
                                             ผลิตทั้งหมด

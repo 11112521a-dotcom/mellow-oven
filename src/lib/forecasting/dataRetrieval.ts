@@ -46,19 +46,33 @@ export async function fetchAndCleanData(
     productId: string,
     variantId?: string,
     holidays: string[] = [], // List of holiday date strings (YYYY-MM-DD)
-    maxHistoryDays: number = 180
+    maxHistoryDays: number = 180,
+    marketName?: string // NEW: Fallback matching by name
 ): Promise<DataCleaningResult> {
     const today = new Date();
     const cutoffDate = new Date(today);
     cutoffDate.setDate(cutoffDate.getDate() - maxHistoryDays);
 
     // Filter by market and product
-    const filteredSales = productSales.filter(sale =>
-        sale.marketId === marketId &&
-        sale.productId === productId &&
-        (variantId ? sale.variantId === variantId : true) &&
-        new Date(sale.saleDate) >= cutoffDate
-    );
+    // DEBUG: Log what we're looking for vs what's in the data
+    const uniqueMarketIds = [...new Set(productSales.map(s => s.marketId))];
+    const uniqueMarketNames = [...new Set(productSales.map(s => s.marketName))];
+    console.log('[Forecast Debug] Looking for marketId:', marketId, 'marketName:', marketName, 'productId:', productId);
+    console.log('[Forecast Debug] Total sales in store:', productSales.length);
+    console.log('[Forecast Debug] Unique market IDs in data:', JSON.stringify(uniqueMarketIds));
+    console.log('[Forecast Debug] Unique market names in data:', JSON.stringify(uniqueMarketNames));
+
+    // FIX: Match by ID first, fallback to NAME if no ID match
+    // SPECIAL: If marketId is empty, include ALL markets (for combined forecasting)
+    const filteredSales = productSales.filter(sale => {
+        const marketMatch = !marketId || sale.marketId === marketId || (marketName && sale.marketName === marketName);
+        const productMatch = sale.productId === productId;
+        const variantMatch = variantId ? sale.variantId === variantId : true;
+        const dateMatch = new Date(sale.saleDate) >= cutoffDate;
+        return marketMatch && productMatch && variantMatch && dateMatch;
+    });
+
+    console.log('[Forecast Debug] Filtered sales:', filteredSales.length);
 
     if (filteredSales.length === 0) {
         throw new Error('No sales data found for this market-product combination');

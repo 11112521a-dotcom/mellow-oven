@@ -41,10 +41,10 @@ export const ProductionPlanner: React.FC = () => {
         return markets.find(m => m.id === marketId)?.name || marketId;
     };
 
-    // Auto-select first market when markets load (FIX: ensure valid market ID for forecast)
+    // Auto-select "all markets" when markets load (FIX: use empty string for all markets)
     useEffect(() => {
-        if (markets.length > 0 && !selectedMarket) {
-            setSelectedMarket(markets[0].id);
+        if (markets.length > 0 && selectedMarket === undefined) {
+            setSelectedMarket(''); // Default to "all markets"
         }
     }, [markets, selectedMarket]);
 
@@ -148,6 +148,7 @@ export const ProductionPlanner: React.FC = () => {
                     productId: item.product.id,
                     variantId: item.variant?.id,
                     marketId: selectedMarket,
+                    marketName: getMarketName(selectedMarket), // NEW: Fallback matching by name
                     weatherForecast: selectedWeather as any,
                     product: item.variant ? { ...item.product, price: item.variant.price, cost: item.variant.cost } : item.product,
                     productSales: productSales
@@ -278,6 +279,7 @@ export const ProductionPlanner: React.FC = () => {
                                     onChange={(e) => setSelectedMarket(e.target.value)}
                                     className="pl-10 pr-8 py-2 bg-cafe-50 border border-cafe-200 rounded-lg text-sm focus:ring-2 focus:ring-cafe-500 outline-none appearance-none w-full md:w-auto"
                                 >
+                                    <option value="">🌐 ทุกตลาด (รวมทั้งหมด)</option>
                                     {markets.map(market => (
                                         <option key={market.id} value={market.id}>{market.name}</option>
                                     ))}

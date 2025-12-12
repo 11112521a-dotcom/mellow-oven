@@ -442,7 +442,7 @@ export const useStore = create<AppState>()(
                 }
 
                 if (error) {
-                    console.error('Error upserting daily inventory:', error);
+                    console.error('[Upsert Debug] ERROR from Supabase:', error);
                     return;
                 }
 

@@ -25,6 +25,7 @@ export const ProductionPlannerDemo: React.FC = () => {
         try {
             const input: ForecastInput = {
                 marketId: selectedMarketId,
+                marketName: selectedMarket?.name, // NEW: Fallback matching by name
                 productId: selectedProductId,
                 weatherForecast,
                 product: selectedProduct,
