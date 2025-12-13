@@ -339,10 +339,16 @@ export const useStore = create<AppState>()(
             dailyInventory: [],
 
             fetchDailyInventory: async (date: string) => {
+                // Fetch last 7 days to ensure we can find "yesterday's stock" even if shop was closed for a day or two
+                const pastDate = new Date(date);
+                pastDate.setDate(pastDate.getDate() - 7);
+                const pastDateStr = pastDate.toISOString().split('T')[0];
+
                 const { data, error } = await supabase
                     .from('daily_inventory')
                     .select('*')
-                    .eq('business_date', date);
+                    .lte('business_date', date)
+                    .gte('business_date', pastDateStr);
 
                 if (error) {
                     console.error('Error fetching daily inventory:', error);
@@ -365,10 +371,12 @@ export const useStore = create<AppState>()(
                     unsoldShop: d.unsold_shop
                 })) || [];
 
-                // Merge with existing data (to support multi-date fetching)
+                // Merge with existing data (filtering out the range we just fetched to avoid duplicates)
                 set(state => {
-                    const existingOtherDates = state.dailyInventory.filter(d => d.businessDate !== date);
-                    return { dailyInventory: [...existingOtherDates, ...mapped] };
+                    const existingOutsideRange = state.dailyInventory.filter(d =>
+                        d.businessDate > date || d.businessDate < pastDateStr
+                    );
+                    return { dailyInventory: [...existingOutsideRange, ...mapped] };
                 });
             },
 
@@ -479,22 +487,25 @@ export const useStore = create<AppState>()(
             },
 
             getYesterdayStock: (productId: string, todayDate: string, variantId?: string) => {
-                // Lazy Initialization: Calculate yesterday's stock from previous day's data
+                // Lazy Initialization: Calculate yesterday's stock from previous (closest) day's data
                 const state = get();
-                const yesterday = new Date(todayDate);
-                yesterday.setDate(yesterday.getDate() - 1);
-                const yesterdayStr = yesterday.toISOString().split('T')[0];
 
-                const yesterdayRecord = state.dailyInventory.find(
-                    d => d.businessDate === yesterdayStr &&
+                // Find records strictly BEFORE today
+                const relevantRecords = state.dailyInventory.filter(
+                    d => d.businessDate < todayDate &&
                         d.productId === productId &&
                         (d.variantId || '') === (variantId || '')  // Match variant too
                 );
 
-                if (!yesterdayRecord) return 0;
+                if (relevantRecords.length === 0) return 0;
+
+                // Sort descending by date (newest first)
+                relevantRecords.sort((a, b) => b.businessDate.localeCompare(a.businessDate));
+
+                const lastRecord = relevantRecords[0];
 
                 // Stock = leftoverHome + unsoldShop
-                return yesterdayRecord.leftoverHome + yesterdayRecord.unsoldShop;
+                return lastRecord.leftoverHome + lastRecord.unsoldShop;
             },
 
             addStockLog: async (log) => {
