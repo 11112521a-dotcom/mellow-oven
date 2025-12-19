@@ -9,22 +9,24 @@ export type { BatchCalculationInput, BatchCalculationResult, StockTransferInput,
 
 export interface ForecastInput {
     marketId: string;
-    marketName?: string; // NEW: Fallback for market matching
+    marketName?: string;
     productId: string;
     variantId?: string;
     weatherForecast: WeatherCondition;
-    product: Product; // For price/cost data
-    productSales: ProductSaleLog[]; // Historical data
+    product: Product;
+    productSales: ProductSaleLog[];
+    targetDate?: string; // NEW: Date we're forecasting for
 }
 
 export interface ForecastOutput {
     success: boolean;
     optimalQuantity: number;
+    noData: boolean; // NEW: Flag when no data exists
 
     // Intermediate results
     baselineForecast: number;
     weatherAdjustedForecast: number;
-    lambda: number; // Expected Demand (Mean)
+    lambda: number;
 
     // Distribution info
     distributionType: 'poisson' | 'negativeBinomial';
@@ -36,8 +38,9 @@ export interface ForecastOutput {
     wasteProbability: number;
 
     // Confidence metrics
-    confidenceLevel: 'high' | 'medium' | 'low';
+    confidenceLevel: 'high' | 'medium' | 'low' | 'none';
     dataPoints: number;
+    sameDayDataPoints: number; // NEW: How many same-weekday records
     outliersRemoved: number;
 
     // Prediction interval (80% confidence)
@@ -58,143 +61,157 @@ export interface ForecastOutput {
         expectedProfit: number;
     };
 
-    // Raw data (for debugging/visualization)
+    // Raw data
     cleaningStats?: DataCleaningResult['stats'];
 }
 
-// Hardcoded Thai Holidays (Example list - in production this should be a config)
+// Thai Holidays
 const THAI_HOLIDAYS = [
-    '2025-01-01', '2025-04-13', '2025-04-14', '2025-04-15', // Songkran
+    '2025-01-01', '2025-04-13', '2025-04-14', '2025-04-15',
     '2025-05-01', '2025-12-05', '2025-12-10', '2025-12-31'
 ];
 
 /**
  * Main orchestrator: Calculate optimal production quantity
- * Implements all 5 steps of the forecasting algorithm
+ * REFACTORED: Works from Day 1, uses day-of-week average
  */
 export async function calculateOptimalProduction(
     input: ForecastInput
 ): Promise<ForecastOutput> {
     try {
-        // STEP 1: Fetch and Clean Data (IQR Method with Payday/Holiday Logic)
+        // STEP 1: Fetch and Clean Data (with day-of-week filtering)
         const cleaningResult = await fetchAndCleanData(
             input.productSales,
             input.marketId,
             input.productId,
             input.variantId,
             THAI_HOLIDAYS,
-            180, // maxHistoryDays
-            input.marketName // NEW: Fallback matching by name
+            180,
+            input.marketName,
+            input.targetDate // NEW: Pass target date for day-of-week matching
         );
 
-        const { cleanedData, stats } = cleaningResult;
+        const { cleanedData, sameDayData, stats } = cleaningResult;
 
-        // Check minimum data requirement
-        if (cleanedData.length < 3) {
-            throw new Error('Insufficient data: need at least 3 sales records');
+        // NEW: Handle no data case gracefully
+        if (cleanedData.length === 0) {
+            return {
+                success: false,
+                noData: true,
+                optimalQuantity: 0,
+                baselineForecast: 0,
+                weatherAdjustedForecast: 0,
+                lambda: 0,
+                distributionType: 'poisson',
+                variance: 0,
+                serviceLevelTarget: 0,
+                stockoutProbability: 0,
+                wasteProbability: 0,
+                confidenceLevel: 'none',
+                dataPoints: 0,
+                sameDayDataPoints: 0,
+                outliersRemoved: 0,
+                predictionInterval: { lower: 0, upper: 0 },
+                economics: {
+                    unitPrice: input.product.price,
+                    unitCost: input.product.cost,
+                    expectedDemand: 0,
+                    expectedSales: 0,
+                    expectedWaste: 0,
+                    expectedRevenue: 0,
+                    expectedCost: 0,
+                    expectedProfit: 0
+                },
+                cleaningStats: stats
+            };
         }
 
-        // STEP 2: Baseline Forecast (Holt-Winters Exponential Smoothing)
-        const baselineForecast = calculateBaselineForecast(cleanedData);
+        // STEP 2: Baseline Forecast
+        // NEW: Prefer same-day average if available, else use Holt-Winters on all data
+        let baselineForecast: number;
+        if (sameDayData.length >= 2) {
+            // Use same-day-of-week average (more relevant for weekly patterns)
+            baselineForecast = stats.sameDayAverage;
+        } else if (cleanedData.length >= 3) {
+            // Use Holt-Winters for smoothing
+            baselineForecast = calculateBaselineForecast(cleanedData);
+        } else {
+            // Simple average for 1-2 data points
+            baselineForecast = stats.averageSales;
+        }
 
         // STEP 3: Weather Adjustment
-        const weatherImpact = calculateWeatherImpact(cleanedData);
-        const weatherAdjustedForecast = applyWeatherAdjustment(
-            baselineForecast,
-            input.weatherForecast,
-            weatherImpact
-        );
+        const weatherImpact = cleanedData.length >= 3 ? calculateWeatherImpact(cleanedData) : null;
+        const weatherAdjustedForecast = weatherImpact
+            ? applyWeatherAdjustment(baselineForecast, input.weatherForecast, weatherImpact)
+            : baselineForecast * (input.weatherForecast === 'rain' ? 0.7 : input.weatherForecast === 'storm' ? 0.4 : 1.0);
 
-        // Apply Payday Multiplier
-        // Logic: If "Tomorrow" is a Payday (25th-5th), boost forecast by 20%
-        const today = new Date();
-        const tomorrow = new Date(today);
-        tomorrow.setDate(tomorrow.getDate() + 1);
-        const tomorrowStr = tomorrow.toISOString().split('T')[0];
-
+        // STEP 4: Payday Multiplier
+        const targetDateStr = input.targetDate || new Date().toISOString().split('T')[0];
         const isPayday = (d: string) => {
             const day = new Date(d).getDate();
             return (day >= 25 && day <= 31) || (day >= 1 && day <= 5);
         };
+        const paydayMultiplier = isPayday(targetDateStr) ? 1.2 : 1.0;
 
-        let paydayMultiplier = 1.0;
-        if (isPayday(tomorrowStr)) {
-            paydayMultiplier = 1.2; // Explicit boost for Payday
-        }
+        // Final Mean (Lambda)
+        const finalForecastMean = Math.max(1, weatherAdjustedForecast * paydayMultiplier);
 
-        // Final Mean (Lambda) = Baseline * Weather * Payday
-        const finalForecastMean = weatherAdjustedForecast * paydayMultiplier;
-
-        // STEP 4: Determine Probability Distribution (Poisson vs Negative Binomial)
+        // STEP 5: Distribution & Newsvendor
         const quantities = cleanedData.map(d => d.qtyCleaned);
-        const mean = finalForecastMean; // Use our final adjusted forecast as the mean
-        const historicalVariance = calculateVariance(quantities);
+        const mean = finalForecastMean;
 
-        // If historical variance is significantly higher than mean, use Negative Binomial
-        // We use the forecasted mean, but historical variance ratio
+        // Simple variance estimation
+        const historicalVariance = quantities.length >= 3 ? calculateVariance(quantities) : mean;
         const varianceToMeanRatio = historicalVariance / (calculateMean(quantities) || 1);
-        const estimatedVariance = mean * varianceToMeanRatio;
+        const estimatedVariance = Math.max(mean, mean * varianceToMeanRatio);
 
         let distribution: DistributionParams;
-        let variance = mean; // Default for Poisson
+        let variance = mean;
 
-        if (estimatedVariance > mean * 1.1) { // Threshold: Variance > 1.1 * Mean
-            // Use Negative Binomial
-            // Mean = r(1-p)/p
-            // Variance = r(1-p)/p^2
-            // p = Mean / Variance
-            // r = Mean * p / (1-p)
-
+        if (estimatedVariance > mean * 1.1 && quantities.length >= 3) {
             const p = mean / estimatedVariance;
             const r = (mean * p) / (1 - p);
-
-            distribution = {
-                type: 'negativeBinomial',
-                r,
-                p
-            };
+            distribution = { type: 'negativeBinomial', r, p };
             variance = estimatedVariance;
         } else {
-            // Use Poisson
-            distribution = {
-                type: 'poisson',
-                lambda: mean
-            };
+            distribution = { type: 'poisson', lambda: mean };
         }
 
-        // STEP 5: Newsvendor Optimization
+        // Newsvendor Optimization
         const newsvendorParams: NewsvendorParams = {
             sellingPrice: input.product.price,
             unitCost: input.product.cost,
-            disposalCost: 0 // Assume no salvage value
+            disposalCost: 0
         };
 
         const newsvendorResult = calculateOptimalQuantity(distribution, newsvendorParams);
-        const Q = newsvendorResult.optimalQuantity;
+        const Q = Math.max(1, newsvendorResult.optimalQuantity);
 
-        // Calculate risk metrics
-        let stockoutProbability, wasteProbability;
-        if (distribution.type === 'poisson') {
-            stockoutProbability = 1 - poissonCDF(Q, distribution.lambda!);
-            wasteProbability = poissonCDF(Q - 1, distribution.lambda!);
-        } else {
-            stockoutProbability = 1 - negativeBinomialCDF(Q, distribution.r!, distribution.p!);
-            wasteProbability = negativeBinomialCDF(Q - 1, distribution.r!, distribution.p!);
+        // Risk metrics
+        let stockoutProbability = 0.5, wasteProbability = 0.5;
+        if (distribution.type === 'poisson' && distribution.lambda) {
+            stockoutProbability = 1 - poissonCDF(Q, distribution.lambda);
+            wasteProbability = poissonCDF(Q - 1, distribution.lambda);
+        } else if (distribution.type === 'negativeBinomial' && distribution.r && distribution.p) {
+            stockoutProbability = 1 - negativeBinomialCDF(Q, distribution.r, distribution.p);
+            wasteProbability = negativeBinomialCDF(Q - 1, distribution.r, distribution.p);
         }
 
-        // Prediction interval (80% confidence)
-        // Approx using Normal approximation for simplicity or STD DEV
+        // Prediction interval
         const stdDev = Math.sqrt(variance);
         const predictionInterval = {
             lower: Math.max(0, Math.floor(mean - 1.28 * stdDev)),
             upper: Math.ceil(mean + 1.28 * stdDev)
         };
 
-        // Confidence level based on data quantity
-        const confidenceLevel: 'high' | 'medium' | 'low' =
-            stats.totalPoints >= 14 ? 'high' // Increased requirement for Holt-Winters
-                : stats.totalPoints >= 7 ? 'medium'
-                    : 'low';
+        // Confidence level - ADJUSTED for fewer data requirement
+        const confidenceLevel: 'high' | 'medium' | 'low' | 'none' =
+            stats.sameDayPoints >= 4 ? 'high'
+                : stats.sameDayPoints >= 2 ? 'medium'
+                    : stats.totalPoints >= 3 ? 'medium'
+                        : stats.totalPoints >= 1 ? 'low'
+                            : 'none';
 
         // Economic analysis
         const expectedDemand = mean;
@@ -206,6 +223,7 @@ export async function calculateOptimalProduction(
 
         return {
             success: true,
+            noData: false,
             optimalQuantity: Q,
             baselineForecast,
             weatherAdjustedForecast,
@@ -217,6 +235,7 @@ export async function calculateOptimalProduction(
             wasteProbability,
             confidenceLevel,
             dataPoints: stats.totalPoints,
+            sameDayDataPoints: stats.sameDayPoints,
             outliersRemoved: stats.outliersDetected,
             predictionInterval,
             economics: {
@@ -233,34 +252,36 @@ export async function calculateOptimalProduction(
         };
 
     } catch (error) {
-        // Fallback: return conservative estimate
         console.error('Forecasting error:', error);
 
         return {
             success: false,
-            optimalQuantity: 10, // Conservative default
-            baselineForecast: 10,
-            weatherAdjustedForecast: 10,
-            lambda: 10,
+            noData: true,
+            optimalQuantity: 0,
+            baselineForecast: 0,
+            weatherAdjustedForecast: 0,
+            lambda: 0,
             distributionType: 'poisson',
-            variance: 10,
-            serviceLevelTarget: 0.5,
-            stockoutProbability: 0.5,
-            wasteProbability: 0.5,
-            confidenceLevel: 'low',
+            variance: 0,
+            serviceLevelTarget: 0,
+            stockoutProbability: 0,
+            wasteProbability: 0,
+            confidenceLevel: 'none',
             dataPoints: 0,
+            sameDayDataPoints: 0,
             outliersRemoved: 0,
-            predictionInterval: { lower: 5, upper: 15 },
+            predictionInterval: { lower: 0, upper: 0 },
             economics: {
                 unitPrice: input.product.price,
                 unitCost: input.product.cost,
-                expectedDemand: 10,
-                expectedSales: 10,
+                expectedDemand: 0,
+                expectedSales: 0,
                 expectedWaste: 0,
-                expectedRevenue: 10 * input.product.price,
-                expectedCost: 10 * input.product.cost,
-                expectedProfit: 10 * (input.product.price - input.product.cost)
+                expectedRevenue: 0,
+                expectedCost: 0,
+                expectedProfit: 0
             }
         };
     }
 }
+

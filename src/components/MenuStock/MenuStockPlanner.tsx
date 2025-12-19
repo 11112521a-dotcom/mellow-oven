@@ -444,16 +444,21 @@ export const MenuStockPlanner: React.FC = () => {
     // ==================== BULK ACTION HANDLERS ====================
 
     // Open Target Production Modal
-    const openTargetModal = (productId: string, productName: string, items: InventoryItem[]) => {
+    const openTargetModal = (productId: string, productName: string, items: InventoryItem[], initialTarget?: number) => {
+        const targetValue = initialTarget || 15; // Use passed value or default 15
+
         const targetItems = items.map(item => {
             const saved = getSavedRecord(item);
             const stockYesterday = saved.stockYesterday ?? getYesterdayForItem(item);
             const confirmedProduction = saved.producedQty || 0;
+            const totalStock = stockYesterday + confirmedProduction;
+            // Calculate neededProduction immediately with target
+            const neededProduction = Math.max(0, targetValue - totalStock);
             return {
                 item,
                 stockYesterday,
                 confirmedProduction,
-                neededProduction: 0
+                neededProduction
             };
         });
 
@@ -461,7 +466,7 @@ export const MenuStockPlanner: React.FC = () => {
             isOpen: true,
             productId,
             productName,
-            targetValue: 15, // Default target
+            targetValue,
             items: targetItems
         });
     };
@@ -517,11 +522,14 @@ export const MenuStockPlanner: React.FC = () => {
         const modalItems = items.map(item => {
             const saved = getSavedRecord(item);
             const stockYesterday = saved.stockYesterday ?? getYesterdayForItem(item);
-            const todayStock = stockYesterday + (saved.producedQty || 0) + (pendingProduction[item.id] || 0);
+            // FIX: Calculate AVAILABLE stock = yesterday + produced + pending - already sent
+            const totalProduced = stockYesterday + (saved.producedQty || 0) + (pendingProduction[item.id] || 0);
+            const alreadySent = saved.toShopQty || 0;
+            const availableStock = Math.max(0, totalProduced - alreadySent);
             return {
                 item,
-                value: todayStock,
-                label: `${item.name}: ส่ง ${todayStock} ชิ้น`
+                value: availableStock,
+                label: `${item.name}: ส่ง ${availableStock} ชิ้น`
             };
         });
 
@@ -559,15 +567,23 @@ export const MenuStockPlanner: React.FC = () => {
                 });
             } else if (bulkActionModal.type === 'sendAll') {
                 // ADD to existing transfer and save
-                await upsertDailyInventory({
-                    businessDate,
-                    productId: item.productId,
-                    variantId: item.variantId,
-                    variantName: item.isVariant ? item.name : undefined,
-                    producedQty: saved.producedQty || 0,
-                    toShopQty: (saved.toShopQty || 0) + value,
-                    stockYesterday
-                });
+                // FIX: Cap transfer to prevent negative stock
+                const totalProduced = stockYesterday + (saved.producedQty || 0);
+                const alreadySent = saved.toShopQty || 0;
+                const availableStock = Math.max(0, totalProduced - alreadySent);
+                const safeTransfer = Math.min(value, availableStock); // Never send more than available
+
+                if (safeTransfer > 0) {
+                    await upsertDailyInventory({
+                        businessDate,
+                        productId: item.productId,
+                        variantId: item.variantId,
+                        variantName: item.isVariant ? item.name : undefined,
+                        producedQty: saved.producedQty || 0,
+                        toShopQty: alreadySent + safeTransfer,
+                        stockYesterday
+                    });
+                }
             }
         }
 
@@ -1106,11 +1122,9 @@ export const MenuStockPlanner: React.FC = () => {
                                         <button
                                             onClick={(e) => {
                                                 e.stopPropagation();
-                                                // Keep old functionality if clicked directly
-                                                if (bulkTarget[product.id] > 0) {
-                                                    openTargetModal(product.id, product.name, items);
-                                                    setTimeout(() => calculateTargetProduction(bulkTarget[product.id]), 100);
-                                                }
+                                                // Pass target value from input to modal
+                                                const targetVal = bulkTarget[product.id] || 15;
+                                                openTargetModal(product.id, product.name, items, targetVal);
                                             }}
                                             className="px-2 py-1 bg-gradient-to-r from-emerald-500 to-green-600 text-white text-xs rounded font-medium hover:shadow-md transition-all"
                                         >

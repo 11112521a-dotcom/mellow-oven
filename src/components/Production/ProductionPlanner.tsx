@@ -12,7 +12,7 @@ import {
     ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, ReferenceArea, Cell,
     BarChart, Bar, Legend
 } from 'recharts';
-import { Save, Loader2, Calendar, CloudSun, Store, AlertTriangle, TrendingUp, Package, Target, ArrowUpRight, ArrowDownRight, Sparkles } from 'lucide-react';
+import { Save, Loader2, Calendar, CloudSun, Store, AlertTriangle, TrendingUp, Package, Target, ArrowUpRight, ArrowDownRight, Sparkles, ChevronDown } from 'lucide-react';
 
 interface ForecastResult {
     productId: string;
@@ -148,10 +148,11 @@ export const ProductionPlanner: React.FC = () => {
                     productId: item.product.id,
                     variantId: item.variant?.id,
                     marketId: selectedMarket,
-                    marketName: getMarketName(selectedMarket), // NEW: Fallback matching by name
+                    marketName: getMarketName(selectedMarket),
                     weatherForecast: selectedWeather as any,
                     product: item.variant ? { ...item.product, price: item.variant.price, cost: item.variant.cost } : item.product,
-                    productSales: productSales
+                    productSales: productSales,
+                    targetDate: selectedDate // NEW: Pass target date for day-of-week matching
                 });
 
                 forecastResults.push({
@@ -319,9 +320,12 @@ export const ProductionPlanner: React.FC = () => {
 
                                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                                     <div className="bg-blue-50 rounded-xl p-3 text-center">
-                                        <p className="text-xs text-blue-600 mb-1">📊 ข้อมูลย้อนหลัง</p>
+                                        <p className="text-xs text-blue-600 mb-1">📅 {new Date(selectedDate).toLocaleDateString('th-TH', { weekday: 'short' })}</p>
                                         <p className="text-xl font-bold text-blue-700">
-                                            {results[0]?.forecast.dataPoints || 0} <span className="text-sm font-normal">วัน</span>
+                                            {results[0]?.forecast.sameDayDataPoints || 0} <span className="text-sm font-normal">วัน</span>
+                                        </p>
+                                        <p className="text-[10px] text-blue-400 mt-1">
+                                            (ทั้งหมด {results[0]?.forecast.dataPoints || 0} วัน)
                                         </p>
                                     </div>
                                     <div className="bg-orange-50 rounded-xl p-3 text-center">
@@ -349,7 +353,7 @@ export const ProductionPlanner: React.FC = () => {
                                 <div className="mt-4 p-3 bg-gray-50 rounded-xl text-xs text-gray-600">
                                     <p className="flex items-center gap-2">
                                         <span className="text-purple-500">💡</span>
-                                        <span><strong>สูตร:</strong> Optimal Qty = Newsvendor(Baseline × Weather × Payday) โดยที่ Baseline มาจาก Holt-Winters Exponential Smoothing ของยอดขายย้อนหลัง กรอง outliers ด้วย IQR method</span>
+                                        <span><strong>วิธีคำนวณ:</strong> ใช้ค่าเฉลี่ยยอดขาย{new Date(selectedDate).toLocaleDateString('th-TH', { weekday: 'long' })}ก่อนหน้า × สภาพอากาศ × Payday แล้วใช้ Newsvendor Model หาจำนวนที่เหมาะสม</span>
                                     </p>
                                 </div>
                             </div>
@@ -373,86 +377,146 @@ export const ProductionPlanner: React.FC = () => {
                                         : 'border-cafe-100 bg-gradient-to-br from-white to-cafe-50 hover:border-cafe-300'
                                         }`}
                                 >
-                                    {/* Premium Header with Gradient */}
-                                    <div className={`p-4 ${result.error ? '' : 'bg-gradient-to-r from-cafe-800 to-cafe-700'}`}>
-                                        <div className="flex justify-between items-start">
-                                            <div>
-                                                <h3 className={`font-bold line-clamp-1 ${result.error ? 'text-red-700' : 'text-white'}`}>
+                                    {/* NEW: Minimal Premium Card Design */}
+                                    <div className="p-5">
+                                        {/* Header Row */}
+                                        <div className="flex justify-between items-start mb-4">
+                                            <div className="flex-1">
+                                                <h3 className={`font-bold text-lg ${result.error ? 'text-red-600' : 'text-gray-800'}`}>
                                                     {result.productName}
                                                 </h3>
-                                                {!result.error && (
-                                                    <div className="flex items-center gap-2 mt-1">
-                                                        <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${result.forecast.confidenceLevel === 'high' ? 'bg-green-400/30 text-green-100' :
-                                                            result.forecast.confidenceLevel === 'medium' ? 'bg-yellow-400/30 text-yellow-100' :
-                                                                'bg-red-400/30 text-red-100'
+                                                {!result.error && !result.forecast.noData && (
+                                                    <div className="flex flex-wrap items-center gap-2 mt-1">
+                                                        {/* Confidence Badge with explanation */}
+                                                        <span className={`text-xs px-2 py-0.5 rounded-full ${result.forecast.confidenceLevel === 'high' ? 'bg-emerald-100 text-emerald-700' :
+                                                            result.forecast.confidenceLevel === 'medium' ? 'bg-amber-100 text-amber-700' :
+                                                                result.forecast.confidenceLevel === 'none' ? 'bg-gray-100 text-gray-500' :
+                                                                    'bg-red-100 text-red-600'
                                                             }`}>
-                                                            {result.forecast.confidenceLevel === 'high' ? '🎯 สูง' :
-                                                                result.forecast.confidenceLevel === 'medium' ? '📊 ปานกลาง' : '⚠️ ต่ำ'}
+                                                            {result.forecast.confidenceLevel === 'high'
+                                                                ? `🎯 แม่นยำ (${result.forecast.sameDayDataPoints}+ วันเดียวกัน)`
+                                                                : result.forecast.confidenceLevel === 'medium'
+                                                                    ? `📊 ปานกลาง (ข้อมูล ${result.forecast.dataPoints} วัน)`
+                                                                    : result.forecast.confidenceLevel === 'none'
+                                                                        ? '❓ ไม่มีข้อมูล'
+                                                                        : `⚠️ ต่ำ (ข้อมูลน้อย)`}
                                                         </span>
-                                                        <span className="text-[10px] text-white/70">
-                                                            ({result.forecast.dataPoints} วัน)
-                                                        </span>
+                                                        {/* Day count in full text */}
+                                                        {result.forecast.sameDayDataPoints > 0 && (
+                                                            <span className="text-xs text-gray-400">
+                                                                อ้างอิง {result.forecast.sameDayDataPoints} {new Date(selectedDate).toLocaleDateString('th-TH', { weekday: 'long' })}
+                                                            </span>
+                                                        )}
                                                     </div>
                                                 )}
                                             </div>
-                                            {!result.error && (
+
+                                            {/* Big Number */}
+                                            {!result.error && !result.forecast.noData && (
                                                 <div className="text-right">
-                                                    <p className="text-[10px] text-white/70">ควรผลิต</p>
-                                                    <p className="text-3xl font-black text-white">{result.forecast.optimalQuantity}</p>
+                                                    <p className="text-4xl font-black text-cafe-700">{result.forecast.optimalQuantity}</p>
+                                                    <p className="text-xs text-gray-400">ชิ้น</p>
                                                 </div>
                                             )}
                                         </div>
-                                    </div>
 
-                                    {result.error ? (
-                                        <div className="p-4">
-                                            <div className="flex items-center gap-2 text-red-600 text-sm">
+                                        {/* Content based on state */}
+                                        {result.error ? (
+                                            <div className="flex items-center gap-2 text-red-500 text-sm p-3 bg-red-50 rounded-xl">
                                                 <AlertTriangle size={16} />
-                                                {result.error}
+                                                <span>{result.error}</span>
                                             </div>
-                                        </div>
-                                    ) : (
-                                        <div className="p-4 space-y-3">
-                                            {/* Profit Row */}
-                                            <div className="flex justify-between items-center py-2 px-3 bg-green-50 rounded-lg">
-                                                <div className="flex items-center gap-2 text-sm text-green-700">
-                                                    <TrendingUp size={14} />
-                                                    <span>กำไรคาดการณ์</span>
+                                        ) : result.forecast.noData ? (
+                                            <div className="text-center py-6">
+                                                <Package size={32} className="mx-auto text-gray-300 mb-2" />
+                                                <p className="text-gray-400 text-sm">ยังไม่มีข้อมูลการขาย</p>
+                                                <p className="text-xs text-gray-300 mt-1">บันทึกยอดขายก่อนเพื่อให้ AI วิเคราะห์</p>
+                                            </div>
+                                        ) : (
+                                            <>
+                                                {/* Stats Row - 2 columns only */}
+                                                <div className="grid grid-cols-2 gap-3 mb-4">
+                                                    <div className="text-center p-3 bg-gradient-to-br from-rose-50 to-pink-50 rounded-xl">
+                                                        <p className="text-2xl font-bold text-rose-500">{(result.forecast.stockoutProbability * 100).toFixed(0)}%</p>
+                                                        <p className="text-xs text-rose-400">ขาด</p>
+                                                    </div>
+                                                    <div className="text-center p-3 bg-gradient-to-br from-amber-50 to-orange-50 rounded-xl">
+                                                        <p className="text-2xl font-bold text-amber-500">{(result.forecast.wasteProbability * 100).toFixed(0)}%</p>
+                                                        <p className="text-xs text-amber-400">เหลือ</p>
+                                                    </div>
                                                 </div>
-                                                <span className="font-bold text-green-700">฿{result.forecast.expectedProfit?.toLocaleString()}</span>
-                                            </div>
 
-                                            {/* Risk Indicators */}
-                                            <div className="grid grid-cols-2 gap-2 text-xs">
-                                                <div className="bg-red-50 p-2 rounded-lg text-center">
-                                                    <p className="text-red-400 mb-1">โอกาสของขาด</p>
-                                                    <p className="font-bold text-red-600">{(result.forecast.stockoutProbability * 100).toFixed(0)}%</p>
+                                                {/* Range Indicator */}
+                                                <div className="flex items-center justify-between text-xs text-gray-400 mb-3">
+                                                    <span>ช่วง: {result.forecast.predictionInterval.lower} - {result.forecast.predictionInterval.upper}</span>
+                                                    <span className="px-2 py-0.5 bg-gray-100 rounded text-gray-500">
+                                                        {result.forecast.distributionType === 'poisson' ? 'Poisson' : 'NB'}
+                                                    </span>
                                                 </div>
-                                                <div className="bg-orange-50 p-2 rounded-lg text-center">
-                                                    <p className="text-orange-400 mb-1">โอกาสเหลือทิ้ง</p>
-                                                    <p className="font-bold text-orange-600">{(result.forecast.wasteProbability * 100).toFixed(0)}%</p>
-                                                </div>
-                                            </div>
 
-                                            {/* Expandable Calculation Details */}
-                                            <details className="group/details">
-                                                <summary className="cursor-pointer text-xs text-cafe-500 hover:text-cafe-700 flex items-center gap-1 py-1">
-                                                    <span>📐 ดูวิธีคำนวณ</span>
-                                                    <span className="group-open/details:rotate-180 transition-transform">▼</span>
-                                                </summary>
-                                                <div className="mt-2 p-3 bg-gray-50 rounded-lg text-[11px] space-y-1 text-gray-600 animate-in slide-in-from-top-2">
-                                                    <p>• ยอดขายเฉลี่ย (Baseline): <strong>{result.forecast.baselineForecast.toFixed(1)}</strong> ชิ้น</p>
-                                                    <p>• หลังปรับสภาพอากาศ: <strong>{result.forecast.weatherAdjustedForecast.toFixed(1)}</strong> ชิ้น</p>
-                                                    <p>• ค่า Lambda (Mean): <strong>{result.forecast.lambda.toFixed(1)}</strong></p>
-                                                    <p>• Distribution: <strong>{result.forecast.distributionType === 'poisson' ? 'Poisson' : 'Negative Binomial'}</strong></p>
-                                                    <p>• Service Level: <strong>{(result.forecast.serviceLevelTarget * 100).toFixed(0)}%</strong></p>
-                                                    <p className="text-purple-600 pt-1 border-t border-gray-200">
-                                                        → Optimal = <strong>{result.forecast.optimalQuantity}</strong> (ช่วง {result.forecast.predictionInterval.lower}-{result.forecast.predictionInterval.upper})
-                                                    </p>
-                                                </div>
-                                            </details>
-                                        </div>
-                                    )}
+                                                {/* Expandable Details */}
+                                                <details className="group">
+                                                    <summary className="cursor-pointer text-xs text-cafe-400 hover:text-cafe-600 flex items-center gap-1">
+                                                        <ChevronDown size={12} className="group-open:rotate-180 transition-transform" />
+                                                        📊 วิธีคิด
+                                                    </summary>
+                                                    <div className="mt-2 pt-2 border-t border-gray-100 text-xs text-gray-600 space-y-2">
+                                                        {/* Step 1: Baseline */}
+                                                        <div className="p-2 bg-blue-50 rounded-lg">
+                                                            <div className="flex justify-between items-center">
+                                                                <span className="font-medium text-blue-700">1️⃣ ค่าเฉลี่ยยอดขาย</span>
+                                                                <span className="font-bold text-blue-800">{result.forecast.baselineForecast.toFixed(1)} ชิ้น</span>
+                                                            </div>
+                                                            <p className="text-[10px] text-blue-500 mt-1">
+                                                                = เฉลี่ยจาก {result.forecast.sameDayDataPoints > 0 ? `${result.forecast.sameDayDataPoints} วันเดียวกัน` : `${result.forecast.dataPoints} วัน`}
+                                                            </p>
+                                                        </div>
+
+                                                        {/* Step 2: Weather */}
+                                                        <div className="p-2 bg-purple-50 rounded-lg">
+                                                            <div className="flex justify-between items-center">
+                                                                <span className="font-medium text-purple-700">2️⃣ ปรับสภาพอากาศ</span>
+                                                                <span className="font-bold text-purple-800">{result.forecast.weatherAdjustedForecast.toFixed(1)} ชิ้น</span>
+                                                            </div>
+                                                            <p className="text-[10px] text-purple-500 mt-1">
+                                                                = {result.forecast.baselineForecast.toFixed(1)} × {(result.forecast.weatherAdjustedForecast / result.forecast.baselineForecast * 100).toFixed(0)}% (ตามสภาพอากาศ)
+                                                            </p>
+                                                        </div>
+
+                                                        {/* Step 3: Lambda & Payday */}
+                                                        <div className="p-2 bg-amber-50 rounded-lg">
+                                                            <div className="flex justify-between items-center">
+                                                                <span className="font-medium text-amber-700">3️⃣ ค่าเฉลี่ยสุดท้าย (λ)</span>
+                                                                <span className="font-bold text-amber-800">{result.forecast.lambda.toFixed(1)} ชิ้น</span>
+                                                            </div>
+                                                            <p className="text-[10px] text-amber-500 mt-1">
+                                                                = รวม Payday Boost (ถ้าใกล้สิ้นเดือน +20%)
+                                                            </p>
+                                                        </div>
+
+                                                        {/* Step 4: Newsvendor */}
+                                                        <div className="p-2 bg-emerald-50 rounded-lg">
+                                                            <div className="flex justify-between items-center">
+                                                                <span className="font-medium text-emerald-700">4️⃣ จำนวนที่เหมาะสม</span>
+                                                                <span className="font-bold text-emerald-800">{result.forecast.optimalQuantity} ชิ้น</span>
+                                                            </div>
+                                                            <p className="text-[10px] text-emerald-500 mt-1">
+                                                                = Newsvendor Model @ {(result.forecast.serviceLevelTarget * 100).toFixed(0)}% Service Level
+                                                            </p>
+                                                            <p className="text-[10px] text-emerald-400">
+                                                                (เลือกจำนวนที่ลดโอกาสขาดสินค้าให้น้อยที่สุด)
+                                                            </p>
+                                                        </div>
+
+                                                        {/* Summary */}
+                                                        <div className="text-center text-[10px] text-gray-400 pt-1 border-t border-gray-100">
+                                                            Distribution: {result.forecast.distributionType === 'poisson' ? 'Poisson' : 'Negative Binomial'} | ช่วง: {result.forecast.predictionInterval.lower}-{result.forecast.predictionInterval.upper}
+                                                        </div>
+                                                    </div>
+                                                </details>
+                                            </>
+                                        )}
+                                    </div>
                                 </div>
                             ))}
                         </div>

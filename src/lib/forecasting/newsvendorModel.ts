@@ -32,12 +32,22 @@ export function calculateCriticalRatio(params: NewsvendorParams): number {
     // Critical Ratio (CR) = Cu / (Cu + Co)
     // Edge Case: guard against Cu + Co = 0
     const denominator = Cu + Co;
-    return denominator > 0 ? Cu / denominator : 0.5; // Default to 50% service level if both costs are 0
+    if (denominator <= 0) return 0.5; // Default to 50% service level
+
+    let cr = Cu / denominator;
+
+    // FIX: Cap critical ratio at 0.90 for perishable goods
+    // 99% was too aggressive and caused over-production
+    // 90% means we accept 10% stockout risk to avoid excessive waste
+    cr = Math.min(cr, 0.90);
+    cr = Math.max(cr, 0.10);
+
+    return cr;
 }
 
 /**
  * Find optimal quantity Q* using Newsvendor Model
- * Q* is the quantity where P(Demand ≤ Q*) ≥ Critical Ratio
+ * Q* is the quantity where P(Demand ≤ Q*) >= Critical Ratio
  */
 export function calculateOptimalQuantity(
     distribution: DistributionParams,
@@ -49,15 +59,15 @@ export function calculateOptimalQuantity(
     let Q = 0;
     let cumulativeProbability = 0;
 
-    // Safety limit to prevent infinite loops
-    // Use lambda or r/p to estimate mean for safety limit
+    // Estimate mean for safety limit
     const estimatedMean = distribution.type === 'poisson'
         ? (distribution.lambda || 10)
         : (distribution.r && distribution.p ? (distribution.r * (1 - distribution.p) / distribution.p) : 10);
 
-    const maxIterations = Math.ceil(estimatedMean * 5) + 50;
+    // FIX: More conservative max - 2x mean is plenty for perishable goods
+    const maxQuantity = Math.ceil(estimatedMean * 2) + 5;
 
-    while (cumulativeProbability < criticalRatio && Q < maxIterations) {
+    while (cumulativeProbability < criticalRatio && Q < maxQuantity) {
         Q++;
 
         if (distribution.type === 'poisson') {
@@ -67,11 +77,24 @@ export function calculateOptimalQuantity(
         }
     }
 
+    // FIX: Sanity check - Q should never exceed 2x the mean
+    if (Q > estimatedMean * 2) {
+        Q = Math.ceil(estimatedMean * 1.2); // Fallback to 20% above mean
+    }
+
+    // Additional check: Q should not exceed mean + 2 standard deviations
+    // For a simple estimate, use 1.5x mean as a reasonable upper bound
+    const reasonableMax = Math.ceil(estimatedMean * 1.5);
+    if (Q > reasonableMax && estimatedMean > 5) {
+        Q = reasonableMax;
+    }
+
     return {
-        optimalQuantity: Q,
+        optimalQuantity: Math.max(1, Q), // Ensure at least 1
         criticalRatio,
         costUnderage: params.sellingPrice - params.unitCost,
         costOverage: params.unitCost + params.disposalCost,
         serviceLevelTarget: criticalRatio
     };
 }
+

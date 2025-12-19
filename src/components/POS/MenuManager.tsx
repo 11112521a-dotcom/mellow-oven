@@ -121,109 +121,97 @@ export const MenuManager: React.FC = () => {
             {/* Body */}
             <div className="p-6">
 
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {products.map((product) => (
                         <div
                             key={product.id}
-                            className="group bg-white rounded-2xl border border-cafe-100 overflow-hidden hover:shadow-xl hover:scale-[1.02] hover:border-cafe-300 transition-all duration-300"
+                            className="group bg-white rounded-2xl border border-gray-100 overflow-hidden hover:shadow-lg hover:border-gray-200 transition-all duration-300"
                         >
-                            {/* Card Header with Gradient */}
-                            <div className="relative bg-gradient-to-br from-cafe-100 via-amber-50 to-orange-50 p-4 border-b border-cafe-100">
-                                {/* Floating Action Buttons */}
-                                <div className="absolute top-3 right-3 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                                    <button
-                                        onClick={() => handleEditClick(product)}
-                                        className="p-2 bg-white/80 backdrop-blur text-blue-600 hover:bg-blue-500 hover:text-white rounded-lg transition-all shadow-sm"
-                                        title="แก้ไข"
-                                    >
-                                        <Edit2 size={16} />
-                                    </button>
-                                    <button
-                                        onClick={() => handleDeleteClick(product)}
-                                        className="p-2 bg-white/80 backdrop-blur text-red-500 hover:bg-red-500 hover:text-white rounded-lg transition-all shadow-sm"
-                                        title="ลบเมนู"
-                                    >
-                                        <Trash2 size={16} />
-                                    </button>
+                            {/* Minimal Card Content */}
+                            <div className="p-5">
+                                {/* Header Row */}
+                                <div className="flex justify-between items-start mb-3">
+                                    <div className="flex-1 min-w-0">
+                                        <h4 className="font-bold text-lg text-gray-800 truncate">
+                                            {product.name}
+                                        </h4>
+                                        <p className="text-xs text-gray-400 mt-0.5">
+                                            {product.category}
+                                            {product.flavor && ` • ${product.flavor}`}
+                                        </p>
+                                    </div>
+                                    {/* Action Buttons */}
+                                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <button
+                                            onClick={() => handleEditClick(product)}
+                                            className="p-2 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-all"
+                                            title="แก้ไข"
+                                        >
+                                            <Edit2 size={16} />
+                                        </button>
+                                        <button
+                                            onClick={() => handleDeleteClick(product)}
+                                            className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                                            title="ลบ"
+                                        >
+                                            <Trash2 size={16} />
+                                        </button>
+                                    </div>
                                 </div>
 
-                                {/* Product Icon */}
-                                <div className="w-14 h-14 bg-gradient-to-br from-cafe-500 to-cafe-700 rounded-xl flex items-center justify-center text-white shadow-lg group-hover:scale-110 transition-transform duration-300">
-                                    <ImageIcon size={24} />
-                                </div>
-
-                                {/* Badges */}
-                                <div className="absolute top-3 left-3 flex flex-col gap-1">
-                                    {product.recipe && (
-                                        <span className="text-[10px] bg-emerald-500 text-white px-2 py-0.5 rounded-full font-medium shadow-sm">
-                                            📋 มีสูตร
-                                        </span>
-                                    )}
-                                    {product.variants && product.variants.length > 0 && (
-                                        <span className="text-[10px] bg-blue-500 text-white px-2 py-0.5 rounded-full font-medium shadow-sm">
-                                            🎨 {product.variants.length} ตัวเลือก
-                                        </span>
-                                    )}
-                                </div>
-                            </div>
-
-                            {/* Card Body */}
-                            <div className="p-4 space-y-3">
-                                {/* Name & Category */}
-                                <div>
-                                    <h4 className="font-bold text-lg text-cafe-800 group-hover:text-cafe-600 transition-colors">
-                                        {product.name}
-                                    </h4>
-                                    <p className="text-xs text-cafe-500 flex items-center gap-1">
-                                        <span className="bg-cafe-100 px-2 py-0.5 rounded-full">{product.category}</span>
-                                        {product.flavor && (
-                                            <>
-                                                <span>•</span>
-                                                <span className="text-cafe-400">{product.flavor}</span>
-                                            </>
-                                        )}
-                                    </p>
-                                </div>
-
-                                {/* Variants Pills */}
-                                {product.variants && product.variants.length > 0 && (
-                                    <div className="flex flex-wrap gap-1.5">
-                                        {product.variants.slice(0, 4).map((variant, idx) => (
-                                            <span
-                                                key={variant.id || idx}
-                                                className="text-[11px] bg-gradient-to-r from-blue-50 to-indigo-50 text-blue-700 border border-blue-200 px-2 py-1 rounded-lg font-medium hover:scale-105 transition-transform cursor-default"
-                                            >
-                                                {variant.name}
-                                                <span className="text-blue-500 ml-1">฿{variant.price}</span>
+                                {/* Badges - Only if has recipe or variants */}
+                                {(product.recipe || (product.variants && product.variants.length > 0)) && (
+                                    <div className="flex gap-1.5 mb-3">
+                                        {product.variants && product.variants.length > 0 && (
+                                            <span className="text-[10px] bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full">
+                                                {product.variants.length} รส
                                             </span>
-                                        ))}
-                                        {product.variants.length > 4 && (
-                                            <span className="text-[11px] bg-gray-100 text-gray-600 px-2 py-1 rounded-lg">
-                                                +{product.variants.length - 4} อื่นๆ
+                                        )}
+                                        {product.recipe && (
+                                            <span className="text-[10px] bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded-full">
+                                                มีสูตร
                                             </span>
                                         )}
                                     </div>
                                 )}
 
-                                {/* Price & Cost */}
-                                <div className="flex justify-between items-end pt-2 border-t border-dashed border-cafe-100">
+                                {/* Variants Pills - Compact */}
+                                {product.variants && product.variants.length > 0 && (
+                                    <div className="flex flex-wrap gap-1 mb-4">
+                                        {product.variants.slice(0, 5).map((variant, idx) => (
+                                            <span
+                                                key={variant.id || idx}
+                                                className="text-xs bg-gray-50 text-gray-600 px-2 py-1 rounded-lg"
+                                            >
+                                                {variant.name} <span className="text-gray-400">฿{variant.price}</span>
+                                            </span>
+                                        ))}
+                                        {product.variants.length > 5 && (
+                                            <span className="text-xs text-gray-400 px-2 py-1">
+                                                +{product.variants.length - 5}
+                                            </span>
+                                        )}
+                                    </div>
+                                )}
+
+                                {/* Price Row - Clean */}
+                                <div className="flex items-end justify-between pt-3 border-t border-gray-50">
                                     <div>
-                                        <span className="text-xs text-cafe-400 block">ราคาขาย</span>
-                                        <span className="text-xl font-black text-cafe-700">฿{product.price}</span>
+                                        <p className="text-2xl font-bold text-gray-800">฿{product.price}</p>
+                                        <p className="text-xs text-gray-400">ราคาขาย</p>
                                     </div>
                                     <div className="text-right">
-                                        <span className="text-xs text-cafe-400 block">ต้นทุน</span>
-                                        <span className="text-sm font-medium text-cafe-500">฿{formatCurrency(product.cost)}</span>
+                                        <p className="text-sm text-gray-500">฿{formatCurrency(product.cost)}</p>
+                                        <p className="text-xs text-gray-400">ต้นทุน</p>
                                     </div>
                                 </div>
 
-                                {/* Profit Indicator */}
+                                {/* Profit Badge - Subtle */}
                                 {product.price > 0 && product.cost > 0 && (
-                                    <div className="bg-gradient-to-r from-emerald-50 to-green-50 rounded-lg p-2 flex justify-between items-center">
-                                        <span className="text-[11px] text-emerald-600 font-medium">💰 กำไร/ชิ้น</span>
-                                        <span className="text-sm font-bold text-emerald-700">
-                                            ฿{formatCurrency(product.price - product.cost)}
-                                            <span className="text-[10px] text-emerald-500 ml-1">
+                                    <div className="mt-3 text-center">
+                                        <span className="inline-flex items-center gap-1 text-xs text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full">
+                                            กำไร ฿{formatCurrency(product.price - product.cost)}
+                                            <span className="text-emerald-400">
                                                 ({Math.round(((product.price - product.cost) / product.price) * 100)}%)
                                             </span>
                                         </span>

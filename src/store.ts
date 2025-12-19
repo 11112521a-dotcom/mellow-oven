@@ -1526,6 +1526,7 @@ export const useStore = create<AppState>()(
                 storeName: state.storeName,
                 jars: state.jars,
                 jarCustomizations: state.jarCustomizations,
+                allocationProfiles: state.allocationProfiles, // Add this line
                 products: state.products, // Persist products to save local variants
                 productSales: state.productSales // Persist sales logs for offline support
             })

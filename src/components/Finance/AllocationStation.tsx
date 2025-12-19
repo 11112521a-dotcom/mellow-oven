@@ -54,7 +54,16 @@ export const AllocationStation: React.FC<AllocationStationProps> = ({ onAllocate
 
     const [isEditing, setIsEditing] = useState(false);
     const [newProfileName, setNewProfileName] = useState('');
-    const [isLocked, setIsLocked] = useState(false); // FIX: Lock to prevent accidental edits on mobile
+    // Load locked state from localStorage
+    const [isLocked, setIsLocked] = useState(() => {
+        const saved = localStorage.getItem('allocationStationLocked');
+        return saved ? JSON.parse(saved) : false;
+    });
+
+    // Save locked state when changed
+    useEffect(() => {
+        localStorage.setItem('allocationStationLocked', JSON.stringify(isLocked));
+    }, [isLocked]);
 
     // Get unique dates with unallocated profits
     const availableDates = [...new Set(unallocatedProfits.map(p => p.date))].sort((a, b) => b.localeCompare(a));
@@ -158,6 +167,16 @@ export const AllocationStation: React.FC<AllocationStationProps> = ({ onAllocate
             setShowPreview(true);
         }
     }, [allocationSource, selectedProfitDate, unallocatedBalance, getUnallocatedByDate]);
+
+    // Fetch daily inventory for selected date to show COGS
+    useEffect(() => {
+        const targetDate = selectedProfitDate === 'all'
+            ? (availableDates[0] || new Date().toISOString().split('T')[0])
+            : selectedProfitDate;
+        if (targetDate) {
+            fetchDailyInventory(targetDate);
+        }
+    }, [selectedProfitDate, availableDates, fetchDailyInventory]);
 
     // Auto-update amounts when changing to amount mode or when total amount changes
     useEffect(() => {
@@ -464,9 +483,9 @@ export const AllocationStation: React.FC<AllocationStationProps> = ({ onAllocate
                     )}
 
                     {/* ═══════════════════════════════════════════════════════
-                        📊 COGS DISPLAY - Show cost breakdown
+                        📊 COGS DISPLAY - Show cost breakdown (ALWAYS VISIBLE)
                        ═══════════════════════════════════════════════════════ */}
-                    {cogsData.total > 0 && (
+                    {allocationSource === 'profit' && (
                         <div className="mt-4 animate-in fade-in duration-300">
                             <div className="bg-gradient-to-br from-orange-50 via-amber-50 to-yellow-50 rounded-2xl p-4 border-2 border-orange-200 shadow-lg">
                                 <div className="flex items-center gap-2 mb-3">
