@@ -287,6 +287,19 @@ export const SalesReport: React.FC = () => {
 
     const topProductsData = useMemo(() => productGroups.slice(0, 10).map((product: any) => ({ productName: product.productName, category: product.category, value: topProductsMode === 'quantity' ? product.totalQuantity : topProductsMode === 'revenue' ? product.totalRevenue : product.totalProfit })), [productGroups, topProductsMode]);
 
+    // Bottom 5 Products - Worst Sellers (sorted by quantity ascending)
+    const bottomProductsData = useMemo(() => {
+        const sorted = [...productGroups].sort((a: any, b: any) => a.totalQuantity - b.totalQuantity);
+        return sorted.slice(0, 5).map((product: any) => ({
+            productName: product.productName,
+            category: product.category,
+            value: topProductsMode === 'quantity' ? product.totalQuantity : topProductsMode === 'revenue' ? product.totalRevenue : product.totalProfit,
+            totalQuantity: product.totalQuantity,
+            totalRevenue: product.totalRevenue,
+            totalProfit: product.totalProfit
+        }));
+    }, [productGroups, topProductsMode]);
+
     const marketComparisonData = useMemo(() => {
         const marketMap = new Map<string, { revenue: number; profit: number; quantity: number }>();
         filteredSales.forEach(sale => {
@@ -577,6 +590,39 @@ export const SalesReport: React.FC = () => {
                     </div>
                 </div>
             </div>
+
+            {/* Bottom 5 Worst Selling Products */}
+            {bottomProductsData.length > 0 && (
+                <div className="bg-white rounded-2xl shadow-sm border border-orange-200 p-6 hover:shadow-lg transition-shadow">
+                    <div className="flex justify-between items-center mb-4">
+                        <h3 className="text-lg font-bold text-cafe-900 flex items-center gap-2">
+                            <TrendingDown className="text-orange-500" size={20} />
+                            ⚠️ Top 5 เมนูขายช้า
+                        </h3>
+                        <span className="text-xs text-orange-600 bg-orange-100 px-3 py-1 rounded-full">ควรพิจารณา</span>
+                    </div>
+                    <p className="text-sm text-cafe-500 mb-4">เมนูที่ขายได้น้อยที่สุดในช่วงเวลา - พิจารณาปรับแผนการผลิตหรือยกเลิก</p>
+                    <div className="space-y-3">
+                        {bottomProductsData.map((product: any, index: number) => (
+                            <div key={index} className="flex items-center justify-between p-3 bg-gradient-to-r from-orange-50 to-amber-50 rounded-xl border border-orange-100">
+                                <div className="flex items-center gap-3">
+                                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${index === 0 ? 'bg-red-500 text-white' : index === 1 ? 'bg-orange-500 text-white' : 'bg-amber-400 text-white'}`}>
+                                        {index + 1}
+                                    </div>
+                                    <div>
+                                        <div className="font-medium text-cafe-900">{product.productName}</div>
+                                        <div className="text-xs text-cafe-500">{product.category}</div>
+                                    </div>
+                                </div>
+                                <div className="text-right">
+                                    <div className="font-bold text-orange-700">{product.totalQuantity} ชิ้น</div>
+                                    <div className="text-xs text-cafe-500">รายได้: {formatCurrency(product.totalRevenue)}</div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
 
             {/* Data Table */}
             <div className="bg-white rounded-2xl shadow-sm border border-cafe-100 overflow-hidden hover:shadow-lg transition-shadow">

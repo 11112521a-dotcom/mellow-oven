@@ -6,7 +6,7 @@ import {
     PieChart, Save, Trash2, ArrowRight, Percent, DollarSign, Zap,
     Calendar, TrendingUp, Sparkles, Check, Plus, Eye, Wallet,
     ArrowUpRight, ChevronDown, ChevronUp, Coins, BadgeDollarSign,
-    Boxes, Shield, Briefcase, PiggyBank, Lock, Unlock
+    Boxes, Shield, Briefcase, PiggyBank, Lock, Unlock, Star, Edit2, X
 } from 'lucide-react';
 
 interface AllocationStationProps {
@@ -29,10 +29,11 @@ const getJarIcon = (id: string) => {
 };
 
 export const AllocationStation: React.FC<AllocationStationProps> = ({ onAllocate }) => {
-    const { allocationProfiles, saveAllocationProfile, deleteAllocationProfile, jars, getUnallocatedBalance, unallocatedProfits, getUnallocatedByDate, dailyInventory, products, fetchDailyInventory } = useStore();
+    const { allocationProfiles, saveAllocationProfile, deleteAllocationProfile, setDefaultProfile, renameAllocationProfile, defaultProfileId, jars, getUnallocatedBalance, unallocatedProfits, getUnallocatedByDate, dailyInventory, products, fetchDailyInventory } = useStore();
 
     const [amount, setAmount] = useState<string>('');
-    const [selectedProfileId, setSelectedProfileId] = useState<string>('default');
+    const [selectedProfileId, setSelectedProfileId] = useState<string>(defaultProfileId || 'default');
+    const [renameModal, setRenameModal] = useState<{ isOpen: boolean; profileId: string; currentName: string }>({ isOpen: false, profileId: '', currentName: '' });
     const [currentAllocations, setCurrentAllocations] = useState<Record<JarType, number>>({
         'Working': 20,
         'CapEx': 45,
@@ -579,20 +580,48 @@ export const AllocationStation: React.FC<AllocationStationProps> = ({ onAllocate
                             <div
                                 key={profile.id}
                                 onClick={() => setSelectedProfileId(profile.id)}
-                                className={`flex items-center gap-2 px-4 py-2 rounded-full border-2 text-sm font-bold whitespace-nowrap cursor-pointer transition-all ${selectedProfileId === profile.id
+                                className={`group flex items-center gap-2 px-4 py-2 rounded-full border-2 text-sm font-bold whitespace-nowrap cursor-pointer transition-all ${selectedProfileId === profile.id
                                     ? 'bg-gradient-to-r from-cafe-800 to-cafe-900 text-white border-cafe-800 shadow-lg shadow-cafe-200'
                                     : 'bg-white text-cafe-600 border-cafe-200 hover:border-cafe-400 hover:shadow-md'
                                     }`}
                             >
-                                {profile.name}
-                                {profile.id !== 'default' && (
-                                    <span
-                                        onClick={(e) => handleDeleteProfile(profile.id, e)}
-                                        className="hover:text-red-400 p-1 rounded-full hover:bg-white/20"
-                                    >
-                                        <Trash2 size={12} />
-                                    </span>
+                                {/* Default Star Indicator */}
+                                {defaultProfileId === profile.id && (
+                                    <Star size={12} className="fill-yellow-400 text-yellow-400" />
                                 )}
+                                {profile.name}
+
+                                {/* Action Buttons - Show on Hover */}
+                                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    {/* Set as Default */}
+                                    {defaultProfileId !== profile.id && (
+                                        <span
+                                            onClick={(e) => { e.stopPropagation(); setDefaultProfile(profile.id); }}
+                                            className="hover:text-yellow-400 p-1 rounded-full hover:bg-white/20"
+                                            title="ตั้งเป็นค่าเริ่มต้น"
+                                        >
+                                            <Star size={12} />
+                                        </span>
+                                    )}
+                                    {/* Rename */}
+                                    <span
+                                        onClick={(e) => { e.stopPropagation(); setRenameModal({ isOpen: true, profileId: profile.id, currentName: profile.name }); }}
+                                        className="hover:text-blue-400 p-1 rounded-full hover:bg-white/20"
+                                        title="เปลี่ยนชื่อ"
+                                    >
+                                        <Edit2 size={12} />
+                                    </span>
+                                    {/* Delete */}
+                                    {profile.id !== 'default' && (
+                                        <span
+                                            onClick={(e) => handleDeleteProfile(profile.id, e)}
+                                            className="hover:text-red-400 p-1 rounded-full hover:bg-white/20"
+                                            title="ลบ"
+                                        >
+                                            <Trash2 size={12} />
+                                        </span>
+                                    )}
+                                </div>
                             </div>
                         ))}
 
@@ -713,6 +742,57 @@ export const AllocationStation: React.FC<AllocationStationProps> = ({ onAllocate
                     </div>
                 </div>
             </div>
+
+            {/* Rename Profile Modal */}
+            {renameModal.isOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden animate-in zoom-in-95 duration-200">
+                        <div className="p-4 bg-gradient-to-r from-blue-500 to-indigo-600 text-white">
+                            <h3 className="font-bold flex items-center gap-2">
+                                <Edit2 size={18} />
+                                เปลี่ยนชื่อโปรไฟล์
+                            </h3>
+                        </div>
+                        <div className="p-4 space-y-4">
+                            <input
+                                autoFocus
+                                type="text"
+                                value={renameModal.currentName}
+                                onChange={(e) => setRenameModal(prev => ({ ...prev, currentName: e.target.value }))}
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter' && renameModal.currentName.trim()) {
+                                        renameAllocationProfile(renameModal.profileId, renameModal.currentName.trim());
+                                        setRenameModal({ isOpen: false, profileId: '', currentName: '' });
+                                    }
+                                }}
+                                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none text-lg"
+                                placeholder="ชื่อโปรไฟล์ใหม่..."
+                            />
+                            <div className="flex gap-3">
+                                <button
+                                    onClick={() => setRenameModal({ isOpen: false, profileId: '', currentName: '' })}
+                                    className="flex-1 px-4 py-3 border-2 border-gray-200 rounded-xl text-gray-600 font-medium hover:bg-gray-50 transition-colors flex items-center justify-center gap-2"
+                                >
+                                    <X size={16} />
+                                    ยกเลิก
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        if (renameModal.currentName.trim()) {
+                                            renameAllocationProfile(renameModal.profileId, renameModal.currentName.trim());
+                                            setRenameModal({ isOpen: false, profileId: '', currentName: '' });
+                                        }
+                                    }}
+                                    className="flex-1 px-4 py-3 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-xl font-medium hover:shadow-lg transition-all flex items-center justify-center gap-2"
+                                >
+                                    <Check size={16} />
+                                    บันทึก
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

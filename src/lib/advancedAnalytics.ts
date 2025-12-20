@@ -27,6 +27,18 @@ export interface WasteItem {
     percentOfTotalWaste: number;
 }
 
+// Demand Variability Analysis Types
+export interface DemandVariabilityItem {
+    id: string;
+    name: string;
+    avgDailySales: number;        // Mean daily sales
+    stdDev: number;               // Standard Deviation
+    cv: number;                   // Coefficient of Variation (CV = StdDev / Mean)
+    totalSales: number;           // Total units sold
+    daysWithSales: number;        // Number of days with sales data
+    class: 'CashCow' | 'WildCard' | 'SlowMover' | 'QuestionMark';
+}
+
 // ==================== Logic ====================
 
 /**
@@ -225,4 +237,84 @@ export function analyzeWaste(productionLogs: DailyProductionLog[], products: Pro
     });
 
     return items.sort((a, b) => b.wasteCost - a.wasteCost).slice(0, 5);
+}
+
+/**
+ * 5. Demand Variability Analysis
+ * Uses Coefficient of Variation (CV = StdDev / Mean) to classify demand stability
+ * Quadrants:
+ *   - CashCow: High Velocity + Low CV (reliable sellers)
+ *   - WildCard: High Velocity + High CV (popular but unpredictable)
+ *   - SlowMover: Low Velocity + Low CV (consistent but slow)
+ *   - QuestionMark: Low Velocity + High CV (unstable and slow - review needed)
+ */
+export function calculateDemandVariability(
+    products: Product[],
+    salesLogs: ProductSaleLog[]
+): { data: DemandVariabilityItem[], thresholds: { avgVelocity: number, avgCV: number } } {
+    // Group sales by product/variant and date
+    const salesByProductDate = new Map<string, Map<string, number>>();
+    const productNames = new Map<string, string>();
+
+    salesLogs.forEach(log => {
+        const key = log.variantId || log.productId;
+        const name = log.variantName ? `${log.productName} (${log.variantName})` : log.productName;
+        productNames.set(key, name);
+
+        if (!salesByProductDate.has(key)) {
+            salesByProductDate.set(key, new Map());
+        }
+        const dateMap = salesByProductDate.get(key)!;
+        dateMap.set(log.saleDate, (dateMap.get(log.saleDate) || 0) + log.quantitySold);
+    });
+
+    const items: DemandVariabilityItem[] = [];
+
+    salesByProductDate.forEach((dateMap, productId) => {
+        const dailySales = Array.from(dateMap.values());
+        const daysWithSales = dailySales.length;
+
+        if (daysWithSales < 2) return; // Need at least 2 data points
+
+        const totalSales = dailySales.reduce((sum, val) => sum + val, 0);
+        const mean = totalSales / daysWithSales;
+
+        // Calculate Standard Deviation
+        const squaredDiffs = dailySales.map(val => Math.pow(val - mean, 2));
+        const variance = squaredDiffs.reduce((sum, val) => sum + val, 0) / daysWithSales;
+        const stdDev = Math.sqrt(variance);
+
+        // Coefficient of Variation
+        const cv = mean > 0 ? stdDev / mean : 0;
+
+        items.push({
+            id: productId,
+            name: productNames.get(productId) || 'Unknown',
+            avgDailySales: mean,
+            stdDev,
+            cv,
+            totalSales,
+            daysWithSales,
+            class: 'QuestionMark' // Placeholder
+        });
+    });
+
+    // Calculate thresholds (averages)
+    const totalVelocity = items.reduce((sum, i) => sum + i.avgDailySales, 0);
+    const totalCV = items.reduce((sum, i) => sum + i.cv, 0);
+    const avgVelocity = items.length > 0 ? totalVelocity / items.length : 0;
+    const avgCV = items.length > 0 ? totalCV / items.length : 0;
+
+    // Classify into quadrants
+    items.forEach(item => {
+        const isHighVelocity = item.avgDailySales >= avgVelocity;
+        const isHighCV = item.cv >= avgCV;
+
+        if (isHighVelocity && !isHighCV) item.class = 'CashCow';
+        else if (isHighVelocity && isHighCV) item.class = 'WildCard';
+        else if (!isHighVelocity && !isHighCV) item.class = 'SlowMover';
+        else item.class = 'QuestionMark';
+    });
+
+    return { data: items, thresholds: { avgVelocity, avgCV } };
 }

@@ -5,8 +5,7 @@ import type { ForecastOutput } from '@/src/lib/forecasting';
 import { Product, Variant } from '@/types';
 import {
     calculateMenuMatrix,
-    performABCAnalysis,
-    analyzeWaste
+    calculateDemandVariability
 } from '@/src/lib/advancedAnalytics';
 import {
     ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, ReferenceArea, Cell,
@@ -53,14 +52,10 @@ export const ProductionPlanner: React.FC = () => {
         if (activeTab !== 'insights') return null;
 
         const matrix = calculateMenuMatrix(products, productSales);
-        const abcItems = performABCAnalysis(products, productSales);
+        const demandVariability = calculateDemandVariability(products, productSales);
 
-        // Extract production logs from dailyReports for waste analysis
-        const allProductionLogs = dailyReports.flatMap(r => r.logs || []);
-        const wasteItems = analyzeWaste(allProductionLogs, products);
-
-        return { matrix, abcItems, wasteItems };
-    }, [activeTab, products, productSales, dailyReports]);
+        return { matrix, demandVariability };
+    }, [activeTab, products, productSales]);
 
     // Accuracy Calculations
     const accuracyData = useMemo(() => {
@@ -530,164 +525,258 @@ export const ProductionPlanner: React.FC = () => {
                     )}
                 </div>
             ) : activeTab === 'insights' ? (
-                // Insights Tab Content (Unchanged)
+                // Insights Tab Content
                 <div className="space-y-6 animate-in fade-in">
-                    {/* Top Row */}
-                    <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-                        {/* Menu Matrix */}
-                        <div className="lg:col-span-3 bg-white border border-cafe-200 rounded-xl p-4 shadow-sm">
-                            <h3 className="text-lg font-bold text-cafe-800 mb-4">วิเคราะห์เมนู (Menu Engineering)</h3>
-                            <div className="h-[300px]">
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <ScatterChart margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
-                                        <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
-                                        <XAxis type="number" dataKey="soldQty" name="Sold Qty" unit=" pcs" stroke="#9ca3af" fontSize={12} tickLine={false} axisLine={false} />
-                                        <YAxis type="number" dataKey="profitPerUnit" name="Profit" unit="฿" stroke="#9ca3af" fontSize={12} tickLine={false} axisLine={false} />
-                                        <Tooltip
-                                            cursor={{ strokeDasharray: '3 3' }}
-                                            content={({ active, payload }) => {
-                                                if (active && payload && payload.length) {
-                                                    const data = payload[0].payload;
-                                                    return (
-                                                        <div className="bg-white/90 backdrop-blur-sm p-3 border border-cafe-100 shadow-xl rounded-xl">
-                                                            <p className="font-bold text-cafe-900 mb-1">{data.name}</p>
-                                                            <div className="space-y-1 text-xs text-cafe-600">
-                                                                <div className="flex justify-between gap-4">
-                                                                    <span>ยอดขาย:</span>
-                                                                    <span className="font-semibold">{data.soldQty} ชิ้น</span>
-                                                                </div>
-                                                                <div className="flex justify-between gap-4">
-                                                                    <span>กำไร/ชิ้น:</span>
-                                                                    <span className="font-semibold">฿{data.profitPerUnit}</span>
-                                                                </div>
-                                                                <div className={`mt-2 px-2 py-1 rounded text-center font-bold text-white ${data.class === 'Star' ? 'bg-green-500' :
-                                                                    data.class === 'Plowhorse' ? 'bg-yellow-500' :
-                                                                        data.class === 'Puzzle' ? 'bg-blue-500' : 'bg-red-500'
-                                                                    }`}>
-                                                                    {data.class}
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                    );
-                                                }
-                                                return null;
-                                            }}
-                                        />
-                                        {/* Quadrant Backgrounds */}
-                                        <ReferenceArea x1={analyticsData?.matrix.thresholds.avgSold} y1={analyticsData?.matrix.thresholds.avgProfit} fill="#22c55e" fillOpacity={0.05} />
-                                        <ReferenceArea x2={analyticsData?.matrix.thresholds.avgSold} y1={analyticsData?.matrix.thresholds.avgProfit} fill="#3b82f6" fillOpacity={0.05} />
-                                        <ReferenceArea x1={analyticsData?.matrix.thresholds.avgSold} y2={analyticsData?.matrix.thresholds.avgProfit} fill="#eab308" fillOpacity={0.05} />
-                                        <ReferenceArea x2={analyticsData?.matrix.thresholds.avgSold} y2={analyticsData?.matrix.thresholds.avgProfit} fill="#ef4444" fillOpacity={0.05} />
-
-                                        {/* Threshold Lines */}
-                                        <ReferenceLine x={analyticsData?.matrix.thresholds.avgSold} stroke="#9ca3af" strokeDasharray="3 3" />
-                                        <ReferenceLine y={analyticsData?.matrix.thresholds.avgProfit} stroke="#9ca3af" strokeDasharray="3 3" />
-
-                                        {/* Quadrant Labels */}
-                                        <ReferenceArea
-                                            x1={analyticsData?.matrix.thresholds.avgSold}
-                                            y1={analyticsData?.matrix.thresholds.avgProfit}
-                                            fill="transparent"
-                                            label={{ value: '⭐ STAR', position: 'insideTopRight', fill: '#15803d', fontSize: 12, fontWeight: 'bold' }}
-                                        />
-                                        <ReferenceArea
-                                            x2={analyticsData?.matrix.thresholds.avgSold}
-                                            y1={analyticsData?.matrix.thresholds.avgProfit}
-                                            fill="transparent"
-                                            label={{ value: '🧩 PUZZLE', position: 'insideTopLeft', fill: '#1d4ed8', fontSize: 12, fontWeight: 'bold' }}
-                                        />
-                                        <ReferenceArea
-                                            x1={analyticsData?.matrix.thresholds.avgSold}
-                                            y2={analyticsData?.matrix.thresholds.avgProfit}
-                                            fill="transparent"
-                                            label={{ value: '🐎 PLOWHORSE', position: 'insideBottomRight', fill: '#a16207', fontSize: 12, fontWeight: 'bold' }}
-                                        />
-                                        <ReferenceArea
-                                            x2={analyticsData?.matrix.thresholds.avgSold}
-                                            y2={analyticsData?.matrix.thresholds.avgProfit}
-                                            fill="transparent"
-                                            label={{ value: '🐕 DOG', position: 'insideBottomLeft', fill: '#b91c1c', fontSize: 12, fontWeight: 'bold' }}
-                                        />
-
-                                        <Scatter name="Menu Items" data={analyticsData?.matrix.data}>
-                                            {analyticsData?.matrix.data.map((entry, index) => (
-                                                <Cell key={`cell-${index}`} fill={
-                                                    entry.class === 'Star' ? '#22c55e' :
-                                                        entry.class === 'Plowhorse' ? '#eab308' :
-                                                            entry.class === 'Puzzle' ? '#3b82f6' : '#ef4444'
-                                                } stroke="white" strokeWidth={2} />
-                                            ))}
-                                        </Scatter>
-                                    </ScatterChart>
-                                </ResponsiveContainer>
+                    {/* Menu Matrix - Full Width */}
+                    <div className="bg-white border border-cafe-200 rounded-2xl p-6 shadow-sm">
+                        <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4 mb-6">
+                            <div>
+                                <h3 className="text-xl font-bold text-cafe-800 mb-2">📊 วิเคราะห์เมนู (Menu Engineering)</h3>
+                                <p className="text-sm text-cafe-600 max-w-2xl">
+                                    วิเคราะห์เมนูตามหลัก BCG Matrix โดยจำแนกสินค้าเป็น 4 กลุ่มตาม<strong>ยอดขาย (Popularity)</strong> และ <strong>กำไรต่อชิ้น (Profitability)</strong>
+                                    เพื่อวางแผนการผลิตและปรับปรุงเมนูให้เหมาะสม
+                                </p>
                             </div>
-                            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mt-4">
-                                <div className="flex items-center gap-2 p-2 rounded-lg bg-green-50 border border-green-100">
-                                    <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center text-lg">⭐</div>
-                                    <div>
-                                        <div className="text-xs font-bold text-green-800">Star</div>
-                                        <div className="text-[10px] text-green-600">กำไรสูง / ขายดี</div>
-                                    </div>
-                                </div>
-                                <div className="flex items-center gap-2 p-2 rounded-lg bg-yellow-50 border border-yellow-100">
-                                    <div className="w-8 h-8 rounded-full bg-yellow-100 flex items-center justify-center text-lg">🐎</div>
-                                    <div>
-                                        <div className="text-xs font-bold text-yellow-800">Plowhorse</div>
-                                        <div className="text-[10px] text-yellow-600">กำไรต่ำ / ขายดี</div>
-                                    </div>
-                                </div>
-                                <div className="flex items-center gap-2 p-2 rounded-lg bg-blue-50 border border-blue-100">
-                                    <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-lg">🧩</div>
-                                    <div>
-                                        <div className="text-xs font-bold text-blue-800">Puzzle</div>
-                                        <div className="text-[10px] text-blue-600">กำไรสูง / ขายน้อย</div>
-                                    </div>
-                                </div>
-                                <div className="flex items-center gap-2 p-2 rounded-lg bg-red-50 border border-red-100">
-                                    <div className="w-8 h-8 rounded-full bg-red-100 flex items-center justify-center text-lg">🐕</div>
-                                    <div>
-                                        <div className="text-xs font-bold text-red-800">Dog</div>
-                                        <div className="text-[10px] text-red-600">กำไรต่ำ / ขายน้อย</div>
-                                    </div>
-                                </div>
+                            <div className="flex-shrink-0 bg-cafe-50 rounded-xl p-3 text-xs text-cafe-600 border border-cafe-100">
+                                <div className="font-semibold mb-1">📈 เส้นประ = ค่าเฉลี่ย</div>
+                                <div>X: ยอดขายรวม | Y: กำไร/ชิ้น</div>
                             </div>
                         </div>
+                        <div className="h-[400px]">
+                            <ResponsiveContainer width="100%" height="100%">
+                                <ScatterChart margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
+                                    <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
+                                    <XAxis type="number" dataKey="soldQty" name="Sold Qty" unit=" pcs" stroke="#9ca3af" fontSize={12} tickLine={false} axisLine={false} />
+                                    <YAxis type="number" dataKey="profitPerUnit" name="Profit" unit="฿" stroke="#9ca3af" fontSize={12} tickLine={false} axisLine={false} />
+                                    <Tooltip
+                                        cursor={{ strokeDasharray: '3 3' }}
+                                        content={({ active, payload }) => {
+                                            if (active && payload && payload.length) {
+                                                const data = payload[0].payload;
+                                                return (
+                                                    <div className="bg-white/90 backdrop-blur-sm p-3 border border-cafe-100 shadow-xl rounded-xl">
+                                                        <p className="font-bold text-cafe-900 mb-1">{data.name}</p>
+                                                        <div className="space-y-1 text-xs text-cafe-600">
+                                                            <div className="flex justify-between gap-4">
+                                                                <span>ยอดขาย:</span>
+                                                                <span className="font-semibold">{data.soldQty} ชิ้น</span>
+                                                            </div>
+                                                            <div className="flex justify-between gap-4">
+                                                                <span>กำไร/ชิ้น:</span>
+                                                                <span className="font-semibold">฿{data.profitPerUnit}</span>
+                                                            </div>
+                                                            <div className={`mt-2 px-2 py-1 rounded text-center font-bold text-white ${data.class === 'Star' ? 'bg-green-500' :
+                                                                data.class === 'Plowhorse' ? 'bg-yellow-500' :
+                                                                    data.class === 'Puzzle' ? 'bg-blue-500' : 'bg-red-500'
+                                                                }`}>
+                                                                {data.class}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            }
+                                            return null;
+                                        }}
+                                    />
+                                    {/* Quadrant Backgrounds */}
+                                    <ReferenceArea x1={analyticsData?.matrix.thresholds.avgSold} y1={analyticsData?.matrix.thresholds.avgProfit} fill="#22c55e" fillOpacity={0.05} />
+                                    <ReferenceArea x2={analyticsData?.matrix.thresholds.avgSold} y1={analyticsData?.matrix.thresholds.avgProfit} fill="#3b82f6" fillOpacity={0.05} />
+                                    <ReferenceArea x1={analyticsData?.matrix.thresholds.avgSold} y2={analyticsData?.matrix.thresholds.avgProfit} fill="#eab308" fillOpacity={0.05} />
+                                    <ReferenceArea x2={analyticsData?.matrix.thresholds.avgSold} y2={analyticsData?.matrix.thresholds.avgProfit} fill="#ef4444" fillOpacity={0.05} />
 
-                        {/* Waste Watch */}
-                        <div className="lg:col-span-2 bg-white border border-cafe-200 rounded-xl p-4 shadow-sm">
-                            <h3 className="text-lg font-bold text-cafe-800 mb-4">🗑️ รายการของเสียสูงสุด 5 อันดับ</h3>
-                            <div className="space-y-3">
-                                {analyticsData?.wasteItems.map((item, idx) => (
-                                    <div key={idx} className="flex items-center justify-between p-3 bg-red-50 rounded-lg border border-red-100">
-                                        <div>
-                                            <div className="font-semibold text-cafe-900">{item.name}</div>
-                                            <div className="text-xs text-cafe-500">เสีย {item.wasteQty} ชิ้น</div>
-                                        </div>
-                                        <div className="text-right">
-                                            <div className="font-bold text-red-600">-฿{item.wasteCost.toLocaleString()}</div>
-                                            <div className="text-xs text-red-400">{item.percentOfTotalWaste.toFixed(1)}% ของยอดรวม</div>
-                                        </div>
-                                    </div>
-                                ))}
-                                {analyticsData?.wasteItems.length === 0 && (
-                                    <div className="text-center py-8 text-cafe-400">ไม่มีข้อมูลของเสีย</div>
-                                )}
+                                    {/* Threshold Lines */}
+                                    <ReferenceLine x={analyticsData?.matrix.thresholds.avgSold} stroke="#9ca3af" strokeDasharray="3 3" />
+                                    <ReferenceLine y={analyticsData?.matrix.thresholds.avgProfit} stroke="#9ca3af" strokeDasharray="3 3" />
+
+                                    {/* Quadrant Labels */}
+                                    <ReferenceArea
+                                        x1={analyticsData?.matrix.thresholds.avgSold}
+                                        y1={analyticsData?.matrix.thresholds.avgProfit}
+                                        fill="transparent"
+                                        label={{ value: '⭐ STAR', position: 'insideTopRight', fill: '#15803d', fontSize: 12, fontWeight: 'bold' }}
+                                    />
+                                    <ReferenceArea
+                                        x2={analyticsData?.matrix.thresholds.avgSold}
+                                        y1={analyticsData?.matrix.thresholds.avgProfit}
+                                        fill="transparent"
+                                        label={{ value: '🧩 PUZZLE', position: 'insideTopLeft', fill: '#1d4ed8', fontSize: 12, fontWeight: 'bold' }}
+                                    />
+                                    <ReferenceArea
+                                        x1={analyticsData?.matrix.thresholds.avgSold}
+                                        y2={analyticsData?.matrix.thresholds.avgProfit}
+                                        fill="transparent"
+                                        label={{ value: '🐎 PLOWHORSE', position: 'insideBottomRight', fill: '#a16207', fontSize: 12, fontWeight: 'bold' }}
+                                    />
+                                    <ReferenceArea
+                                        x2={analyticsData?.matrix.thresholds.avgSold}
+                                        y2={analyticsData?.matrix.thresholds.avgProfit}
+                                        fill="transparent"
+                                        label={{ value: '🐕 DOG', position: 'insideBottomLeft', fill: '#b91c1c', fontSize: 12, fontWeight: 'bold' }}
+                                    />
+
+                                    <Scatter name="Menu Items" data={analyticsData?.matrix.data}>
+                                        {analyticsData?.matrix.data.map((entry, index) => (
+                                            <Cell key={`cell-${index}`} fill={
+                                                entry.class === 'Star' ? '#22c55e' :
+                                                    entry.class === 'Plowhorse' ? '#eab308' :
+                                                        entry.class === 'Puzzle' ? '#3b82f6' : '#ef4444'
+                                            } stroke="white" strokeWidth={2} />
+                                        ))}
+                                    </Scatter>
+                                </ScatterChart>
+                            </ResponsiveContainer>
+                        </div>
+                        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mt-4">
+                            <div className="flex items-center gap-2 p-2 rounded-lg bg-green-50 border border-green-100">
+                                <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center text-lg">⭐</div>
+                                <div>
+                                    <div className="text-xs font-bold text-green-800">Star</div>
+                                    <div className="text-[10px] text-green-600">กำไรสูง / ขายดี</div>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-2 p-2 rounded-lg bg-yellow-50 border border-yellow-100">
+                                <div className="w-8 h-8 rounded-full bg-yellow-100 flex items-center justify-center text-lg">🐎</div>
+                                <div>
+                                    <div className="text-xs font-bold text-yellow-800">Plowhorse</div>
+                                    <div className="text-[10px] text-yellow-600">กำไรต่ำ / ขายดี</div>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-2 p-2 rounded-lg bg-blue-50 border border-blue-100">
+                                <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-lg">🧩</div>
+                                <div>
+                                    <div className="text-xs font-bold text-blue-800">Puzzle</div>
+                                    <div className="text-[10px] text-blue-600">กำไรสูง / ขายน้อย</div>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-2 p-2 rounded-lg bg-red-50 border border-red-100">
+                                <div className="w-8 h-8 rounded-full bg-red-100 flex items-center justify-center text-lg">🐕</div>
+                                <div>
+                                    <div className="text-xs font-bold text-red-800">Dog</div>
+                                    <div className="text-[10px] text-red-600">กำไรต่ำ / ขายน้อย</div>
+                                </div>
                             </div>
                         </div>
                     </div>
 
-                    {/* 🤖 AI Recommendation Cards - NEW! */}
+                    {/* Demand Variability Matrix - Full Width */}
+                    <div className="bg-white border border-cafe-200 rounded-2xl p-6 shadow-sm">
+                        <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4 mb-6">
+                            <div>
+                                <h3 className="text-xl font-bold text-cafe-800 mb-2">📈 วิเคราะห์ความผันผวน (Demand Variability)</h3>
+                                <p className="text-sm text-cafe-600 max-w-2xl">
+                                    ใช้ค่า <strong>Coefficient of Variation (CV = StdDev/Mean)</strong> วิเคราะห์ความเสถียรของยอดขายรายวัน
+                                    ช่วยวางแผนการผลิตและจัดการ buffer สินค้าได้แม่นยำขึ้น
+                                </p>
+                            </div>
+                            <div className="flex-shrink-0 bg-cafe-50 rounded-xl p-3 text-xs text-cafe-600 border border-cafe-100">
+                                <div className="font-semibold mb-1">📊 สูตร CV</div>
+                                <div>CV = ค่าเบี่ยงเบนมาตรฐาน / ค่าเฉลี่ย</div>
+                                <div className="mt-1 text-cafe-500">CV ต่ำ = เสถียร | CV สูง = ผันผวน</div>
+                            </div>
+                        </div>
+                        <div className="h-[350px]">
+                            <ResponsiveContainer width="100%" height="100%">
+                                <ScatterChart margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
+                                    <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
+                                    <XAxis type="number" dataKey="avgDailySales" name="Avg Daily" unit=" ชิ้น/วัน" stroke="#9ca3af" fontSize={11} tickLine={false} axisLine={false} />
+                                    <YAxis type="number" dataKey="cv" name="CV" stroke="#9ca3af" fontSize={11} tickLine={false} axisLine={false} />
+                                    <Tooltip
+                                        cursor={{ strokeDasharray: '3 3' }}
+                                        content={({ active, payload }) => {
+                                            if (active && payload && payload.length) {
+                                                const data = payload[0].payload;
+                                                return (
+                                                    <div className="bg-white/90 backdrop-blur-sm p-3 border border-cafe-100 shadow-xl rounded-xl">
+                                                        <p className="font-bold text-cafe-900 mb-1">{data.name}</p>
+                                                        <div className="space-y-1 text-xs text-cafe-600">
+                                                            <div className="flex justify-between gap-4">
+                                                                <span>เฉลี่ย/วัน:</span>
+                                                                <span className="font-semibold">{data.avgDailySales.toFixed(1)} ชิ้น</span>
+                                                            </div>
+                                                            <div className="flex justify-between gap-4">
+                                                                <span>CV (ความผันผวน):</span>
+                                                                <span className="font-semibold">{(data.cv * 100).toFixed(0)}%</span>
+                                                            </div>
+                                                            <div className={`mt-2 px-2 py-1 rounded text-center font-bold text-white ${data.class === 'CashCow' ? 'bg-green-500' :
+                                                                data.class === 'WildCard' ? 'bg-purple-500' :
+                                                                    data.class === 'SlowMover' ? 'bg-blue-500' : 'bg-orange-500'
+                                                                }`}>
+                                                                {data.class === 'CashCow' ? '🐄 Cash Cow' :
+                                                                    data.class === 'WildCard' ? '🃏 Wild Card' :
+                                                                        data.class === 'SlowMover' ? '🐢 Slow Mover' : '❓ Question Mark'}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            }
+                                            return null;
+                                        }}
+                                    />
+                                    {/* Quadrant Backgrounds */}
+                                    <ReferenceArea x1={analyticsData?.demandVariability.thresholds.avgVelocity} y2={analyticsData?.demandVariability.thresholds.avgCV} fill="#22c55e" fillOpacity={0.05} />
+                                    <ReferenceArea x1={analyticsData?.demandVariability.thresholds.avgVelocity} y1={analyticsData?.demandVariability.thresholds.avgCV} fill="#a855f7" fillOpacity={0.05} />
+                                    <ReferenceArea x2={analyticsData?.demandVariability.thresholds.avgVelocity} y2={analyticsData?.demandVariability.thresholds.avgCV} fill="#3b82f6" fillOpacity={0.05} />
+                                    <ReferenceArea x2={analyticsData?.demandVariability.thresholds.avgVelocity} y1={analyticsData?.demandVariability.thresholds.avgCV} fill="#f97316" fillOpacity={0.05} />
+                                    {/* Threshold Lines */}
+                                    <ReferenceLine x={analyticsData?.demandVariability.thresholds.avgVelocity} stroke="#9ca3af" strokeDasharray="3 3" />
+                                    <ReferenceLine y={analyticsData?.demandVariability.thresholds.avgCV} stroke="#9ca3af" strokeDasharray="3 3" />
+                                    <Scatter name="Products" data={analyticsData?.demandVariability.data}>
+                                        {analyticsData?.demandVariability.data.map((entry, index) => (
+                                            <Cell key={`cell-${index}`} fill={
+                                                entry.class === 'CashCow' ? '#22c55e' :
+                                                    entry.class === 'WildCard' ? '#a855f7' :
+                                                        entry.class === 'SlowMover' ? '#3b82f6' : '#f97316'
+                                            } stroke="white" strokeWidth={2} />
+                                        ))}
+                                    </Scatter>
+                                </ScatterChart>
+                            </ResponsiveContainer>
+                        </div>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4">
+                            <div className="flex items-center gap-2 p-2 rounded-lg bg-green-50 border border-green-100">
+                                <span className="text-lg">🐄</span>
+                                <div>
+                                    <div className="text-xs font-bold text-green-800">Cash Cow</div>
+                                    <div className="text-[10px] text-green-600">ขายดี+เสถียร</div>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-2 p-2 rounded-lg bg-purple-50 border border-purple-100">
+                                <span className="text-lg">🃏</span>
+                                <div>
+                                    <div className="text-xs font-bold text-purple-800">Wild Card</div>
+                                    <div className="text-[10px] text-purple-600">ขายดี+ผันผวน</div>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-2 p-2 rounded-lg bg-blue-50 border border-blue-100">
+                                <span className="text-lg">🐢</span>
+                                <div>
+                                    <div className="text-xs font-bold text-blue-800">Slow Mover</div>
+                                    <div className="text-[10px] text-blue-600">ขายช้า+เสถียร</div>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-2 p-2 rounded-lg bg-orange-50 border border-orange-100">
+                                <span className="text-lg">❓</span>
+                                <div>
+                                    <div className="text-xs font-bold text-orange-800">Question Mark</div>
+                                    <div className="text-[10px] text-orange-600">ขายช้า+ผันผวน</div>
+                                </div>
+                            </div>
+                        </div>
+                        {analyticsData?.demandVariability.data.length === 0 && (
+                            <div className="text-center py-8 text-cafe-400">ต้องมีข้อมูลอย่างน้อย 2 วันขึ้นไป</div>
+                        )}
+                    </div>
+
+                    {/* 🤖 AI Recommendation Cards */}
                     <div className="bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 p-[2px] rounded-2xl">
                         <div className="bg-white rounded-2xl p-5">
-                            <div className="flex items-center justify-between mb-4">
-                                <div className="flex items-center gap-3">
-                                    <div className="w-10 h-10 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center">
-                                        <Sparkles className="text-white" size={20} />
-                                    </div>
-                                    <div>
-                                        <h3 className="font-bold text-gray-800">🤖 AI แนะนำสิ่งที่ควรทำ</h3>
-                                        <p className="text-xs text-gray-500">จากการวิเคราะห์ Menu Engineering</p>
-                                    </div>
+                            <div className="flex items-center gap-3 mb-4">
+                                <div className="w-10 h-10 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center">
+                                    <Sparkles className="text-white" size={20} />
+                                </div>
+                                <div>
+                                    <h3 className="font-bold text-gray-800">🤖 AI แนะนำสิ่งที่ควรทำ</h3>
+                                    <p className="text-xs text-gray-500">จากการวิเคราะห์ Menu Engineering และ Demand Variability</p>
                                 </div>
                             </div>
 
@@ -720,20 +809,6 @@ export const ProductionPlanner: React.FC = () => {
                                     </div>
                                 ))}
 
-                                {/* Plowhorse Recommendations */}
-                                {analyticsData?.matrix.data.filter(d => d.class === 'Plowhorse').slice(0, 2).map((item, idx) => (
-                                    <div key={`plowhorse-${idx}`} className="p-3 bg-yellow-50 rounded-xl border border-yellow-200">
-                                        <div className="flex items-center gap-2 mb-2">
-                                            <span className="text-lg">🐎</span>
-                                            <span className="font-bold text-yellow-800 text-sm">{item.name}</span>
-                                        </div>
-                                        <p className="text-xs text-yellow-700">
-                                            💡 ขายดี {item.soldQty} ชิ้น แต่กำไรแค่ ฿{item.profitPerUnit}/ชิ้น
-                                        </p>
-                                        <p className="text-xs text-yellow-600 mt-1">→ ลองขึ้นราคา หรือลดต้นทุนวัตถุดิบ</p>
-                                    </div>
-                                ))}
-
                                 {/* Dog Warning */}
                                 {analyticsData?.matrix.data.filter(d => d.class === 'Dog').slice(0, 2).map((item, idx) => (
                                     <div key={`dog-${idx}`} className="p-3 bg-red-50 rounded-xl border border-red-200">
@@ -747,112 +822,24 @@ export const ProductionPlanner: React.FC = () => {
                                         <p className="text-xs text-red-600 mt-1">→ พิจารณาปรับสูตร หรือเลิกขาย</p>
                                     </div>
                                 ))}
+
+                                {/* Wild Card Warning */}
+                                {analyticsData?.demandVariability.data.filter(d => d.class === 'WildCard').slice(0, 2).map((item, idx) => (
+                                    <div key={`wild-${idx}`} className="p-3 bg-purple-50 rounded-xl border border-purple-200">
+                                        <div className="flex items-center gap-2 mb-2">
+                                            <span className="text-lg">🃏</span>
+                                            <span className="font-bold text-purple-800 text-sm">{item.name}</span>
+                                        </div>
+                                        <p className="text-xs text-purple-700">
+                                            📊 ยอดขายผันผวน CV {(item.cv * 100).toFixed(0)}%
+                                        </p>
+                                        <p className="text-xs text-purple-600 mt-1">→ เผื่อ buffer การผลิต หรือทำ pre-order</p>
+                                    </div>
+                                ))}
                             </div>
 
                             {analyticsData?.matrix.data.length === 0 && (
                                 <div className="text-center py-8 text-gray-400">ยังไม่มีข้อมูลการขายเพียงพอ</div>
-                            )}
-                        </div>
-                    </div>
-
-                    {/* Bottom Row: ABC Analysis with Profit Heatmap */}
-                    <div className="bg-white border border-cafe-200 rounded-xl p-4 shadow-sm">
-                        <div className="flex items-center justify-between mb-4">
-                            <h3 className="text-lg font-bold text-cafe-800">📊 วิเคราะห์ ABC (สัดส่วนรายได้)</h3>
-                            <button
-                                onClick={() => {
-                                    const csv = analyticsData?.abcItems.map(item =>
-                                        `${item.class},${item.name},${item.revenue},${item.cumulativePercent.toFixed(1)}%`
-                                    ).join('\n');
-                                    const blob = new Blob([`เกรด,สินค้า,รายได้,สะสม%\n${csv}`], { type: 'text/csv' });
-                                    const url = URL.createObjectURL(blob);
-                                    const a = document.createElement('a');
-                                    a.href = url;
-                                    a.download = `abc-analysis-${new Date().toISOString().split('T')[0]}.csv`;
-                                    a.click();
-                                }}
-                                className="flex items-center gap-2 px-3 py-1.5 bg-cafe-100 hover:bg-cafe-200 rounded-lg text-sm text-cafe-700 transition-colors"
-                            >
-                                📥 Export CSV
-                            </button>
-                        </div>
-
-                        {/* Mobile Cards View */}
-                        <div className="md:hidden space-y-2">
-                            {analyticsData?.abcItems.slice(0, 10).map((item) => (
-                                <div
-                                    key={item.id}
-                                    className={`p-3 rounded-xl border-2 ${item.class === 'A' ? 'bg-gradient-to-r from-green-50 to-emerald-50 border-green-200' :
-                                        item.class === 'B' ? 'bg-gradient-to-r from-yellow-50 to-amber-50 border-yellow-200' :
-                                            'bg-gradient-to-r from-gray-50 to-slate-50 border-gray-200'
-                                        }`}
-                                >
-                                    <div className="flex items-center justify-between">
-                                        <div className="flex items-center gap-2">
-                                            <span className={`px-2 py-1 rounded text-xs font-bold ${item.class === 'A' ? 'bg-green-500 text-white' :
-                                                item.class === 'B' ? 'bg-yellow-500 text-white' :
-                                                    'bg-gray-400 text-white'
-                                                }`}>
-                                                {item.class}
-                                            </span>
-                                            <span className="font-semibold text-cafe-800 text-sm">{item.name}</span>
-                                        </div>
-                                        <div className="text-right">
-                                            <div className="font-bold text-cafe-900">฿{item.revenue.toLocaleString()}</div>
-                                            <div className="text-xs text-cafe-500">{item.cumulativePercent.toFixed(1)}%</div>
-                                        </div>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-
-                        {/* Desktop Table View */}
-                        <div className="hidden md:block overflow-x-auto">
-                            <table className="w-full">
-                                <thead className="bg-cafe-50">
-                                    <tr>
-                                        <th className="px-4 py-2 text-left text-sm font-semibold text-cafe-700">เกรด</th>
-                                        <th className="px-4 py-2 text-left text-sm font-semibold text-cafe-700">สินค้า</th>
-                                        <th className="px-4 py-2 text-right text-sm font-semibold text-cafe-700">รายได้</th>
-                                        <th className="px-4 py-2 text-right text-sm font-semibold text-cafe-700">สะสม %</th>
-                                        <th className="px-4 py-2 text-center text-sm font-semibold text-cafe-700">Heatmap</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-cafe-100">
-                                    {analyticsData?.abcItems.slice(0, 10).map((item, idx) => {
-                                        const maxRevenue = analyticsData.abcItems[0]?.revenue || 1;
-                                        const heatLevel = Math.round((item.revenue / maxRevenue) * 100);
-                                        return (
-                                            <tr key={item.id} className="hover:bg-cafe-50 transition-colors">
-                                                <td className="px-4 py-2">
-                                                    <span className={`px-2 py-1 rounded text-xs font-bold ${item.class === 'A' ? 'bg-green-100 text-green-700' :
-                                                        item.class === 'B' ? 'bg-yellow-100 text-yellow-700' :
-                                                            'bg-gray-100 text-gray-700'
-                                                        }`}>
-                                                        เกรด {item.class}
-                                                    </span>
-                                                </td>
-                                                <td className="px-4 py-2 text-sm text-cafe-900 font-medium">{item.name}</td>
-                                                <td className="px-4 py-2 text-right text-sm text-cafe-900 font-bold">฿{item.revenue.toLocaleString()}</td>
-                                                <td className="px-4 py-2 text-right text-sm text-cafe-500">{item.cumulativePercent.toFixed(1)}%</td>
-                                                <td className="px-4 py-3">
-                                                    <div className="w-full bg-gray-100 rounded-full h-2.5 overflow-hidden">
-                                                        <div
-                                                            className={`h-2.5 rounded-full transition-all ${heatLevel > 70 ? 'bg-gradient-to-r from-green-400 to-emerald-500' :
-                                                                heatLevel > 40 ? 'bg-gradient-to-r from-yellow-400 to-amber-500' :
-                                                                    'bg-gradient-to-r from-red-300 to-red-400'
-                                                                }`}
-                                                            style={{ width: `${heatLevel}%` }}
-                                                        />
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                        );
-                                    })}
-                                </tbody>
-                            </table>
-                            {analyticsData?.abcItems && analyticsData.abcItems.length > 10 && (
-                                <div className="text-center mt-2 text-xs text-cafe-500">แสดง 10 อันดับแรกจาก {analyticsData.abcItems.length} รายการ</div>
                             )}
                         </div>
                     </div>

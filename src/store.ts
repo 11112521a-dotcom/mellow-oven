@@ -31,8 +31,11 @@ interface AppState {
 
     // Allocation Profiles
     allocationProfiles: AllocationProfile[];
+    defaultProfileId: string | null;
     saveAllocationProfile: (profile: AllocationProfile) => void;
     deleteAllocationProfile: (id: string) => void;
+    setDefaultProfile: (profileId: string | null) => void;
+    renameAllocationProfile: (profileId: string, newName: string) => void;
 
     // Product Sales Analytics
     productSales: ProductSaleLog[];
@@ -325,6 +328,7 @@ export const useStore = create<AppState>()(
                     }
                 }
             ],
+            defaultProfileId: 'default', // Default profile ID
 
             // Product Sales Analytics
             productSales: [],
@@ -689,6 +693,18 @@ export const useStore = create<AppState>()(
             deleteAllocationProfile: (id) => {
                 set((state) => ({
                     allocationProfiles: state.allocationProfiles.filter(p => p.id !== id)
+                }));
+            },
+
+            setDefaultProfile: (profileId) => {
+                set({ defaultProfileId: profileId });
+            },
+
+            renameAllocationProfile: (profileId, newName) => {
+                set((state) => ({
+                    allocationProfiles: state.allocationProfiles.map(p =>
+                        p.id === profileId ? { ...p, name: newName } : p
+                    )
                 }));
             },
 
@@ -1526,7 +1542,8 @@ export const useStore = create<AppState>()(
                 storeName: state.storeName,
                 jars: state.jars,
                 jarCustomizations: state.jarCustomizations,
-                allocationProfiles: state.allocationProfiles, // Add this line
+                allocationProfiles: state.allocationProfiles,
+                defaultProfileId: state.defaultProfileId, // Persist default profile
                 products: state.products, // Persist products to save local variants
                 productSales: state.productSales // Persist sales logs for offline support
             })

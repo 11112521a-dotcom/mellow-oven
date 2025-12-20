@@ -522,10 +522,11 @@ export const MenuStockPlanner: React.FC = () => {
         const modalItems = items.map(item => {
             const saved = getSavedRecord(item);
             const stockYesterday = saved.stockYesterday ?? getYesterdayForItem(item);
-            // FIX: Calculate AVAILABLE stock = yesterday + produced + pending - already sent
-            const totalProduced = stockYesterday + (saved.producedQty || 0) + (pendingProduction[item.id] || 0);
+            // FIX: Only use CONFIRMED values from DB, NOT pending inputs
+            // pendingProduction is NOT saved yet, so don't include it
+            const confirmedStock = stockYesterday + (saved.producedQty || 0);
             const alreadySent = saved.toShopQty || 0;
-            const availableStock = Math.max(0, totalProduced - alreadySent);
+            const availableStock = Math.max(0, confirmedStock - alreadySent);
             return {
                 item,
                 value: availableStock,
@@ -668,31 +669,6 @@ export const MenuStockPlanner: React.FC = () => {
         await fetchDailyInventory(businessDate);
     };
 
-    const handleSaveAll = async () => {
-        setIsSaving(true);
-        // Save any remaining pending values
-        for (const item of inventoryItems) {
-            const saved = getSavedRecord(item);
-            const pendingProd = pendingProduction[item.id] || 0;
-            const pendingTrans = pendingTransfer[item.id] || 0;
-
-            if (pendingProd > 0 || pendingTrans > 0) {
-                await upsertDailyInventory({
-                    businessDate,
-                    productId: item.productId,
-                    variantId: item.variantId,
-                    variantName: item.isVariant ? item.name : undefined,
-                    producedQty: (saved.producedQty || 0) + pendingProd,
-                    toShopQty: (saved.toShopQty || 0) + pendingTrans,
-                    stockYesterday: saved.stockYesterday ?? getYesterdayForItem(item)
-                });
-            }
-        }
-        setPendingProduction({});
-        setPendingTransfer({});
-        await fetchDailyInventory(businessDate);
-        setIsSaving(false);
-    };
 
     // Bulk Production - Smart Logic (Add Value OR Fill to Target)
     const handleBulkProductionConfirm = async (productId: string, value: number, targetValue: number = 0) => {
@@ -1190,17 +1166,6 @@ export const MenuStockPlanner: React.FC = () => {
                 </div>
             )}
 
-            {/* Save All Button */}
-            <div className="flex justify-end">
-                <button
-                    onClick={handleSaveAll}
-                    disabled={isSaving}
-                    className="flex items-center gap-3 px-8 py-4 bg-gradient-to-r from-cafe-700 to-cafe-900 text-white rounded-xl hover:shadow-xl transition-all duration-300 disabled:opacity-50 font-medium"
-                >
-                    <Save size={20} />
-                    {isSaving ? 'กำลังบันทึก...' : 'บันทึกทั้งหมด'}
-                </button>
-            </div>
 
             {/* Confirmation Modal */}
             {confirmModal && (
