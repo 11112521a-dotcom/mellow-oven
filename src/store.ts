@@ -32,10 +32,10 @@ interface AppState {
     // Allocation Profiles
     allocationProfiles: AllocationProfile[];
     defaultProfileId: string | null;
-    saveAllocationProfile: (profile: AllocationProfile) => void;
-    deleteAllocationProfile: (id: string) => void;
-    setDefaultProfile: (profileId: string | null) => void;
-    renameAllocationProfile: (profileId: string, newName: string) => void;
+    saveAllocationProfile: (profile: AllocationProfile) => Promise<void>;
+    deleteAllocationProfile: (id: string) => Promise<void>;
+    setDefaultProfile: (profileId: string | null) => Promise<void>;
+    renameAllocationProfile: (profileId: string, newName: string) => Promise<void>;
 
     // Product Sales Analytics
     productSales: ProductSaleLog[];
@@ -150,7 +150,8 @@ export const useStore = create<AppState>()(
                 const { data: transactions } = await supabase.from('transactions').select('*').order('date', { ascending: false });
                 const { data: productSales } = await supabase.from('product_sales').select('*').order('sale_date', { ascending: false });
                 const { data: productionForecasts } = await supabase.from('production_forecasts').select('*').order('forecast_for_date', { ascending: false });
-                const { data: unallocatedProfitsData } = await supabase.from('unallocated_profits').select('*').order('date', { ascending: false }); // FIX: Load unallocated profits!
+                const { data: unallocatedProfitsData } = await supabase.from('unallocated_profits').select('*').order('date', { ascending: false });
+                const { data: allocationProfilesData } = await supabase.from('allocation_profiles').select('*').order('created_at', { ascending: true });
 
                 // Map snake_case from DB to camelCase for App
                 const mappedIngredients = ingredients?.map(i => ({
@@ -219,7 +220,22 @@ export const useStore = create<AppState>()(
                     outliersRemoved: f.outliers_removed
                 })) || [];
 
-                // Calculate Jar Balances from Transactions
+                // Map allocation_profiles from Supabase to app format
+                const mappedAllocationProfiles = allocationProfilesData?.map(p => ({
+                    id: p.id,
+                    name: p.name,
+                    allocations: {
+                        Working: Number(p.alloc_working),
+                        CapEx: Number(p.alloc_capex),
+                        Opex: Number(p.alloc_opex),
+                        Emergency: Number(p.alloc_emergency),
+                        Owner: Number(p.alloc_owner)
+                    }
+                })) || [];
+
+                // Find default profile ID from Supabase
+                const defaultProfile = allocationProfilesData?.find(p => p.is_default);
+                const dbDefaultProfileId = defaultProfile?.id || null;
                 const calculatedBalances: Record<string, number> = {
                     'Working': 0,
                     'CapEx': 0,
@@ -277,7 +293,9 @@ export const useStore = create<AppState>()(
                             amount: p.amount,
                             source: p.source,
                             createdAt: p.created_at
-                        })) || state.unallocatedProfits, // FIX: Load unallocated profits from DB!
+                        })) || state.unallocatedProfits,
+                        allocationProfiles: mappedAllocationProfiles.length > 0 ? mappedAllocationProfiles : state.allocationProfiles,
+                        defaultProfileId: dbDefaultProfileId || state.defaultProfileId,
                         jars: state.jars.map(jar => ({
                             ...jar,
                             balance: calculatedBalances[jar.id] || 0
@@ -676,7 +694,8 @@ export const useStore = create<AppState>()(
             },
 
             // Allocation Profile Actions
-            saveAllocationProfile: (profile) => {
+            saveAllocationProfile: async (profile) => {
+                // Optimistic update (immediate UI response)
                 set((state) => {
                     const existing = state.allocationProfiles.find(p => p.id === profile.id);
                     if (existing) {
@@ -688,24 +707,66 @@ export const useStore = create<AppState>()(
                         allocationProfiles: [...state.allocationProfiles, profile]
                     };
                 });
+
+                // Persist to Supabase
+                const dbProfile = {
+                    id: profile.id,
+                    name: profile.name,
+                    alloc_working: profile.allocations.Working,
+                    alloc_capex: profile.allocations.CapEx,
+                    alloc_opex: profile.allocations.Opex,
+                    alloc_emergency: profile.allocations.Emergency,
+                    alloc_owner: profile.allocations.Owner,
+                    updated_at: new Date().toISOString()
+                };
+
+                const { error } = await supabase.from('allocation_profiles').upsert(dbProfile);
+                if (error) {
+                    console.error('[AllocationProfile] Save failed:', error);
+                }
             },
 
-            deleteAllocationProfile: (id) => {
+            deleteAllocationProfile: async (id) => {
+                // Optimistic update
                 set((state) => ({
                     allocationProfiles: state.allocationProfiles.filter(p => p.id !== id)
                 }));
+
+                // Persist to Supabase
+                const { error } = await supabase.from('allocation_profiles').delete().eq('id', id);
+                if (error) {
+                    console.error('[AllocationProfile] Delete failed:', error);
+                }
             },
 
-            setDefaultProfile: (profileId) => {
+            setDefaultProfile: async (profileId) => {
+                // Optimistic update
                 set({ defaultProfileId: profileId });
+
+                // Persist to Supabase: reset all to false, then set selected to true
+                await supabase.from('allocation_profiles').update({ is_default: false }).neq('id', '');
+                const { error } = await supabase.from('allocation_profiles').update({ is_default: true }).eq('id', profileId);
+                if (error) {
+                    console.error('[AllocationProfile] Set default failed:', error);
+                }
             },
 
-            renameAllocationProfile: (profileId, newName) => {
+            renameAllocationProfile: async (profileId, newName) => {
+                // Optimistic update
                 set((state) => ({
                     allocationProfiles: state.allocationProfiles.map(p =>
                         p.id === profileId ? { ...p, name: newName } : p
                     )
                 }));
+
+                // Persist to Supabase
+                const { error } = await supabase
+                    .from('allocation_profiles')
+                    .update({ name: newName, updated_at: new Date().toISOString() })
+                    .eq('id', profileId);
+                if (error) {
+                    console.error('[AllocationProfile] Rename failed:', error);
+                }
             },
 
             // Product Sales Analytics Functions
@@ -1542,8 +1603,7 @@ export const useStore = create<AppState>()(
                 storeName: state.storeName,
                 jars: state.jars,
                 jarCustomizations: state.jarCustomizations,
-                allocationProfiles: state.allocationProfiles,
-                defaultProfileId: state.defaultProfileId, // Persist default profile
+                defaultProfileId: state.defaultProfileId, // Persist default profile selection
                 products: state.products, // Persist products to save local variants
                 productSales: state.productSales // Persist sales logs for offline support
             })
