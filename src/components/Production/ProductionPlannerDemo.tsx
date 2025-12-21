@@ -207,7 +207,7 @@ export const ProductionPlannerDemo: React.FC = () => {
                                     <div className="flex justify-between text-sm mb-1">
                                         <span className="text-cafe-600">Stockout Probability</span>
                                         <span className="font-bold text-red-600">
-                                            {(forecast.stockoutProbability * 100).toFixed(1)}%
+                                            {isNaN(forecast.stockoutProbability) ? '0.0' : (forecast.stockoutProbability * 100).toFixed(1)}%
                                         </span>
                                     </div>
                                     <div className="w-full bg-gray-200 rounded-full h-2">
@@ -222,7 +222,7 @@ export const ProductionPlannerDemo: React.FC = () => {
                                     <div className="flex justify-between text-sm mb-1">
                                         <span className="text-cafe-600">Waste Probability</span>
                                         <span className="font-bold text-yellow-600">
-                                            {(forecast.wasteProbability * 100).toFixed(1)}%
+                                            {isNaN(forecast.wasteProbability) ? '0.0' : (forecast.wasteProbability * 100).toFixed(1)}%
                                         </span>
                                     </div>
                                     <div className="w-full bg-gray-200 rounded-full h-2">

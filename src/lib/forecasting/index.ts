@@ -198,6 +198,10 @@ export async function calculateOptimalProduction(
             wasteProbability = negativeBinomialCDF(Q - 1, distribution.r, distribution.p);
         }
 
+        // FIX: Ensure probabilities are valid numbers (prevent NaN)
+        if (isNaN(stockoutProbability) || !isFinite(stockoutProbability)) stockoutProbability = 0.5;
+        if (isNaN(wasteProbability) || !isFinite(wasteProbability)) wasteProbability = 0.5;
+
         // Prediction interval
         const stdDev = Math.sqrt(variance);
         const predictionInterval = {

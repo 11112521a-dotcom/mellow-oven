@@ -253,3 +253,115 @@ export interface DailyInventory {
   leftoverHome: number;  // = stockYesterday + produced - toShop - waste
   unsoldShop: number;    // = toShop - sold
 }
+
+// ==================== PROMOTION & SNACK BOX SYSTEM ====================
+
+export interface Promotion {
+  id: string;
+  name: string;
+  description?: string;
+
+  // Product
+  productId: string;
+  productName: string;
+  variantId?: string;
+  variantName?: string;
+
+  // Pricing
+  originalPrice: number;
+  discountPrice: number;
+  discountPercent: number;
+
+  // Conditions
+  minQuantity: number;
+  maxQuantity?: number;
+  validFrom?: string;
+  validUntil?: string;
+
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Bundle {
+  id: string;
+  name: string;
+  description?: string;
+
+  bundlePrice: number;
+  estimatedCost: number;
+  profitMargin: number;
+
+  items: BundleItem[];
+
+  isActive: boolean;
+  imageUrl?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface BundleItem {
+  id: string;
+  bundleId: string;
+
+  productId: string;
+  productName: string;
+  variantId?: string;
+  variantName?: string;
+
+  quantity: number;
+  unitCost: number;
+  subtotalCost: number;
+  sortOrder: number;
+}
+
+export type SpecialOrderType = 'promotion' | 'bundle' | 'custom';
+export type SpecialOrderStatus = 'pending' | 'confirmed' | 'producing' | 'delivered' | 'cancelled';
+
+export interface SpecialOrder {
+  id: string;
+  orderNumber: string;
+  orderDate: string;
+  deliveryDate: string;
+
+  orderType: SpecialOrderType;
+  promotionId?: string;
+  bundleId?: string;
+
+  customerName?: string;
+  customerPhone?: string;
+  customerNote?: string;
+
+  totalQuantity: number;
+  totalRevenue: number;
+  totalCost: number;
+  grossProfit: number;
+
+  items: SpecialOrderItem[];
+
+  status: SpecialOrderStatus;
+  stockDeducted: boolean;
+  stockDeductedAt?: string;
+
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SpecialOrderItem {
+  id: string;
+  specialOrderId: string;
+
+  productId: string;
+  productName: string;
+  variantId?: string;
+  variantName?: string;
+
+  quantity: number;
+  unitPrice: number;
+  unitCost: number;
+
+  subtotalRevenue: number;
+  subtotalCost: number;
+  subtotalProfit: number;
+  sortOrder: number;
+}

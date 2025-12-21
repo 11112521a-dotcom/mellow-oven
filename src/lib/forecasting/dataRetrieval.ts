@@ -59,7 +59,7 @@ export async function fetchAndCleanData(
     productId: string,
     variantId?: string,
     holidays: string[] = [],
-    maxHistoryDays: number = 180,
+    maxHistoryDays: number = 365,
     marketName?: string,
     targetDate?: string // NEW: The date we're forecasting for (to match day-of-week)
 ): Promise<DataCleaningResult> {

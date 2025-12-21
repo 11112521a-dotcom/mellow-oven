@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { LayoutDashboard, Wallet, Package, ShoppingBag, Menu, TrendingUp, X, LogOut } from 'lucide-react';
+import { LayoutDashboard, Wallet, Package, ShoppingBag, Menu, TrendingUp, X, LogOut, Tag } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useStore } from '@/src/store';
 
@@ -19,6 +19,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, activeTab, onTabChange
         { id: 'salesreport', label: 'รายงานการขาย', icon: TrendingUp },
         { id: 'menustock', label: 'สต็อกเมนู', icon: Package },
         { id: 'production', label: 'การผลิต (AI)', icon: TrendingUp },
+        { id: 'promotion', label: 'โปรโมชั่น', icon: Tag },
         { id: 'inventory', label: 'สต็อก & จัดซื้อ', icon: Package },
         { id: 'financials', label: 'การเงิน', icon: Wallet },
     ];

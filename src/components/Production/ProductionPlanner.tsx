@@ -432,11 +432,11 @@ export const ProductionPlanner: React.FC = () => {
                                                 {/* Stats Row - 2 columns only */}
                                                 <div className="grid grid-cols-2 gap-3 mb-4">
                                                     <div className="text-center p-3 bg-gradient-to-br from-rose-50 to-pink-50 rounded-xl">
-                                                        <p className="text-2xl font-bold text-rose-500">{(result.forecast.stockoutProbability * 100).toFixed(0)}%</p>
+                                                        <p className="text-2xl font-bold text-rose-500">{isNaN(result.forecast.stockoutProbability) ? '0' : (result.forecast.stockoutProbability * 100).toFixed(0)}%</p>
                                                         <p className="text-xs text-rose-400">ขาด</p>
                                                     </div>
                                                     <div className="text-center p-3 bg-gradient-to-br from-amber-50 to-orange-50 rounded-xl">
-                                                        <p className="text-2xl font-bold text-amber-500">{(result.forecast.wasteProbability * 100).toFixed(0)}%</p>
+                                                        <p className="text-2xl font-bold text-amber-500">{isNaN(result.forecast.wasteProbability) ? '0' : (result.forecast.wasteProbability * 100).toFixed(0)}%</p>
                                                         <p className="text-xs text-amber-400">เหลือ</p>
                                                     </div>
                                                 </div>

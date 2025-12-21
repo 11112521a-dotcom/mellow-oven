@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { supabase } from './lib/supabase';
-import { Jar, Transaction, Ingredient, PurchaseOrder, Product, DailyReport, JarType, Market, Goal, Alert, JarHistory, JarCustomization, UnallocatedProfit, ProductSaleLog, AllocationProfile, StockLog, DailyInventory } from '../types';
+import { Jar, Transaction, Ingredient, PurchaseOrder, Product, DailyReport, JarType, Market, Goal, Alert, JarHistory, JarCustomization, UnallocatedProfit, ProductSaleLog, AllocationProfile, StockLog, DailyInventory, Promotion, Bundle, BundleItem, SpecialOrder, SpecialOrderItem, SpecialOrderStatus } from '../types';
 import type { ForecastOutput } from './lib/forecasting';
 import { ProductionForecast, forecastOutputToDbFormat } from './lib/forecasting/types';
 
@@ -134,6 +134,31 @@ interface AppState {
     fetchDailyInventory: (date: string) => Promise<void>;
     upsertDailyInventory: (record: Partial<DailyInventory> & { businessDate: string; productId: string; variantId?: string }) => Promise<void>;
     getYesterdayStock: (productId: string, todayDate: string, variantId?: string) => number;
+
+    // Promotion & Snack Box System
+    promotions: Promotion[];
+    bundles: Bundle[];
+    specialOrders: SpecialOrder[];
+
+    // Promotion CRUD
+    addPromotion: (promo: Omit<Promotion, 'id' | 'createdAt' | 'updatedAt'>) => Promise<void>;
+    updatePromotion: (id: string, updates: Partial<Promotion>) => Promise<void>;
+    deletePromotion: (id: string) => Promise<void>;
+
+    // Bundle CRUD
+    addBundle: (bundle: Omit<Bundle, 'id' | 'createdAt' | 'updatedAt' | 'items'>, items: Omit<BundleItem, 'id' | 'bundleId'>[]) => Promise<void>;
+    updateBundle: (id: string, updates: Partial<Bundle>, items?: Omit<BundleItem, 'id' | 'bundleId'>[]) => Promise<void>;
+    deleteBundle: (id: string) => Promise<void>;
+
+    // Special Order CRUD
+    addSpecialOrder: (order: Omit<SpecialOrder, 'id' | 'createdAt' | 'updatedAt' | 'items' | 'orderNumber'>, items: Omit<SpecialOrderItem, 'id' | 'specialOrderId'>[]) => Promise<void>;
+    updateSpecialOrderStatus: (id: string, status: SpecialOrderStatus) => Promise<void>;
+    cancelSpecialOrder: (id: string) => Promise<void>;
+
+    // Special Order Helpers
+    getSpecialOrdersByDeliveryDate: (date: string) => SpecialOrder[];
+    getSpecialOrdersForProduction: (date: string) => { productId: string; variantId?: string; quantity: number; orderNumber: string }[];
+    syncDeliveredOrderProfits: () => Promise<number>;
 }
 
 export const useStore = create<AppState>()(
@@ -150,8 +175,20 @@ export const useStore = create<AppState>()(
                 const { data: transactions } = await supabase.from('transactions').select('*').order('date', { ascending: false });
                 const { data: productSales } = await supabase.from('product_sales').select('*').order('sale_date', { ascending: false });
                 const { data: productionForecasts } = await supabase.from('production_forecasts').select('*').order('forecast_for_date', { ascending: false });
-                const { data: unallocatedProfitsData } = await supabase.from('unallocated_profits').select('*').order('date', { ascending: false });
+                const { data: unallocatedProfitsData, error: profitsError } = await supabase.from('unallocated_profits').select('*').order('date', { ascending: false });
+                if (profitsError) {
+                    console.error('[fetchData] unallocated_profits fetch error:', profitsError);
+                } else {
+                    console.log('[fetchData] unallocated_profits loaded:', unallocatedProfitsData?.length || 0, 'records');
+                }
                 const { data: allocationProfilesData } = await supabase.from('allocation_profiles').select('*').order('created_at', { ascending: true });
+
+                // Promotion & Snack Box System
+                const { data: promotionsData } = await supabase.from('promotions').select('*').order('created_at', { ascending: false });
+                const { data: bundlesData } = await supabase.from('bundles').select('*').order('created_at', { ascending: false });
+                const { data: bundleItemsData } = await supabase.from('bundle_items').select('*');
+                const { data: specialOrdersData } = await supabase.from('special_orders').select('*').order('delivery_date', { ascending: false });
+                const { data: specialOrderItemsData } = await supabase.from('special_order_items').select('*');
 
                 // Map snake_case from DB to camelCase for App
                 const mappedIngredients = ingredients?.map(i => ({
@@ -233,6 +270,95 @@ export const useStore = create<AppState>()(
                     }
                 })) || [];
 
+                // Map Promotions
+                const mappedPromotions: Promotion[] = (promotionsData || []).map(p => ({
+                    id: p.id,
+                    name: p.name,
+                    description: p.description,
+                    productId: p.product_id,
+                    productName: p.product_name,
+                    variantId: p.variant_id,
+                    variantName: p.variant_name,
+                    originalPrice: p.original_price,
+                    discountPrice: p.discount_price,
+                    discountPercent: p.discount_percent,
+                    minQuantity: p.min_quantity,
+                    maxQuantity: p.max_quantity,
+                    validFrom: p.valid_from,
+                    validUntil: p.valid_until,
+                    isActive: p.is_active,
+                    createdAt: p.created_at,
+                    updatedAt: p.updated_at
+                }));
+
+                // Map Bundles with items
+                const mappedBundles: Bundle[] = (bundlesData || []).map(b => ({
+                    id: b.id,
+                    name: b.name,
+                    description: b.description,
+                    bundlePrice: b.bundle_price,
+                    estimatedCost: b.estimated_cost,
+                    profitMargin: b.profit_margin,
+                    isActive: b.is_active,
+                    imageUrl: b.image_url,
+                    createdAt: b.created_at,
+                    updatedAt: b.updated_at,
+                    items: (bundleItemsData || [])
+                        .filter(i => i.bundle_id === b.id)
+                        .map(i => ({
+                            id: i.id,
+                            bundleId: i.bundle_id,
+                            productId: i.product_id,
+                            productName: i.product_name,
+                            variantId: i.variant_id,
+                            variantName: i.variant_name,
+                            quantity: i.quantity,
+                            unitCost: i.unit_cost,
+                            subtotalCost: i.subtotal_cost,
+                            sortOrder: i.sort_order
+                        }))
+                }));
+
+                // Map Special Orders with items
+                const mappedSpecialOrders: SpecialOrder[] = (specialOrdersData || []).map(o => ({
+                    id: o.id,
+                    orderNumber: o.order_number,
+                    orderDate: o.order_date,
+                    deliveryDate: o.delivery_date,
+                    orderType: o.order_type,
+                    promotionId: o.promotion_id,
+                    bundleId: o.bundle_id,
+                    customerName: o.customer_name,
+                    customerPhone: o.customer_phone,
+                    customerNote: o.customer_note,
+                    totalQuantity: o.total_quantity,
+                    totalRevenue: o.total_revenue,
+                    totalCost: o.total_cost,
+                    grossProfit: o.gross_profit,
+                    status: o.status,
+                    stockDeducted: o.stock_deducted,
+                    stockDeductedAt: o.stock_deducted_at,
+                    createdAt: o.created_at,
+                    updatedAt: o.updated_at,
+                    items: (specialOrderItemsData || [])
+                        .filter(i => i.special_order_id === o.id)
+                        .map(i => ({
+                            id: i.id,
+                            specialOrderId: i.special_order_id,
+                            productId: i.product_id,
+                            productName: i.product_name,
+                            variantId: i.variant_id,
+                            variantName: i.variant_name,
+                            quantity: i.quantity,
+                            unitPrice: i.unit_price,
+                            unitCost: i.unit_cost,
+                            subtotalRevenue: i.subtotal_revenue,
+                            subtotalCost: i.subtotal_cost,
+                            subtotalProfit: i.subtotal_profit,
+                            sortOrder: i.sort_order
+                        }))
+                }));
+
                 // Find default profile ID from Supabase
                 const defaultProfile = allocationProfilesData?.find(p => p.is_default);
                 const dbDefaultProfileId = defaultProfile?.id || null;
@@ -296,6 +422,9 @@ export const useStore = create<AppState>()(
                         })) || state.unallocatedProfits,
                         allocationProfiles: mappedAllocationProfiles.length > 0 ? mappedAllocationProfiles : state.allocationProfiles,
                         defaultProfileId: dbDefaultProfileId || state.defaultProfileId,
+                        promotions: mappedPromotions,
+                        bundles: mappedBundles,
+                        specialOrders: mappedSpecialOrders,
                         jars: state.jars.map(jar => ({
                             ...jar,
                             balance: calculatedBalances[jar.id] || 0
@@ -359,6 +488,11 @@ export const useStore = create<AppState>()(
 
             // Daily Inventory (Stock ↔ Sales Integration)
             dailyInventory: [],
+
+            // Promotion & Snack Box System
+            promotions: [],
+            bundles: [],
+            specialOrders: [],
 
             fetchDailyInventory: async (date: string) => {
                 // Fetch last 7 days to ensure we can find "yesterday's stock" even if shop was closed for a day or two
@@ -1539,6 +1673,425 @@ export const useStore = create<AppState>()(
                     jarCustomizations: []
                 });
                 window.location.reload();
+            },
+
+            // ==================== PROMOTION & SNACK BOX ACTIONS ====================
+
+            addPromotion: async (promo) => {
+                const now = new Date().toISOString();
+                const discountPercent = ((promo.originalPrice - promo.discountPrice) / promo.originalPrice) * 100;
+
+                const dbPromo = {
+                    name: promo.name,
+                    description: promo.description || null,
+                    product_id: promo.productId,
+                    product_name: promo.productName,
+                    variant_id: promo.variantId || null,
+                    variant_name: promo.variantName || null,
+                    original_price: promo.originalPrice,
+                    discount_price: promo.discountPrice,
+                    discount_percent: discountPercent,
+                    min_quantity: promo.minQuantity || 1,
+                    max_quantity: promo.maxQuantity || null,
+                    valid_from: promo.validFrom || null,
+                    valid_until: promo.validUntil || null,
+                    is_active: promo.isActive ?? true
+                };
+
+                const { data, error } = await supabase.from('promotions').insert(dbPromo).select().single();
+                if (error) {
+                    console.error('[Promotion] Add failed:', error);
+                    return;
+                }
+
+                const newPromo: Promotion = {
+                    id: data.id,
+                    name: data.name,
+                    description: data.description,
+                    productId: data.product_id,
+                    productName: data.product_name,
+                    variantId: data.variant_id,
+                    variantName: data.variant_name,
+                    originalPrice: data.original_price,
+                    discountPrice: data.discount_price,
+                    discountPercent: data.discount_percent,
+                    minQuantity: data.min_quantity,
+                    maxQuantity: data.max_quantity,
+                    validFrom: data.valid_from,
+                    validUntil: data.valid_until,
+                    isActive: data.is_active,
+                    createdAt: data.created_at,
+                    updatedAt: data.updated_at
+                };
+
+                set(state => ({ promotions: [...state.promotions, newPromo] }));
+            },
+
+            updatePromotion: async (id, updates) => {
+                const dbUpdates: any = { updated_at: new Date().toISOString() };
+                if (updates.name !== undefined) dbUpdates.name = updates.name;
+                if (updates.description !== undefined) dbUpdates.description = updates.description;
+                if (updates.discountPrice !== undefined) dbUpdates.discount_price = updates.discountPrice;
+                if (updates.minQuantity !== undefined) dbUpdates.min_quantity = updates.minQuantity;
+                if (updates.maxQuantity !== undefined) dbUpdates.max_quantity = updates.maxQuantity;
+                if (updates.validFrom !== undefined) dbUpdates.valid_from = updates.validFrom;
+                if (updates.validUntil !== undefined) dbUpdates.valid_until = updates.validUntil;
+                if (updates.isActive !== undefined) dbUpdates.is_active = updates.isActive;
+
+                // Recalculate discount percent if price changes
+                if (updates.discountPrice !== undefined) {
+                    const promo = get().promotions.find(p => p.id === id);
+                    if (promo) {
+                        dbUpdates.discount_percent = ((promo.originalPrice - updates.discountPrice) / promo.originalPrice) * 100;
+                    }
+                }
+
+                const { error } = await supabase.from('promotions').update(dbUpdates).eq('id', id);
+                if (error) console.error('[Promotion] Update failed:', error);
+
+                set(state => ({
+                    promotions: state.promotions.map(p => p.id === id ? { ...p, ...updates, updatedAt: dbUpdates.updated_at } : p)
+                }));
+            },
+
+            deletePromotion: async (id) => {
+                set(state => ({ promotions: state.promotions.filter(p => p.id !== id) }));
+                const { error } = await supabase.from('promotions').delete().eq('id', id);
+                if (error) console.error('[Promotion] Delete failed:', error);
+            },
+
+            addBundle: async (bundle, items) => {
+                const estimatedCost = items.reduce((sum, item) => sum + item.subtotalCost, 0);
+                const profitMargin = bundle.bundlePrice > 0 ? ((bundle.bundlePrice - estimatedCost) / bundle.bundlePrice) * 100 : 0;
+
+                const dbBundle = {
+                    name: bundle.name,
+                    description: bundle.description || null,
+                    bundle_price: bundle.bundlePrice,
+                    estimated_cost: estimatedCost,
+                    profit_margin: profitMargin,
+                    is_active: bundle.isActive ?? true,
+                    image_url: bundle.imageUrl || null
+                };
+
+                const { data: bundleData, error: bundleError } = await supabase.from('bundles').insert(dbBundle).select().single();
+                if (bundleError || !bundleData) {
+                    console.error('[Bundle] Add failed:', bundleError);
+                    return;
+                }
+
+                // Insert bundle items
+                const dbItems = items.map((item, idx) => ({
+                    bundle_id: bundleData.id,
+                    product_id: item.productId,
+                    product_name: item.productName,
+                    variant_id: item.variantId || null,
+                    variant_name: item.variantName || null,
+                    quantity: item.quantity,
+                    unit_cost: item.unitCost,
+                    subtotal_cost: item.subtotalCost,
+                    sort_order: idx
+                }));
+
+                const { data: itemsData, error: itemsError } = await supabase.from('bundle_items').insert(dbItems).select();
+                if (itemsError) console.error('[BundleItems] Add failed:', itemsError);
+
+                const newBundle: Bundle = {
+                    id: bundleData.id,
+                    name: bundleData.name,
+                    description: bundleData.description,
+                    bundlePrice: bundleData.bundle_price,
+                    estimatedCost: bundleData.estimated_cost,
+                    profitMargin: bundleData.profit_margin,
+                    isActive: bundleData.is_active,
+                    imageUrl: bundleData.image_url,
+                    createdAt: bundleData.created_at,
+                    updatedAt: bundleData.updated_at,
+                    items: (itemsData || []).map(i => ({
+                        id: i.id,
+                        bundleId: i.bundle_id,
+                        productId: i.product_id,
+                        productName: i.product_name,
+                        variantId: i.variant_id,
+                        variantName: i.variant_name,
+                        quantity: i.quantity,
+                        unitCost: i.unit_cost,
+                        subtotalCost: i.subtotal_cost,
+                        sortOrder: i.sort_order
+                    }))
+                };
+
+                set(state => ({ bundles: [...state.bundles, newBundle] }));
+            },
+
+            updateBundle: async (id, updates, items) => {
+                const dbUpdates: any = { updated_at: new Date().toISOString() };
+                if (updates.name !== undefined) dbUpdates.name = updates.name;
+                if (updates.description !== undefined) dbUpdates.description = updates.description;
+                if (updates.bundlePrice !== undefined) dbUpdates.bundle_price = updates.bundlePrice;
+                if (updates.isActive !== undefined) dbUpdates.is_active = updates.isActive;
+
+                if (items) {
+                    const estimatedCost = items.reduce((sum, item) => sum + item.subtotalCost, 0);
+                    dbUpdates.estimated_cost = estimatedCost;
+                    if (updates.bundlePrice !== undefined) {
+                        dbUpdates.profit_margin = ((updates.bundlePrice - estimatedCost) / updates.bundlePrice) * 100;
+                    }
+
+                    // Delete old items and insert new ones
+                    await supabase.from('bundle_items').delete().eq('bundle_id', id);
+                    const dbItems = items.map((item, idx) => ({
+                        bundle_id: id,
+                        product_id: item.productId,
+                        product_name: item.productName,
+                        variant_id: item.variantId || null,
+                        variant_name: item.variantName || null,
+                        quantity: item.quantity,
+                        unit_cost: item.unitCost,
+                        subtotal_cost: item.subtotalCost,
+                        sort_order: idx
+                    }));
+                    await supabase.from('bundle_items').insert(dbItems);
+                }
+
+                const { error } = await supabase.from('bundles').update(dbUpdates).eq('id', id);
+                if (error) console.error('[Bundle] Update failed:', error);
+
+                set(state => ({
+                    bundles: state.bundles.map(b => b.id === id ? { ...b, ...updates, updatedAt: dbUpdates.updated_at } : b)
+                }));
+            },
+
+            deleteBundle: async (id) => {
+                set(state => ({ bundles: state.bundles.filter(b => b.id !== id) }));
+                const { error } = await supabase.from('bundles').delete().eq('id', id);
+                if (error) console.error('[Bundle] Delete failed:', error);
+            },
+
+            addSpecialOrder: async (order, items) => {
+                // Generate order number: SO-YYYYMMDD-XXX
+                const dateStr = order.orderDate.replace(/-/g, '');
+                const random = Math.random().toString(36).substring(2, 5).toUpperCase();
+                const orderNumber = `SO-${dateStr}-${random}`;
+
+                const dbOrder = {
+                    order_number: orderNumber,
+                    order_date: order.orderDate,
+                    delivery_date: order.deliveryDate,
+                    order_type: order.orderType,
+                    promotion_id: order.promotionId || null,
+                    bundle_id: order.bundleId || null,
+                    customer_name: order.customerName || null,
+                    customer_phone: order.customerPhone || null,
+                    customer_note: order.customerNote || null,
+                    total_quantity: order.totalQuantity,
+                    total_revenue: order.totalRevenue,
+                    total_cost: order.totalCost,
+                    gross_profit: order.grossProfit,
+                    status: order.status || 'pending',
+                    stock_deducted: false
+                };
+
+                const { data: orderData, error: orderError } = await supabase.from('special_orders').insert(dbOrder).select().single();
+                if (orderError || !orderData) {
+                    console.error('[SpecialOrder] Add failed:', orderError);
+                    return;
+                }
+
+                // Insert order items
+                const dbItems = items.map((item, idx) => ({
+                    special_order_id: orderData.id,
+                    product_id: item.productId,
+                    product_name: item.productName,
+                    variant_id: item.variantId || null,
+                    variant_name: item.variantName || null,
+                    quantity: item.quantity,
+                    unit_price: item.unitPrice,
+                    unit_cost: item.unitCost,
+                    subtotal_revenue: item.subtotalRevenue,
+                    subtotal_cost: item.subtotalCost,
+                    subtotal_profit: item.subtotalProfit,
+                    sort_order: idx
+                }));
+
+                const { data: itemsData, error: itemsError } = await supabase.from('special_order_items').insert(dbItems).select();
+                if (itemsError) console.error('[SpecialOrderItems] Add failed:', itemsError);
+
+                const newOrder: SpecialOrder = {
+                    id: orderData.id,
+                    orderNumber: orderData.order_number,
+                    orderDate: orderData.order_date,
+                    deliveryDate: orderData.delivery_date,
+                    orderType: orderData.order_type,
+                    promotionId: orderData.promotion_id,
+                    bundleId: orderData.bundle_id,
+                    customerName: orderData.customer_name,
+                    customerPhone: orderData.customer_phone,
+                    customerNote: orderData.customer_note,
+                    totalQuantity: orderData.total_quantity,
+                    totalRevenue: orderData.total_revenue,
+                    totalCost: orderData.total_cost,
+                    grossProfit: orderData.gross_profit,
+                    status: orderData.status,
+                    stockDeducted: orderData.stock_deducted,
+                    stockDeductedAt: orderData.stock_deducted_at,
+                    createdAt: orderData.created_at,
+                    updatedAt: orderData.updated_at,
+                    items: (itemsData || []).map(i => ({
+                        id: i.id,
+                        specialOrderId: i.special_order_id,
+                        productId: i.product_id,
+                        productName: i.product_name,
+                        variantId: i.variant_id,
+                        variantName: i.variant_name,
+                        quantity: i.quantity,
+                        unitPrice: i.unit_price,
+                        unitCost: i.unit_cost,
+                        subtotalRevenue: i.subtotal_revenue,
+                        subtotalCost: i.subtotal_cost,
+                        subtotalProfit: i.subtotal_profit,
+                        sortOrder: i.sort_order
+                    }))
+                };
+
+                set(state => ({ specialOrders: [...state.specialOrders, newOrder] }));
+            },
+
+            updateSpecialOrderStatus: async (id, status) => {
+                const updates: any = { status, updated_at: new Date().toISOString() };
+                const order = get().specialOrders.find(o => o.id === id);
+
+                // If confirmed, mark for stock deduction (in production scenario)
+                if (status === 'confirmed') {
+                    // Note: Actual stock deduction would happen here or in a separate function
+                    // For safety, we just mark it and let manual verification happen
+                }
+
+                // If delivered, add profit to unallocated_profits (ONLY if not already added)
+                if (status === 'delivered' && order && order.status !== 'delivered') {
+                    const profitEntry = {
+                        date: new Date().toISOString().split('T')[0],
+                        amount: order.grossProfit,
+                        source: `special_order:${order.orderNumber}`,
+                        created_at: new Date().toISOString()
+                    };
+
+                    const { error: profitError } = await supabase
+                        .from('unallocated_profits')
+                        .insert(profitEntry);
+
+                    if (profitError) {
+                        console.error('[SpecialOrder] Failed to add profit to unallocated:', profitError);
+                    } else {
+                        console.log(`[SpecialOrder] Added ${order.grossProfit} profit to unallocated from ${order.orderNumber}`);
+                        // Update local state for unallocated profits
+                        const { data: newProfit } = await supabase
+                            .from('unallocated_profits')
+                            .select('*')
+                            .eq('source', profitEntry.source)
+                            .single();
+
+                        if (newProfit) {
+                            set(state => ({
+                                unallocatedProfits: [...state.unallocatedProfits, {
+                                    id: newProfit.id,
+                                    date: newProfit.date,
+                                    amount: newProfit.amount,
+                                    source: newProfit.source,
+                                    createdAt: newProfit.created_at
+                                }]
+                            }));
+                        }
+                    }
+                }
+
+                const { error } = await supabase.from('special_orders').update(updates).eq('id', id);
+                if (error) console.error('[SpecialOrder] Status update failed:', error);
+
+                set(state => ({
+                    specialOrders: state.specialOrders.map(o => o.id === id ? { ...o, status, updatedAt: updates.updated_at } : o)
+                }));
+            },
+
+            cancelSpecialOrder: async (id) => {
+                const updates = { status: 'cancelled', updated_at: new Date().toISOString() };
+                const { error } = await supabase.from('special_orders').update(updates).eq('id', id);
+                if (error) console.error('[SpecialOrder] Cancel failed:', error);
+
+                set(state => ({
+                    specialOrders: state.specialOrders.map(o => o.id === id ? { ...o, status: 'cancelled' as SpecialOrderStatus } : o)
+                }));
+            },
+
+            getSpecialOrdersByDeliveryDate: (date) => {
+                return get().specialOrders.filter(o => o.deliveryDate === date && o.status !== 'cancelled');
+            },
+
+            getSpecialOrdersForProduction: (date) => {
+                const orders = get().specialOrders.filter(o => o.deliveryDate === date && o.status !== 'cancelled');
+                const result: { productId: string; variantId?: string; quantity: number; orderNumber: string }[] = [];
+
+                orders.forEach(order => {
+                    order.items.forEach(item => {
+                        result.push({
+                            productId: item.productId,
+                            variantId: item.variantId,
+                            quantity: item.quantity,
+                            orderNumber: order.orderNumber
+                        });
+                    });
+                });
+
+                return result;
+            },
+
+            // Sync missing profits from delivered orders (for orders delivered before profit-tracking was added)
+            syncDeliveredOrderProfits: async () => {
+                const state = get();
+                const deliveredOrders = state.specialOrders.filter(o => o.status === 'delivered');
+                const existingSources = state.unallocatedProfits.map(p => p.source);
+
+                let syncedCount = 0;
+                for (const order of deliveredOrders) {
+                    const expectedSource = `special_order:${order.orderNumber}`;
+
+                    // Skip if profit already exists
+                    if (existingSources.includes(expectedSource)) continue;
+
+                    const profitEntry = {
+                        date: order.deliveryDate,
+                        amount: order.grossProfit,
+                        source: expectedSource,
+                        created_at: new Date().toISOString()
+                    };
+
+                    const { data, error } = await supabase
+                        .from('unallocated_profits')
+                        .insert(profitEntry)
+                        .select()
+                        .single();
+
+                    if (!error && data) {
+                        set(s => ({
+                            unallocatedProfits: [...s.unallocatedProfits, {
+                                id: data.id,
+                                date: data.date,
+                                amount: data.amount,
+                                source: data.source,
+                                createdAt: data.created_at
+                            }]
+                        }));
+                        syncedCount++;
+                        console.log(`[Sync] Added missing profit ${order.grossProfit} from ${order.orderNumber}`);
+                    } else if (error) {
+                        console.error(`[Sync] Insert failed for ${order.orderNumber}:`, error.message, error.details, error.code);
+                    }
+                }
+
+                if (syncedCount > 0) {
+                    console.log(`[Sync] Total synced: ${syncedCount} orders`);
+                }
+                return syncedCount;
             },
 
             subscribeToRealtime: () => {

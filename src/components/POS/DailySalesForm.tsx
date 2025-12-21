@@ -238,7 +238,7 @@ export const DailySalesForm: React.FC = () => {
         const { addUnallocatedProfit } = useStore.getState();
         if (trueProfit > 0) {
             await addUnallocatedProfit({
-                id: Date.now().toString(36) + Math.random().toString(36).substr(2),
+                id: crypto.randomUUID(),
                 date,
                 amount: trueProfit,
                 source: `กำไร - ${marketName}`,
@@ -250,7 +250,7 @@ export const DailySalesForm: React.FC = () => {
         // This prevents double-counting: COGS goes to Working, Profit goes to Unallocated
         if (totalCOGS > 0) {
             await addTransaction({
-                id: Date.now().toString(36) + Math.random().toString(36).substr(2),
+                id: crypto.randomUUID(),
                 date: new Date().toISOString(),
                 amount: totalCOGS,
                 type: 'INCOME',
@@ -265,7 +265,7 @@ export const DailySalesForm: React.FC = () => {
         for (const log of logs) {
             if (log.soldQty > 0 || log.wasteQty > 0) { // FIX: Also log if there's waste
                 await addProductSaleLog({
-                    id: Date.now().toString(36) + Math.random().toString(36).substr(2) + log.productId.slice(0, 4),
+                    id: crypto.randomUUID(),
                     recordedAt: new Date().toISOString(),
                     saleDate: date,
                     marketId: selectedMarketId,

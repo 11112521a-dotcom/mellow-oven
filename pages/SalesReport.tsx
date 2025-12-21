@@ -121,7 +121,7 @@ const StatCard: React.FC<{
 );
 
 export const SalesReport: React.FC = () => {
-    const { productSales, markets, products, updateProductSaleLog } = useStore();
+    const { productSales, markets, products, updateProductSaleLog, specialOrders } = useStore();
 
     const [datePreset, setDatePreset] = useState<'today' | 'yesterday' | 'thisWeek' | 'lastWeek' | 'thisMonth' | 'lastMonth' | '3months' | '6months' | 'thisYear' | 'custom'>('today');
     const [startDate, setStartDate] = useState(() => {
@@ -782,6 +782,81 @@ export const SalesReport: React.FC = () => {
                     </div>
                 )}
             </div>
+
+            {/* Special Orders Section - SEPARATE from regular sales */}
+            {specialOrders.filter(o => o.status !== 'cancelled').length > 0 && (
+                <div className="bg-white rounded-2xl shadow-lg overflow-hidden mt-6">
+                    <div className="bg-gradient-to-r from-purple-600 to-pink-600 p-4 text-white">
+                        <h3 className="text-lg font-bold flex items-center gap-2">
+                            <ShoppingBag size={20} />
+                            ออเดอร์พิเศษ (แยกจากยอดขายปกติ)
+                        </h3>
+                        <p className="text-purple-100 text-sm mt-1">ข้อมูลนี้ไม่รวมในยอดขายด้านบน และไม่ส่งผลต่อ AI พยากรณ์</p>
+                    </div>
+
+                    <div className="p-4">
+                        {/* Special Orders Summary */}
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+                            <div className="bg-purple-50 rounded-lg p-3 text-center">
+                                <p className="text-xs text-purple-600">จำนวนออเดอร์</p>
+                                <p className="text-xl font-bold text-purple-800">
+                                    {specialOrders.filter(o => o.status !== 'cancelled').length}
+                                </p>
+                            </div>
+                            <div className="bg-green-50 rounded-lg p-3 text-center">
+                                <p className="text-xs text-green-600">รายได้รวม</p>
+                                <p className="text-xl font-bold text-green-800">
+                                    {formatCurrency(specialOrders.filter(o => o.status !== 'cancelled').reduce((sum, o) => sum + o.totalRevenue, 0))}
+                                </p>
+                            </div>
+                            <div className="bg-blue-50 rounded-lg p-3 text-center">
+                                <p className="text-xs text-blue-600">จำนวนสินค้า</p>
+                                <p className="text-xl font-bold text-blue-800">
+                                    {specialOrders.filter(o => o.status !== 'cancelled').reduce((sum, o) => sum + o.totalQuantity, 0)} ชิ้น
+                                </p>
+                            </div>
+                            <div className="bg-emerald-50 rounded-lg p-3 text-center">
+                                <p className="text-xs text-emerald-600">กำไร</p>
+                                <p className="text-xl font-bold text-emerald-800">
+                                    {formatCurrency(specialOrders.filter(o => o.status !== 'cancelled').reduce((sum, o) => sum + o.grossProfit, 0))}
+                                </p>
+                            </div>
+                        </div>
+
+                        {/* Special Orders List */}
+                        <div className="space-y-2">
+                            {specialOrders.filter(o => o.status !== 'cancelled').map(order => (
+                                <div key={order.id} className="bg-gray-50 rounded-lg p-3 flex items-center justify-between">
+                                    <div className="flex-1">
+                                        <div className="flex items-center gap-2">
+                                            <span className="font-mono text-sm font-bold text-purple-600">{order.orderNumber}</span>
+                                            <span className={`text-xs px-2 py-0.5 rounded-full ${order.status === 'delivered' ? 'bg-green-100 text-green-700' :
+                                                    order.status === 'producing' ? 'bg-purple-100 text-purple-700' :
+                                                        order.status === 'confirmed' ? 'bg-blue-100 text-blue-700' :
+                                                            'bg-yellow-100 text-yellow-700'
+                                                }`}>
+                                                {order.status === 'delivered' ? 'ส่งแล้ว' :
+                                                    order.status === 'producing' ? 'กำลังผลิต' :
+                                                        order.status === 'confirmed' ? 'ยืนยันแล้ว' : 'รอยืนยัน'}
+                                            </span>
+                                        </div>
+                                        <p className="text-sm text-gray-600 mt-1">
+                                            {order.items.map(i => `${i.productName} x${i.quantity}`).join(', ')}
+                                        </p>
+                                        {order.customerName && (
+                                            <p className="text-xs text-gray-400">ลูกค้า: {order.customerName}</p>
+                                        )}
+                                    </div>
+                                    <div className="text-right">
+                                        <p className="font-bold text-green-600">{formatCurrency(order.totalRevenue)}</p>
+                                        <p className="text-xs text-gray-400">ส่ง {order.deliveryDate}</p>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            )}
 
             <EditSalesModal isOpen={isEditModalOpen} onClose={() => setIsEditModalOpen(false)} saleData={editingSale} onSave={handleSaveEdit} />
         </div>

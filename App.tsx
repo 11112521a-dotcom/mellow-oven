@@ -9,6 +9,7 @@ import Production from './pages/Production';
 import Inventory from './pages/Inventory';
 import SalesReport from './pages/SalesReport';
 import MenuStock from './pages/MenuStock';
+import PromotionPage from './src/components/Promotion/PromotionPage';
 import { Loader2 } from 'lucide-react';
 
 const App: React.FC = () => {
@@ -60,6 +61,7 @@ const App: React.FC = () => {
       case 'menustock': return <MenuStock />;
       case 'production':
         return userRole === 'owner' ? <Production /> : <div className="p-8 text-center text-cafe-500">Access Denied</div>;
+      case 'promotion': return <PromotionPage />;
       case 'inventory': return <Inventory />;
       default: return <Dashboard />;
     }
