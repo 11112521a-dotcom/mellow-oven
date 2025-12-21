@@ -878,10 +878,25 @@ export const useStore = create<AppState>()(
                 set({ defaultProfileId: profileId });
 
                 // Persist to Supabase: reset all to false, then set selected to true
-                await supabase.from('allocation_profiles').update({ is_default: false }).neq('id', '');
-                const { error } = await supabase.from('allocation_profiles').update({ is_default: true }).eq('id', profileId);
+                const { error: resetError } = await supabase
+                    .from('allocation_profiles')
+                    .update({ is_default: false })
+                    .not('id', 'is', null); // Reset ALL profiles to false
+
+                if (resetError) {
+                    console.error('[AllocationProfile] Reset default failed:', resetError);
+                }
+
+                const { error } = await supabase
+                    .from('allocation_profiles')
+                    .update({ is_default: true, updated_at: new Date().toISOString() })
+                    .eq('id', profileId);
+
                 if (error) {
                     console.error('[AllocationProfile] Set default failed:', error);
+                    alert(`❌ ตั้งค่า Default Profile ไม่สำเร็จ: ${error.message}`);
+                } else {
+                    console.log('[AllocationProfile] Default set to:', profileId);
                 }
             },
 
