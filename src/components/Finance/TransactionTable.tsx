@@ -129,12 +129,12 @@ export const TransactionTable: React.FC<TransactionTableProps> = ({ transactions
     };
 
     return (
-        <div className="bg-white rounded-3xl shadow-sm border border-cafe-100 overflow-hidden">
-            <div className="p-6 border-b border-cafe-100 bg-gray-50/50">
+        <div className="bg-white rounded-3xl shadow-sm border border-stone-100 overflow-hidden">
+            <div className="p-6 border-b border-stone-100 bg-stone-50/50">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
                     <div>
-                        <h3 className="text-xl font-bold text-cafe-900">รายการเคลื่อนไหว</h3>
-                        <p className="text-sm text-cafe-500">ประวัติการเงินทั้งหมดของคุณ</p>
+                        <h3 className="text-xl font-bold text-stone-900">รายการเคลื่อนไหว</h3>
+                        <p className="text-sm text-stone-500">ประวัติการเงินทั้งหมดของคุณ</p>
                     </div>
                     <div className="flex items-center gap-3 text-sm">
                         <div className="flex items-center gap-2 bg-green-100/50 px-4 py-2 rounded-xl border border-green-100">
@@ -164,13 +164,13 @@ export const TransactionTable: React.FC<TransactionTableProps> = ({ transactions
                 <div className="flex flex-col md:flex-row gap-3">
                     {/* Search */}
                     <div className="relative flex-1">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-cafe-400" size={18} />
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" size={18} />
                         <input
                             type="text"
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
                             placeholder="ค้นหารายการ..."
-                            className="w-full pl-10 pr-4 py-2.5 bg-white border border-cafe-200 rounded-xl text-sm focus:ring-2 focus:ring-cafe-500 outline-none shadow-sm transition-all hover:border-cafe-300"
+                            className="w-full pl-10 pr-4 py-2.5 bg-white border border-stone-200 rounded-xl text-sm focus:ring-2 focus:ring-amber-200 outline-none shadow-sm transition-all hover:border-amber-300"
                         />
                     </div>
 
@@ -178,7 +178,7 @@ export const TransactionTable: React.FC<TransactionTableProps> = ({ transactions
                     <select
                         value={typeFilter}
                         onChange={(e) => setTypeFilter(e.target.value)}
-                        className="px-4 py-2.5 bg-white border border-cafe-200 rounded-xl text-sm focus:ring-2 focus:ring-cafe-500 outline-none shadow-sm cursor-pointer hover:border-cafe-300"
+                        className="px-4 py-2.5 bg-white border border-stone-200 rounded-xl text-sm focus:ring-2 focus:ring-amber-200 outline-none shadow-sm cursor-pointer hover:border-amber-300"
                     >
                         <option value="ALL">ทุกประเภท</option>
                         <option value="INCOME">รายรับ (Income)</option>
@@ -190,7 +190,7 @@ export const TransactionTable: React.FC<TransactionTableProps> = ({ transactions
                     <select
                         value={categoryFilter}
                         onChange={(e) => setCategoryFilter(e.target.value)}
-                        className="px-4 py-2.5 bg-white border border-cafe-200 rounded-xl text-sm focus:ring-2 focus:ring-cafe-500 outline-none shadow-sm cursor-pointer hover:border-cafe-300"
+                        className="px-4 py-2.5 bg-white border border-stone-200 rounded-xl text-sm focus:ring-2 focus:ring-amber-200 outline-none shadow-sm cursor-pointer hover:border-amber-300"
                     >
                         <option value="ALL">ทุกหมวดหมู่</option>
                         <option value="Sales:Summary">📊 สรุปรายวัน</option>
@@ -209,15 +209,15 @@ export const TransactionTable: React.FC<TransactionTableProps> = ({ transactions
             <div className="overflow-x-auto">
                 {/* Desktop Table View */}
                 <table className="w-full text-left hidden md:table">
-                    <thead className="bg-white border-b border-cafe-100">
+                    <thead className="bg-white border-b border-stone-100">
                         <tr>
-                            <th className="px-6 py-4 text-xs font-bold text-cafe-400 uppercase tracking-wider w-16">ประเภท</th>
-                            <th className="px-6 py-4 text-xs font-bold text-cafe-400 uppercase tracking-wider">รายการ</th>
-                            <th className="px-6 py-4 text-xs font-bold text-cafe-400 uppercase tracking-wider text-right">จำนวนเงิน</th>
-                            <th className="px-6 py-4 text-xs font-bold text-cafe-400 uppercase tracking-wider text-center w-24">จัดการ</th>
+                            <th className="px-6 py-4 text-xs font-bold text-stone-400 uppercase tracking-wider w-16">ประเภท</th>
+                            <th className="px-6 py-4 text-xs font-bold text-stone-400 uppercase tracking-wider">รายการ</th>
+                            <th className="px-6 py-4 text-xs font-bold text-stone-400 uppercase tracking-wider text-right">จำนวนเงิน</th>
+                            <th className="px-6 py-4 text-xs font-bold text-stone-400 uppercase tracking-wider text-center w-24">จัดการ</th>
                         </tr>
                     </thead>
-                    <tbody className="divide-y divide-cafe-50">
+                    <tbody className="divide-y divide-stone-50">
                         {filteredTransactions.length === 0 ? (
                             <tr>
                                 <td colSpan={4} className="px-6 py-12 text-center text-cafe-400">

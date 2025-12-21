@@ -1,87 +1,118 @@
 import React, { useState, useMemo } from 'react';
 import { useStore } from '@/src/store';
-import { calculateKPIs } from '@/src/lib/analytics';
 import { formatCurrency } from '@/src/lib/utils';
 import {
   TrendingUp, TrendingDown, AlertTriangle, DollarSign, Activity, Target, Package,
-  ShoppingBag, Calendar as CalendarIcon, RefreshCw, ArrowRight, Store, ChevronDown,
-  ChevronUp, Sparkles, Zap, Award, PieChart, BarChart3, Clock, Flame, Percent,
-  ArrowUpRight, ArrowDownRight, Box, Users, Wallet, TrendingUp as TrendUp
+  ShoppingBag, Calendar as CalendarIcon, ArrowRight, Store, ChevronDown,
+  ChevronUp, Sparkles, Zap, Award, PieChart, BarChart3, Flame, Percent,
+  ArrowUpRight, ArrowDownRight, Wallet, Sun, Moon, CloudSun, Lightbulb,
+  AlertCircle, CheckCircle, Info, Trash2, Clock
 } from 'lucide-react';
-import { DateRangePicker, DateRange } from '@/src/components/ui/DateRangePicker';
-import { startOfMonth, endOfMonth, isWithinInterval, differenceInDays, subDays, startOfWeek, startOfDay, endOfDay } from 'date-fns';
+import { startOfMonth, endOfMonth, differenceInDays, startOfWeek, startOfDay, endOfDay } from 'date-fns';
 import { GoalCard } from '@/src/components/Finance/GoalCard';
 import { GoalModal } from '@/src/components/Finance/GoalModal';
 
 interface DashboardProps { onNavigate?: (page: string) => void; }
 
-// Hero Stat Card with Animation
-const HeroStat: React.FC<{
+// Get greeting based on time
+const getGreeting = () => {
+  const hour = new Date().getHours();
+  if (hour < 12) return { text: 'Good Morning', icon: <Sun className="text-amber-400" size={24} />, emoji: '☀️' };
+  if (hour < 18) return { text: 'Good Afternoon', icon: <CloudSun className="text-amber-500" size={24} />, emoji: '🌤️' };
+  return { text: 'Good Evening', icon: <Moon className="text-indigo-400" size={24} />, emoji: '🌙' };
+};
+
+// Clean Stat Card - Minimal design
+const StatCard: React.FC<{
   label: string; value: string; subValue?: string; icon: React.ReactNode;
-  gradient: string; trend?: number; delay?: number;
-}> = ({ label, value, subValue, icon, gradient, trend, delay = 0 }) => (
-  <div className={`relative overflow-hidden rounded-2xl bg-gradient-to-br ${gradient} p-6 text-white shadow-xl transform hover:scale-[1.02] hover:-translate-y-1 transition-all duration-300`}>
-    <div className="absolute -top-8 -right-8 w-32 h-32 bg-white/10 rounded-full blur-2xl" />
-    <div className="absolute -bottom-4 -left-4 w-20 h-20 bg-white/5 rounded-full" />
-    <div className="relative">
-      <div className="flex items-center justify-between mb-3">
-        <span className="text-white/80 text-sm font-medium">{label}</span>
-        <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">{icon}</div>
+  color: string; trend?: { value: number; label: string };
+}> = ({ label, value, subValue, icon, color, trend }) => (
+  <div className="bg-white rounded-2xl p-5 border border-stone-100 shadow-sm hover:shadow-md transition-all duration-300">
+    <div className="flex items-start justify-between mb-3">
+      <div className={`p-2.5 rounded-xl ${color}`}>
+        {icon}
       </div>
-      <h3 className="text-3xl font-bold mb-1">{value}</h3>
-      <div className="flex items-center justify-between">
-        {subValue && <span className="text-white/70 text-sm">{subValue}</span>}
-        {trend !== undefined && trend !== 0 && (
-          <span className={`flex items-center gap-1 text-sm font-medium ${trend > 0 ? 'text-green-300' : 'text-red-300'}`}>
-            {trend > 0 ? <ArrowUpRight size={16} /> : <ArrowDownRight size={16} />}
-            {Math.abs(trend).toFixed(1)}%
-          </span>
-        )}
-      </div>
+      {trend && trend.value !== 0 && (
+        <span className={`flex items-center gap-1 text-xs font-bold px-2 py-1 rounded-full ${trend.value > 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'
+          }`}>
+          {trend.value > 0 ? <ArrowUpRight size={12} /> : <ArrowDownRight size={12} />}
+          {Math.abs(trend.value).toFixed(0)}%
+        </span>
+      )}
     </div>
+    <p className="text-sm text-stone-500 mb-1">{label}</p>
+    <p className="text-2xl font-bold text-stone-800">{value}</p>
+    {subValue && <p className="text-xs text-stone-400 mt-1">{subValue}</p>}
   </div>
 );
 
-// Insight Card
-const InsightCard: React.FC<{ title: string; icon: React.ReactNode; children: React.ReactNode; action?: { label: string; onClick: () => void } }> =
-  ({ title, icon, children, action }) => (
-    <div className="bg-white rounded-2xl border border-cafe-100 shadow-sm hover:shadow-lg transition-all overflow-hidden">
-      <div className="p-5 border-b border-cafe-50 flex items-center justify-between bg-gradient-to-r from-cafe-50 to-white">
-        <h3 className="font-bold text-cafe-900 flex items-center gap-2">{icon} {title}</h3>
-        {action && (
-          <button onClick={action.onClick} className="text-xs text-cafe-500 hover:text-cafe-700 font-medium flex items-center gap-1">
-            {action.label} <ArrowRight size={12} />
-          </button>
-        )}
+// Progress Ring Component
+const ProgressRing: React.FC<{ value: number; size?: number; strokeWidth?: number; color?: string }> = ({
+  value, size = 80, strokeWidth = 8, color = '#10b981'
+}) => {
+  const radius = (size - strokeWidth) / 2;
+  const circumference = radius * 2 * Math.PI;
+  const offset = circumference - (Math.min(value, 100) / 100) * circumference;
+
+  return (
+    <div className="relative" style={{ width: size, height: size }}>
+      <svg className="transform -rotate-90" width={size} height={size}>
+        <circle cx={size / 2} cy={size / 2} r={radius} stroke="#e5e7eb" strokeWidth={strokeWidth} fill="none" />
+        <circle cx={size / 2} cy={size / 2} r={radius} stroke={color} strokeWidth={strokeWidth} fill="none"
+          strokeLinecap="round" strokeDasharray={circumference} strokeDashoffset={offset}
+          className="transition-all duration-500" />
+      </svg>
+      <div className="absolute inset-0 flex items-center justify-center">
+        <span className="text-xl font-bold text-stone-800">{value.toFixed(0)}%</span>
       </div>
-      <div className="p-5">{children}</div>
     </div>
   );
+};
 
-// Quick Metric Pill
-const MetricPill: React.FC<{ label: string; value: string | number; color?: string }> = ({ label, value, color = 'bg-cafe-100 text-cafe-700' }) => (
-  <div className={`${color} px-3 py-2 rounded-xl text-center`}>
-    <div className="text-xs opacity-70">{label}</div>
-    <div className="font-bold text-lg">{value}</div>
+// Insight Alert - Clean minimal
+const InsightAlert: React.FC<{ type: 'success' | 'warning' | 'info'; message: string }> = ({ type, message }) => {
+  const styles = {
+    success: { bg: 'bg-emerald-50', border: 'border-emerald-200', text: 'text-emerald-700', icon: <CheckCircle size={16} className="text-emerald-500" /> },
+    warning: { bg: 'bg-amber-50', border: 'border-amber-200', text: 'text-amber-700', icon: <AlertCircle size={16} className="text-amber-500" /> },
+    info: { bg: 'bg-sky-50', border: 'border-sky-200', text: 'text-sky-700', icon: <Lightbulb size={16} className="text-sky-500" /> }
+  };
+  const s = styles[type];
+  return (
+    <div className={`flex items-center gap-3 px-4 py-3 rounded-xl ${s.bg} border ${s.border}`}>
+      {s.icon}
+      <span className={`text-sm font-medium ${s.text}`}>{message}</span>
+    </div>
+  );
+};
+
+// Section Header - Clean
+const SectionHeader: React.FC<{ title: string; icon: React.ReactNode; action?: { label: string; onClick: () => void } }> = ({ title, icon, action }) => (
+  <div className="flex items-center justify-between mb-4">
+    <h3 className="font-bold text-stone-700 flex items-center gap-2">
+      {icon} {title}
+    </h3>
+    {action && (
+      <button onClick={action.onClick} className="text-sm text-amber-600 hover:text-amber-700 font-medium flex items-center gap-1 hover:underline">
+        {action.label} <ArrowRight size={14} />
+      </button>
+    )}
   </div>
 );
 
 const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
   const {
-    transactions, dailyReports, products, alerts, generateAlerts, ingredients,
-    markets, productSales, goals, jars, dailyInventory, unallocatedProfits
+    transactions, products, ingredients, markets, productSales, goals, jars, dailyInventory, unallocatedProfits
   } = useStore();
 
   const [isGoalModalOpen, setIsGoalModalOpen] = useState(false);
   const [editingGoal, setEditingGoal] = useState<any>(null);
-  const [showLowStock, setShowLowStock] = useState(false); // Default HIDDEN
+  const [showLowStock, setShowLowStock] = useState(false);
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
-  const [dateRange, setDateRange] = useState<DateRange>({ from: startOfDay(new Date()), to: endOfDay(new Date()), label: 'วันนี้' });
+  const [dateRange, setDateRange] = useState<{ from: Date; to: Date; label: string }>({ from: startOfDay(new Date()), to: endOfDay(new Date()), label: 'วันนี้' });
   const [selectedMarket, setSelectedMarket] = useState<string>('all');
-  const [selectedCategory, setSelectedCategory] = useState<string>('all');
-  const [comparisonMode, setComparisonMode] = useState<'none' | 'previous'>('none');
 
-  React.useEffect(() => { generateAlerts(); }, [generateAlerts]);
+  const greeting = getGreeting();
+  const todayStr = new Date().toISOString().split('T')[0];
 
   const applyQuickDate = (preset: string) => {
     const today = new Date();
@@ -96,16 +127,12 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
     setDateRange({ from, to, label });
   };
 
-  // GET UNIQUE CATEGORIES
-  const categories = useMemo(() => Array.from(new Set(products.map(p => p.category))).filter(Boolean), [products]);
-
   // FILTER SALES DATA
   const filteredSales = useMemo(() => productSales.filter(sale => {
     const matchDate = sale.saleDate >= dateRange.from.toISOString().split('T')[0] && sale.saleDate <= dateRange.to.toISOString().split('T')[0];
     const matchMarket = selectedMarket === 'all' || sale.marketId === selectedMarket;
-    const matchCategory = selectedCategory === 'all' || sale.category === selectedCategory;
-    return matchDate && matchMarket && matchCategory;
-  }), [productSales, dateRange, selectedMarket, selectedCategory]);
+    return matchDate && matchMarket;
+  }), [productSales, dateRange, selectedMarket]);
 
   // KEY METRICS
   const metrics = useMemo(() => {
@@ -114,19 +141,41 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
     const profit = filteredSales.reduce((sum, s) => sum + s.grossProfit, 0);
     const sold = filteredSales.reduce((sum, s) => sum + s.quantitySold, 0);
     const days = differenceInDays(dateRange.to, dateRange.from) || 1;
-    return { revenue, cost, profit, sold, margin: revenue > 0 ? (profit / revenue) * 100 : 0, perDay: revenue / days, itemsPerDay: sold / days };
+    return { revenue, cost, profit, sold, margin: revenue > 0 ? (profit / revenue) * 100 : 0, perDay: revenue / days };
   }, [filteredSales, dateRange]);
 
-  // JARS SUMMARY (Financial Health)
-  const jarsSummary = useMemo(() => {
-    const total = jars.reduce((sum, j) => sum + j.balance, 0);
-    return { total, jars };
-  }, [jars]);
-
-  // UNALLOCATED PROFITS
+  // JARS SUMMARY
+  const totalBalance = useMemo(() => jars.reduce((sum, j) => sum + j.balance, 0), [jars]);
   const unallocatedTotal = useMemo(() => unallocatedProfits.reduce((sum, p) => sum + p.amount, 0), [unallocatedProfits]);
 
-  // LOW STOCK ITEMS - Show ALL items that are low
+  // TODAY'S INVENTORY - Sell-Through & Waste
+  const todayInventory = useMemo(() => dailyInventory.filter(d => d.businessDate === todayStr), [dailyInventory, todayStr]);
+  const productionStats = useMemo(() => {
+    const produced = todayInventory.reduce((sum, d) => sum + d.producedQty, 0);
+    const toShop = todayInventory.reduce((sum, d) => sum + d.toShopQty, 0);
+    const sold = todayInventory.reduce((sum, d) => sum + d.soldQty, 0);
+    const waste = todayInventory.reduce((sum, d) => sum + (d.wasteQty || 0), 0);
+    const sellThrough = toShop > 0 ? (sold / toShop) * 100 : 0;
+    const wasteRate = produced > 0 ? (waste / produced) * 100 : 0;
+
+    // Calculate waste cost
+    let wasteCost = 0;
+    todayInventory.forEach(record => {
+      const product = products.find(p => p.id === record.productId);
+      if (product && record.wasteQty) {
+        let unitCost = product.cost;
+        if (record.variantId && product.variants) {
+          const variant = product.variants.find(v => v.id === record.variantId);
+          if (variant?.cost) unitCost = variant.cost;
+        }
+        wasteCost += (record.wasteQty || 0) * unitCost;
+      }
+    });
+
+    return { produced, toShop, sold, waste, sellThrough, wasteRate, wasteCost };
+  }, [todayInventory, products]);
+
+  // LOW STOCK ITEMS
   const lowStockItems = useMemo(() =>
     ingredients.filter(ing => ing.currentStock <= (ing.minStock || 10))
       .sort((a, b) => (a.currentStock / (a.minStock || 10)) - (b.currentStock / (b.minStock || 10)))
@@ -136,24 +185,14 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
   const topProducts = useMemo(() => {
     const map: Record<string, { name: string; revenue: number; profit: number; sold: number }> = {};
     filteredSales.forEach(s => {
-      if (!map[s.productId]) map[s.productId] = { name: s.productName, revenue: 0, profit: 0, sold: 0 };
-      map[s.productId].revenue += s.totalRevenue;
-      map[s.productId].profit += s.grossProfit;
-      map[s.productId].sold += s.quantitySold;
+      const key = s.variantId || s.productId;
+      const name = s.variantName ? `${s.productName} - ${s.variantName}` : s.productName;
+      if (!map[key]) map[key] = { name, revenue: 0, profit: 0, sold: 0 };
+      map[key].revenue += s.totalRevenue;
+      map[key].profit += s.grossProfit;
+      map[key].sold += s.quantitySold;
     });
     return Object.values(map).sort((a, b) => b.profit - a.profit).slice(0, 5);
-  }, [filteredSales]);
-
-  // CATEGORY BREAKDOWN
-  const categoryBreakdown = useMemo(() => {
-    const map: Record<string, { revenue: number; quantity: number }> = {};
-    filteredSales.forEach(s => {
-      const cat = s.category || 'อื่นๆ';
-      if (!map[cat]) map[cat] = { revenue: 0, quantity: 0 };
-      map[cat].revenue += s.totalRevenue;
-      map[cat].quantity += s.quantitySold;
-    });
-    return Object.entries(map).map(([name, data]) => ({ name, ...data })).sort((a, b) => b.revenue - a.revenue);
   }, [filteredSales]);
 
   // MARKET PERFORMANCE
@@ -167,160 +206,259 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
     return Object.values(map).sort((a, b) => b.revenue - a.revenue);
   }, [filteredSales]);
 
-  // TODAY'S INVENTORY STATUS
-  const todayStr = new Date().toISOString().split('T')[0];
-  const todayInventory = useMemo(() => dailyInventory.filter(d => d.businessDate === todayStr), [dailyInventory, todayStr]);
-  const totalProduced = todayInventory.reduce((sum, d) => sum + d.producedQty, 0);
-  const totalToShop = todayInventory.reduce((sum, d) => sum + d.toShopQty, 0);
-  const totalSold = todayInventory.reduce((sum, d) => sum + d.soldQty, 0);
+  // SMART INSIGHTS
+  const insights = useMemo(() => {
+    const alerts: { type: 'success' | 'warning' | 'info'; message: string }[] = [];
 
-  // BEST DAY
-  const bestDay = useMemo(() => {
-    const dateMap: Record<string, number> = {};
-    filteredSales.forEach(s => { dateMap[s.saleDate] = (dateMap[s.saleDate] || 0) + s.totalRevenue; });
-    const sorted = Object.entries(dateMap).sort(([, a], [, b]) => b - a);
-    return sorted[0] || null;
-  }, [filteredSales]);
+    // Sell-through insight
+    if (productionStats.sellThrough >= 90) {
+      alerts.push({ type: 'success', message: `ขายได้ ${productionStats.sellThrough.toFixed(0)}% แล้ว! เกือบหมดสต็อก 🎉` });
+    } else if (productionStats.sellThrough < 50 && productionStats.toShop > 0) {
+      alerts.push({ type: 'warning', message: `ขายได้แค่ ${productionStats.sellThrough.toFixed(0)}% - อาจผลิตเยอะไป` });
+    }
+
+    // Waste insight
+    if (productionStats.wasteRate > 10) {
+      alerts.push({ type: 'warning', message: `ของเสียสูง ${productionStats.wasteRate.toFixed(0)}% (${formatCurrency(productionStats.wasteCost)})` });
+    }
+
+    // Profit insight
+    if (metrics.margin > 40) {
+      alerts.push({ type: 'success', message: `Profit Margin ดีมาก ${metrics.margin.toFixed(0)}%` });
+    }
+
+    // Unallocated profit
+    if (unallocatedTotal > 0) {
+      alerts.push({ type: 'info', message: `มีกำไรรอจัดสรร ${formatCurrency(unallocatedTotal)}` });
+    }
+
+    // Low stock
+    if (lowStockItems.length > 3) {
+      alerts.push({ type: 'warning', message: `มี ${lowStockItems.length} วัตถุดิบใกล้หมด!` });
+    }
+
+    return alerts.slice(0, 4); // Max 4 alerts
+  }, [productionStats, metrics, unallocatedTotal, lowStockItems]);
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500 pb-20 md:pb-12">
-      {/* PREMIUM HEADER */}
-      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-cafe-900 via-cafe-800 to-amber-900 p-8 text-white shadow-2xl">
-        <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-br from-yellow-500/20 to-transparent rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl" />
-        <div className="absolute bottom-0 left-0 w-64 h-64 bg-gradient-to-tr from-amber-500/10 to-transparent rounded-full translate-y-1/2 -translate-x-1/2" />
+      {/* ═══════════════════════════════════════════════════════════════
+          🎨 WARM CAFE HEADER - Clean & Minimal
+         ═══════════════════════════════════════════════════════════════ */}
+      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-amber-50 via-orange-50 to-yellow-50 border border-amber-100 p-6 sm:p-8">
+        {/* Subtle decorative elements */}
+        <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-amber-200/30 to-transparent rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl" />
+        <div className="absolute bottom-0 left-0 w-48 h-48 bg-gradient-to-tr from-orange-200/20 to-transparent rounded-full translate-y-1/2 -translate-x-1/2 blur-2xl" />
 
-        <div className="relative flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-          <div className="flex items-center gap-4">
-            <div className="w-16 h-16 bg-gradient-to-br from-yellow-400 to-amber-500 rounded-2xl flex items-center justify-center shadow-lg">
-              <Activity size={32} />
+        <div className="relative">
+          {/* Greeting */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+            <div className="flex items-center gap-4">
+              <div className="w-14 h-14 bg-gradient-to-br from-amber-400 to-orange-500 rounded-2xl flex items-center justify-center shadow-lg shadow-amber-200/50">
+                <Activity size={28} className="text-white" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2 text-amber-600 mb-1">
+                  {greeting.icon}
+                  <span className="text-sm font-medium">{greeting.text}</span>
+                </div>
+                <h1 className="text-2xl sm:text-3xl font-bold text-stone-800 flex items-center gap-2">
+                  Business Command Center
+                  <Sparkles className="text-amber-500" size={20} />
+                </h1>
+              </div>
             </div>
-            <div>
-              <h1 className="text-3xl font-bold flex items-center gap-3">
-                Business Command Center
-                <Sparkles className="text-yellow-300 animate-pulse" size={24} />
-              </h1>
-              <p className="text-cafe-200 mt-1">สถานะธุรกิจแบบ Real-time</p>
+
+            {/* Date in header */}
+            <div className="text-right">
+              <p className="text-sm text-stone-500">
+                {new Date().toLocaleDateString('th-TH', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+              </p>
             </div>
           </div>
 
-          <div className="flex flex-wrap gap-3">
-            {['today', 'yesterday', 'week', 'month'].map(preset => (
-              <button key={preset} onClick={() => applyQuickDate(preset)}
-                className={`px-4 py-2 rounded-xl text-sm font-medium transition-all ${dateRange.label === (preset === 'today' ? 'วันนี้' : preset === 'yesterday' ? 'เมื่อวาน' : preset === 'week' ? 'สัปดาห์นี้' : 'เดือนนี้')
-                  ? 'bg-white text-cafe-900'
-                  : 'bg-white/10 hover:bg-white/20 text-white'}`}>
-                {preset === 'today' ? '📅 วันนี้' : preset === 'yesterday' ? '⏮️ เมื่อวาน' : preset === 'week' ? '📆 สัปดาห์' : '🗓️ เดือน'}
+          {/* Quick Date Filters - Clean pills */}
+          <div className="flex flex-wrap gap-2">
+            {[
+              { key: 'today', label: 'วันนี้', check: 'วันนี้' },
+              { key: 'yesterday', label: 'เมื่อวาน', check: 'เมื่อวาน' },
+              { key: 'week', label: 'สัปดาห์', check: 'สัปดาห์นี้' },
+              { key: 'month', label: 'เดือนนี้', check: 'เดือนนี้' }
+            ].map(({ key, label, check }) => (
+              <button
+                key={key}
+                onClick={() => applyQuickDate(key)}
+                className={`px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200 ${dateRange.label === check
+                  ? 'bg-amber-500 text-white shadow-md shadow-amber-200'
+                  : 'bg-white/80 text-stone-600 hover:bg-white hover:shadow-sm border border-amber-100'
+                  }`}
+              >
+                {label}
               </button>
             ))}
-            <button onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
-              className={`px-4 py-2 rounded-xl text-sm font-medium transition-all flex items-center gap-2 ${showAdvancedFilters ? 'bg-yellow-400 text-cafe-900' : 'bg-white/10 hover:bg-white/20 text-white'}`}>
-              ⚙️ ตัวกรองเพิ่มเติม {showAdvancedFilters ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-            </button>
-          </div>
-        </div>
 
-        {/* ADVANCED FILTERS - Collapsible */}
-        {showAdvancedFilters && (
-          <div className="mt-6 p-4 bg-white/10 backdrop-blur-lg rounded-xl border border-white/20 animate-in slide-in-from-top-2 duration-200">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {/* Market Filter */}
-              <div>
-                <label className="block text-xs text-cafe-200 mb-1.5">🏪 ตลาด/สาขา</label>
-                <select value={selectedMarket} onChange={e => setSelectedMarket(e.target.value)}
-                  className="w-full bg-white/10 text-white rounded-lg px-3 py-2 text-sm border border-white/20 focus:border-yellow-400 outline-none">
-                  <option value="all" className="text-cafe-900">ทั้งหมด</option>
-                  {markets.map(m => <option key={m.id} value={m.id} className="text-cafe-900">{m.name}</option>)}
-                </select>
-              </div>
-              {/* Category Filter */}
-              <div>
-                <label className="block text-xs text-cafe-200 mb-1.5">📦 หมวดหมู่สินค้า</label>
-                <select value={selectedCategory} onChange={e => setSelectedCategory(e.target.value)}
-                  className="w-full bg-white/10 text-white rounded-lg px-3 py-2 text-sm border border-white/20 focus:border-yellow-400 outline-none">
-                  <option value="all" className="text-cafe-900">ทั้งหมด</option>
-                  {categories.map(cat => <option key={cat} value={cat} className="text-cafe-900">{cat}</option>)}
-                </select>
-              </div>
-              {/* Comparison */}
-              <div>
-                <label className="block text-xs text-cafe-200 mb-1.5">📊 เปรียบเทียบกับ</label>
-                <select value={comparisonMode} onChange={e => setComparisonMode(e.target.value as any)}
-                  className="w-full bg-white/10 text-white rounded-lg px-3 py-2 text-sm border border-white/20 focus:border-yellow-400 outline-none">
-                  <option value="none" className="text-cafe-900">ไม่เปรียบเทียบ</option>
-                  <option value="previous" className="text-cafe-900">ช่วงก่อนหน้า</option>
-                </select>
-              </div>
-            </div>
-            {/* Active Filters Summary */}
-            {(selectedMarket !== 'all' || selectedCategory !== 'all') && (
-              <div className="mt-3 flex flex-wrap gap-2 items-center">
-                <span className="text-xs text-cafe-300">ใช้อยู่:</span>
-                {selectedMarket !== 'all' && (
-                  <span className="px-2 py-1 bg-blue-500/30 text-blue-200 rounded-full text-xs">🏪 {markets.find(m => m.id === selectedMarket)?.name}</span>
-                )}
-                {selectedCategory !== 'all' && (
-                  <span className="px-2 py-1 bg-purple-500/30 text-purple-200 rounded-full text-xs">📦 {selectedCategory}</span>
-                )}
-                <button onClick={() => { setSelectedMarket('all'); setSelectedCategory('all'); }} className="text-xs text-red-300 hover:text-red-200 underline ml-2">ล้างทั้งหมด</button>
-              </div>
+            {/* Market Filter */}
+            {markets.length > 1 && (
+              <select
+                value={selectedMarket}
+                onChange={e => setSelectedMarket(e.target.value)}
+                className="px-4 py-2 rounded-xl text-sm font-medium bg-white/80 text-stone-600 border border-amber-100 outline-none focus:ring-2 focus:ring-amber-200"
+              >
+                <option value="all">🏪 ทุกตลาด</option>
+                {markets.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+              </select>
             )}
           </div>
-        )}
+        </div>
       </div>
 
-      {/* HERO STATS ROW */}
+      {/* ═══════════════════════════════════════════════════════════════
+          📊 KEY METRICS - 4 Column Grid
+         ═══════════════════════════════════════════════════════════════ */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <HeroStat label="💰 รายรับรวม" value={formatCurrency(metrics.revenue)} subValue={`${formatCurrency(metrics.perDay)}/วัน`} icon={<DollarSign size={20} />} gradient="from-blue-500 to-blue-600" />
-        <HeroStat label="📈 กำไรสุทธิ" value={formatCurrency(metrics.profit)} subValue={`Margin ${metrics.margin.toFixed(1)}%`} icon={<TrendingUp size={20} />} gradient="from-emerald-500 to-green-600" />
-        <HeroStat label="📦 ขายได้" value={`${metrics.sold} ชิ้น`} subValue={`${metrics.itemsPerDay.toFixed(0)} ชิ้น/วัน`} icon={<ShoppingBag size={20} />} gradient="from-violet-500 to-purple-600" />
-        <HeroStat label="🏦 ยอดเงินรวม" value={formatCurrency(jarsSummary.total)} subValue={`Unallocated: ${formatCurrency(unallocatedTotal)}`} icon={<Wallet size={20} />} gradient="from-amber-500 to-orange-600" />
+        <StatCard
+          label="💰 รายรับรวม"
+          value={formatCurrency(metrics.revenue)}
+          subValue={`${formatCurrency(metrics.perDay)}/วัน`}
+          icon={<DollarSign size={20} className="text-sky-600" />}
+          color="bg-sky-100"
+        />
+        <StatCard
+          label="📈 กำไรสุทธิ"
+          value={formatCurrency(metrics.profit)}
+          subValue={`Margin ${metrics.margin.toFixed(0)}%`}
+          icon={<TrendingUp size={20} className="text-emerald-600" />}
+          color="bg-emerald-100"
+        />
+        <StatCard
+          label="📦 ขายได้"
+          value={`${metrics.sold} ชิ้น`}
+          icon={<ShoppingBag size={20} className="text-violet-600" />}
+          color="bg-violet-100"
+        />
+        <StatCard
+          label="🏦 ยอดเงินรวม"
+          value={formatCurrency(totalBalance)}
+          subValue={unallocatedTotal > 0 ? `รอจัดสรร ${formatCurrency(unallocatedTotal)}` : undefined}
+          icon={<Wallet size={20} className="text-amber-600" />}
+          color="bg-amber-100"
+        />
       </div>
 
-      {/* TODAY'S PRODUCTION STATUS */}
-      {todayInventory.length > 0 && (
-        <div className="bg-gradient-to-r from-blue-50 via-white to-green-50 rounded-2xl border border-blue-100 p-5">
-          <h3 className="font-bold text-cafe-900 mb-4 flex items-center gap-2">
-            <Flame className="text-orange-500" /> สถานะการผลิตวันนี้ (Live)
-          </h3>
-          <div className="grid grid-cols-3 gap-4">
-            <MetricPill label="🔥 ผลิตแล้ว" value={totalProduced} color="bg-blue-100 text-blue-700" />
-            <MetricPill label="🚚 ส่งไปร้าน" value={totalToShop} color="bg-amber-100 text-amber-700" />
-            <MetricPill label="✅ ขายแล้ว" value={totalSold} color="bg-green-100 text-green-700" />
+      {/* ═══════════════════════════════════════════════════════════════
+          🧠 SMART INSIGHTS - Clean Alerts
+         ═══════════════════════════════════════════════════════════════ */}
+      {insights.length > 0 && (
+        <div className="space-y-2">
+          <SectionHeader title="Smart Insights" icon={<Lightbulb className="text-amber-500" size={20} />} />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {insights.map((alert, i) => (
+              <InsightAlert key={i} type={alert.type} message={alert.message} />
+            ))}
           </div>
         </div>
       )}
 
-      {/* LOW STOCK ALERT */}
+      {/* ═══════════════════════════════════════════════════════════════
+          📊 BUSINESS HEALTH - Sell-Through & Waste
+         ═══════════════════════════════════════════════════════════════ */}
+      {productionStats.toShop > 0 && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {/* Sell-Through Rate */}
+          <div className="bg-white rounded-2xl p-6 border border-stone-100 shadow-sm">
+            <SectionHeader title="Sell-Through Rate" icon={<Percent className="text-emerald-500" size={20} />} />
+            <div className="flex items-center gap-6">
+              <ProgressRing
+                value={productionStats.sellThrough}
+                color={productionStats.sellThrough >= 80 ? '#10b981' : productionStats.sellThrough >= 50 ? '#f59e0b' : '#ef4444'}
+              />
+              <div className="flex-1">
+                <div className="flex justify-between text-sm mb-2">
+                  <span className="text-stone-500">ส่งไปร้าน</span>
+                  <span className="font-bold text-stone-700">{productionStats.toShop} ชิ้น</span>
+                </div>
+                <div className="flex justify-between text-sm mb-2">
+                  <span className="text-stone-500">ขายได้</span>
+                  <span className="font-bold text-emerald-600">{productionStats.sold} ชิ้น</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-stone-500">เหลือ</span>
+                  <span className="font-bold text-amber-600">{productionStats.toShop - productionStats.sold} ชิ้น</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Waste Analysis */}
+          <div className="bg-white rounded-2xl p-6 border border-stone-100 shadow-sm">
+            <SectionHeader title="Waste Analysis" icon={<Trash2 className="text-rose-500" size={20} />} />
+            <div className="flex items-center gap-6">
+              <div className="relative w-20 h-20">
+                <div className={`w-full h-full rounded-full flex items-center justify-center ${productionStats.wasteRate > 10 ? 'bg-rose-100' : 'bg-stone-100'
+                  }`}>
+                  <span className={`text-2xl font-bold ${productionStats.wasteRate > 10 ? 'text-rose-600' : 'text-stone-600'}`}>
+                    {productionStats.waste}
+                  </span>
+                </div>
+              </div>
+              <div className="flex-1">
+                <div className="flex justify-between text-sm mb-2">
+                  <span className="text-stone-500">ของเสียวันนี้</span>
+                  <span className={`font-bold ${productionStats.wasteRate > 10 ? 'text-rose-600' : 'text-stone-700'}`}>
+                    {productionStats.waste} ชิ้น
+                  </span>
+                </div>
+                <div className="flex justify-between text-sm mb-2">
+                  <span className="text-stone-500">อัตราของเสีย</span>
+                  <span className={`font-bold ${productionStats.wasteRate > 10 ? 'text-rose-600' : 'text-stone-700'}`}>
+                    {productionStats.wasteRate.toFixed(1)}%
+                  </span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-stone-500">มูลค่าสูญเสีย</span>
+                  <span className="font-bold text-rose-600">{formatCurrency(productionStats.wasteCost)}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ═══════════════════════════════════════════════════════════════
+          ⚠️ LOW STOCK ALERT - Collapsible
+         ═══════════════════════════════════════════════════════════════ */}
       {lowStockItems.length > 0 && (
-        <div className="bg-red-50 border-2 border-red-200 rounded-2xl p-5">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="font-bold text-red-800 flex items-center gap-2">
-              <AlertTriangle className="text-red-600" /> ⚠️ วัตถุดิบใกล้หมด ({lowStockItems.length} รายการ)
+        <div className="bg-rose-50 rounded-2xl p-5 border border-rose-200">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="font-bold text-rose-700 flex items-center gap-2">
+              <AlertTriangle size={20} />
+              วัตถุดิบใกล้หมด ({lowStockItems.length} รายการ)
             </h3>
-            <div className="flex items-center gap-3">
-              <button onClick={() => setShowLowStock(!showLowStock)}
-                className="flex items-center gap-1 px-3 py-1.5 bg-red-100 hover:bg-red-200 text-red-700 rounded-lg text-sm font-medium transition-colors">
-                {showLowStock ? <><ChevronUp size={16} /> ซ่อนรายการ</> : <><ChevronDown size={16} /> ดูทั้งหมด</>}
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowLowStock(!showLowStock)}
+                className="px-3 py-1.5 bg-rose-100 hover:bg-rose-200 text-rose-700 rounded-lg text-sm font-medium transition-colors"
+              >
+                {showLowStock ? 'ซ่อน' : 'ดูทั้งหมด'}
               </button>
-              <button onClick={() => onNavigate?.('inventory')} className="text-sm text-red-600 hover:underline font-medium flex items-center gap-1">
-                ไปเติมของ <ArrowRight size={14} />
+              <button onClick={() => onNavigate?.('inventory')} className="text-sm text-rose-600 hover:underline font-medium">
+                ไปเติมของ →
               </button>
             </div>
           </div>
+
           {showLowStock && (
-            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-3 max-h-96 overflow-y-auto pr-2">
-              {lowStockItems.map(ing => {
+            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3 mt-4">
+              {lowStockItems.slice(0, 12).map(ing => {
                 const pct = Math.min(100, (ing.currentStock / (ing.minStock || 10)) * 100);
-                const isCritical = pct < 30;
                 return (
-                  <div key={ing.id} className={`bg-white rounded-xl p-3 border ${isCritical ? 'border-red-300 shadow-red-100/50 shadow-md' : 'border-red-100'}`}>
-                    <div className="font-medium text-cafe-900 text-sm truncate" title={ing.name}>{ing.name}</div>
-                    <div className={`text-2xl font-bold ${isCritical ? 'text-red-600' : 'text-orange-600'}`}>{ing.currentStock}</div>
-                    <div className="text-xs text-cafe-500">{ing.unit} (min: {ing.minStock || 10})</div>
-                    <div className="mt-2 h-1.5 bg-gray-200 rounded-full overflow-hidden">
-                      <div className={`h-full ${isCritical ? 'bg-red-500' : 'bg-orange-500'}`} style={{ width: `${pct}%` }} />
+                  <div key={ing.id} className="bg-white rounded-xl p-3 border border-rose-100">
+                    <p className="text-sm font-medium text-stone-700 truncate">{ing.name}</p>
+                    <p className="text-xl font-bold text-rose-600">{ing.currentStock}</p>
+                    <p className="text-xs text-stone-400">{ing.unit}</p>
+                    <div className="mt-2 h-1.5 bg-rose-100 rounded-full overflow-hidden">
+                      <div className="h-full bg-rose-500" style={{ width: `${pct}%` }} />
                     </div>
-                    {isCritical && <div className="text-xs text-red-600 font-medium mt-1">⚠️ วิกฤต</div>}
                   </div>
                 );
               })}
@@ -329,134 +467,98 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
         </div>
       )}
 
-      {/* FINANCIAL JARS OVERVIEW */}
-      <div className="bg-gradient-to-r from-cafe-50 to-amber-50 rounded-2xl border border-cafe-200 p-5">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="font-bold text-cafe-900 flex items-center gap-2">
-            <Wallet className="text-cafe-600" /> 🏦 สุขภาพการเงิน (Jar System)
-          </h3>
-          <button onClick={() => onNavigate?.('jars')} className="text-sm text-cafe-600 hover:underline font-medium flex items-center gap-1">
-            จัดการโถ <ArrowRight size={14} />
-          </button>
-        </div>
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+      {/* ═══════════════════════════════════════════════════════════════
+          🏦 FINANCIAL JARS - Clean Overview
+         ═══════════════════════════════════════════════════════════════ */}
+      <div className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-2xl p-5 border border-amber-100">
+        <SectionHeader
+          title="สุขภาพการเงิน"
+          icon={<Wallet className="text-amber-600" size={20} />}
+          action={{ label: 'จัดการโถ', onClick: () => onNavigate?.('jars') }}
+        />
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
           {jars.map(jar => (
-            <div key={jar.id} className="bg-white rounded-xl p-4 text-center border border-cafe-100 hover:shadow-md transition-shadow">
-              <div className="text-xs text-cafe-500">{jar.name}</div>
-              <div className="text-xl font-bold text-cafe-900">{formatCurrency(jar.balance)}</div>
-              <div className={`text-xs mt-1 px-2 py-0.5 rounded-full inline-block ${jar.balance > 0 ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
-                {jar.allocationPercent}%
-              </div>
+            <div key={jar.id} className="bg-white rounded-xl p-4 text-center border border-amber-100 hover:shadow-md transition-shadow">
+              <p className="text-xs text-stone-500 mb-1">{jar.name}</p>
+              <p className="text-lg font-bold text-stone-800">{formatCurrency(jar.balance)}</p>
             </div>
           ))}
         </div>
       </div>
 
-      {/* INSIGHTS GRID */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      {/* ═══════════════════════════════════════════════════════════════
+          📈 INSIGHTS GRID - 2 Columns
+         ═══════════════════════════════════════════════════════════════ */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* TOP PRODUCTS */}
-        <InsightCard title="🏆 Top 5 สินค้าทำกำไร" icon={<Award className="text-yellow-500" size={20} />} action={{ label: 'ดูทั้งหมด', onClick: () => onNavigate?.('salesreport') }}>
+        <div className="bg-white rounded-2xl p-5 border border-stone-100 shadow-sm">
+          <SectionHeader
+            title="Top 5 สินค้าทำกำไร"
+            icon={<Award className="text-amber-500" size={20} />}
+            action={{ label: 'ดูทั้งหมด', onClick: () => onNavigate?.('salesreport') }}
+          />
           {topProducts.length > 0 ? (
             <div className="space-y-3">
               {topProducts.map((p, i) => (
-                <div key={i} className="flex items-center justify-between p-3 bg-cafe-50 rounded-xl hover:bg-cafe-100 transition-colors">
+                <div key={i} className="flex items-center justify-between p-3 bg-stone-50 rounded-xl hover:bg-stone-100 transition-colors">
                   <div className="flex items-center gap-3">
-                    <span className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${i === 0 ? 'bg-yellow-400 text-yellow-900' : i === 1 ? 'bg-gray-300 text-gray-700' : i === 2 ? 'bg-orange-300 text-orange-800' : 'bg-cafe-200 text-cafe-700'}`}>
+                    <span className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${i === 0 ? 'bg-amber-100 text-amber-700' : i === 1 ? 'bg-stone-200 text-stone-600' : i === 2 ? 'bg-orange-100 text-orange-700' : 'bg-stone-100 text-stone-500'
+                      }`}>
                       {i + 1}
                     </span>
                     <div>
-                      <div className="font-medium text-cafe-900">{p.name}</div>
-                      <div className="text-xs text-cafe-500">{p.sold} ชิ้น</div>
+                      <p className="font-medium text-stone-700 text-sm">{p.name}</p>
+                      <p className="text-xs text-stone-400">{p.sold} ชิ้น</p>
                     </div>
                   </div>
                   <div className="text-right">
-                    <div className="font-bold text-green-600">{formatCurrency(p.profit)}</div>
-                    <div className="text-xs text-cafe-400">กำไร</div>
+                    <p className="font-bold text-emerald-600">{formatCurrency(p.profit)}</p>
                   </div>
                 </div>
               ))}
             </div>
-          ) : <div className="text-center py-8 text-cafe-400">ไม่มีข้อมูล</div>}
-        </InsightCard>
-
-        {/* CATEGORY BREAKDOWN */}
-        <InsightCard title="📊 ยอดขายตามหมวดหมู่" icon={<PieChart className="text-purple-500" size={20} />}>
-          {categoryBreakdown.length > 0 ? (
-            <div className="space-y-3">
-              {categoryBreakdown.map((cat, i) => {
-                const pct = metrics.revenue > 0 ? (cat.revenue / metrics.revenue) * 100 : 0;
-                return (
-                  <div key={i} className="space-y-1">
-                    <div className="flex justify-between text-sm">
-                      <span className="font-medium text-cafe-900">{cat.name}</span>
-                      <span className="text-cafe-600">{formatCurrency(cat.revenue)} ({pct.toFixed(0)}%)</span>
-                    </div>
-                    <div className="h-2 bg-cafe-100 rounded-full overflow-hidden">
-                      <div className="h-full bg-gradient-to-r from-purple-500 to-violet-500 rounded-full" style={{ width: `${pct}%` }} />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          ) : <div className="text-center py-8 text-cafe-400">ไม่มีข้อมูล</div>}
-        </InsightCard>
+          ) : (
+            <p className="text-center py-8 text-stone-400">ไม่มีข้อมูล</p>
+          )}
+        </div>
 
         {/* MARKET PERFORMANCE */}
-        <InsightCard title="🏪 เปรียบเทียบตลาด" icon={<BarChart3 className="text-blue-500" size={20} />}>
+        <div className="bg-white rounded-2xl p-5 border border-stone-100 shadow-sm">
+          <SectionHeader
+            title="เปรียบเทียบตลาด"
+            icon={<Store className="text-sky-500" size={20} />}
+          />
           {marketPerformance.length > 0 ? (
             <div className="space-y-3">
               {marketPerformance.map((m, i) => (
-                <div key={i} className="flex items-center justify-between p-3 bg-blue-50 rounded-xl">
+                <div key={i} className="flex items-center justify-between p-3 bg-sky-50 rounded-xl">
                   <div className="flex items-center gap-3">
-                    <Store className="text-blue-500" size={20} />
-                    <span className="font-medium text-cafe-900">{m.name}</span>
+                    <Store className="text-sky-500" size={20} />
+                    <span className="font-medium text-stone-700">{m.name}</span>
                   </div>
                   <div className="text-right">
-                    <div className="font-bold text-cafe-900">{formatCurrency(m.revenue)}</div>
-                    <div className="text-xs text-green-600">+{formatCurrency(m.profit)} กำไร</div>
+                    <p className="font-bold text-stone-800">{formatCurrency(m.revenue)}</p>
+                    <p className="text-xs text-emerald-600">+{formatCurrency(m.profit)} กำไร</p>
                   </div>
                 </div>
               ))}
             </div>
-          ) : <div className="text-center py-8 text-cafe-400">ไม่มีข้อมูล</div>}
-        </InsightCard>
-
-        {/* QUICK METRICS */}
-        <InsightCard title="📈 สรุปสำคัญ" icon={<Zap className="text-amber-500" size={20} />}>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-4 text-center">
-              <DollarSign className="mx-auto text-blue-500 mb-2" size={24} />
-              <div className="text-xs text-blue-600">ยอดขาย/วัน</div>
-              <div className="text-xl font-bold text-blue-900">{formatCurrency(metrics.perDay)}</div>
-            </div>
-            <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl p-4 text-center">
-              <ShoppingBag className="mx-auto text-purple-500 mb-2" size={24} />
-              <div className="text-xs text-purple-600">สินค้า/วัน</div>
-              <div className="text-xl font-bold text-purple-900">{metrics.itemsPerDay.toFixed(0)} ชิ้น</div>
-            </div>
-            <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-xl p-4 text-center">
-              <CalendarIcon className="mx-auto text-green-500 mb-2" size={24} />
-              <div className="text-xs text-green-600">วันขายดีสุด</div>
-              <div className="text-xl font-bold text-green-900">{bestDay ? formatCurrency(bestDay[1]) : '-'}</div>
-              <div className="text-xs text-green-600">{bestDay ? new Date(bestDay[0]).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' }) : ''}</div>
-            </div>
-            <div className={`bg-gradient-to-br ${lowStockItems.length > 0 ? 'from-red-50 to-red-100' : 'from-gray-50 to-gray-100'} rounded-xl p-4 text-center`}>
-              <Package className={`mx-auto mb-2 ${lowStockItems.length > 0 ? 'text-red-500' : 'text-gray-500'}`} size={24} />
-              <div className={`text-xs ${lowStockItems.length > 0 ? 'text-red-600' : 'text-gray-600'}`}>วัตถุดิบใกล้หมด</div>
-              <div className={`text-xl font-bold ${lowStockItems.length > 0 ? 'text-red-900' : 'text-gray-900'}`}>{lowStockItems.length} รายการ</div>
-            </div>
-          </div>
-        </InsightCard>
+          ) : (
+            <p className="text-center py-8 text-stone-400">ไม่มีข้อมูล</p>
+          )}
+        </div>
       </div>
 
-      {/* GOALS SECTION */}
+      {/* ═══════════════════════════════════════════════════════════════
+          🎯 GOALS SECTION
+         ═══════════════════════════════════════════════════════════════ */}
       {goals.length > 0 && (
         <div>
-          <h3 className="font-bold text-cafe-900 mb-4 flex items-center gap-2">
-            <Target className="text-cafe-600" /> 🎯 เป้าหมายทางการเงิน
-          </h3>
+          <SectionHeader title="เป้าหมายทางการเงิน" icon={<Target className="text-amber-600" size={20} />} />
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {goals.map(goal => <GoalCard key={goal.id} goal={goal} onEdit={() => { setEditingGoal(goal); setIsGoalModalOpen(true); }} />)}
+            {goals.map(goal => (
+              <GoalCard key={goal.id} goal={goal} onEdit={() => { setEditingGoal(goal); setIsGoalModalOpen(true); }} />
+            ))}
           </div>
         </div>
       )}

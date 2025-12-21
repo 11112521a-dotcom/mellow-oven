@@ -422,76 +422,76 @@ export const SalesReport: React.FC = () => {
 
     return (
         <div className="space-y-6 animate-in fade-in duration-500 pb-20">
-            {/* Premium Header */}
-            <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-cafe-900 via-cafe-800 to-amber-900 p-8 text-white shadow-2xl">
-                <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-br from-yellow-500/20 to-transparent rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl" />
-                <div className="absolute bottom-0 left-0 w-64 h-64 bg-gradient-to-tr from-amber-500/20 to-transparent rounded-full translate-y-1/2 -translate-x-1/2 blur-2xl" />
+            {/* Warm Cafe Header */}
+            <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-amber-50 via-orange-50 to-yellow-50 border border-amber-100 p-6 sm:p-8">
+                <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-amber-200/30 to-transparent rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl" />
+                <div className="absolute bottom-0 left-0 w-48 h-48 bg-gradient-to-tr from-orange-200/20 to-transparent rounded-full translate-y-1/2 -translate-x-1/2 blur-2xl" />
 
                 <div className="relative flex flex-col lg:flex-row lg:items-center justify-between gap-6">
                     <div className="flex items-center gap-4">
-                        <div className="w-16 h-16 bg-gradient-to-br from-yellow-400 to-amber-500 rounded-2xl flex items-center justify-center shadow-lg">
-                            <Activity size={32} className="text-white" />
+                        <div className="w-14 h-14 bg-gradient-to-br from-amber-400 to-orange-500 rounded-2xl flex items-center justify-center shadow-lg shadow-amber-200/50">
+                            <Activity size={28} className="text-white" />
                         </div>
                         <div>
-                            <h1 className="text-3xl font-bold flex items-center gap-3">
+                            <h1 className="text-2xl sm:text-3xl font-bold text-stone-800 flex items-center gap-2">
                                 รายงานการขาย
-                                <Sparkles className="text-yellow-300 animate-pulse" size={24} />
+                                <Sparkles className="text-amber-500" size={20} />
                             </h1>
-                            <p className="text-cafe-200 mt-1">Sales Analytics Dashboard</p>
+                            <p className="text-stone-500 mt-1">Sales Analytics Dashboard</p>
                         </div>
                     </div>
 
                     {/* Filters in Header */}
                     <div className="flex flex-wrap gap-3">
-                        <div className="bg-white/10 backdrop-blur-lg rounded-xl p-3 flex items-center gap-2 border border-white/10">
-                            <Clock size={18} className="text-cafe-200" />
+                        <div className="bg-white/80 backdrop-blur-sm rounded-xl p-3 flex items-center gap-2 border border-amber-100 shadow-sm">
+                            <Clock size={18} className="text-amber-600" />
                             <select
                                 value={datePreset}
                                 onChange={(e) => applyDatePreset(e.target.value as any)}
-                                className="bg-transparent border-none text-white font-medium focus:ring-0 cursor-pointer"
+                                className="bg-transparent border-none text-stone-700 font-medium focus:ring-0 cursor-pointer"
                             >
-                                <option value="today" className="text-cafe-900">วันนี้</option>
-                                <option value="yesterday" className="text-cafe-900">เมื่อวาน</option>
-                                <option value="thisWeek" className="text-cafe-900">สัปดาห์นี้</option>
-                                <option value="lastWeek" className="text-cafe-900">สัปดาห์ที่แล้ว</option>
-                                <option value="thisMonth" className="text-cafe-900">เดือนนี้</option>
-                                <option value="lastMonth" className="text-cafe-900">เดือนที่แล้ว</option>
-                                <option value="3months" className="text-cafe-900">3 เดือนล่าสุด</option>
-                                <option value="6months" className="text-cafe-900">6 เดือนล่าสุด</option>
-                                <option value="thisYear" className="text-cafe-900">ปีนี้ทั้งหมด</option>
-                                <option value="custom" className="text-cafe-900">📅 เลือกช่วงวัน...</option>
+                                <option value="today">วันนี้</option>
+                                <option value="yesterday">เมื่อวาน</option>
+                                <option value="thisWeek">สัปดาห์นี้</option>
+                                <option value="lastWeek">สัปดาห์ที่แล้ว</option>
+                                <option value="thisMonth">เดือนนี้</option>
+                                <option value="lastMonth">เดือนที่แล้ว</option>
+                                <option value="3months">3 เดือนล่าสุด</option>
+                                <option value="6months">6 เดือนล่าสุด</option>
+                                <option value="thisYear">ปีนี้ทั้งหมด</option>
+                                <option value="custom">📅 เลือกช่วงวัน...</option>
                             </select>
                         </div>
 
                         {/* Custom Date Range Picker */}
                         {datePreset === 'custom' && (
-                            <div className="bg-white/10 backdrop-blur-lg rounded-xl px-4 py-2 flex items-center gap-2 border border-white/10">
-                                <Calendar size={16} className="text-cafe-300" />
+                            <div className="bg-white/80 backdrop-blur-sm rounded-xl px-4 py-2 flex items-center gap-2 border border-amber-100 shadow-sm">
+                                <Calendar size={16} className="text-amber-600" />
                                 <input
                                     type="date"
                                     value={startDate}
                                     onChange={e => setStartDate(e.target.value)}
-                                    className="bg-transparent border-none text-white focus:ring-0 w-32"
+                                    className="bg-transparent border-none text-stone-700 focus:ring-0 w-32"
                                 />
-                                <span className="text-cafe-300">ถึง</span>
+                                <span className="text-stone-400">ถึง</span>
                                 <input
                                     type="date"
                                     value={endDate}
                                     onChange={e => setEndDate(e.target.value)}
-                                    className="bg-transparent border-none text-white focus:ring-0 w-32"
+                                    className="bg-transparent border-none text-stone-700 focus:ring-0 w-32"
                                 />
                             </div>
                         )}
 
-                        <div className="bg-white/10 backdrop-blur-lg rounded-xl p-3 flex items-center gap-2 border border-white/10">
-                            <Store size={18} className="text-cafe-200" />
+                        <div className="bg-white/80 backdrop-blur-sm rounded-xl p-3 flex items-center gap-2 border border-amber-100 shadow-sm">
+                            <Store size={18} className="text-amber-600" />
                             <select
                                 value={selectedMarket}
                                 onChange={(e) => setSelectedMarket(e.target.value)}
-                                className="bg-transparent border-none text-white font-medium focus:ring-0 cursor-pointer"
+                                className="bg-transparent border-none text-stone-700 font-medium focus:ring-0 cursor-pointer"
                             >
-                                <option value="all" className="text-cafe-900">ทุกตลาด</option>
-                                {markets.map(m => <option key={m.id} value={m.id} className="text-cafe-900">{m.name}</option>)}
+                                <option value="all">ทุกตลาด</option>
+                                {markets.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
                             </select>
                         </div>
 
@@ -831,9 +831,9 @@ export const SalesReport: React.FC = () => {
                                         <div className="flex items-center gap-2">
                                             <span className="font-mono text-sm font-bold text-purple-600">{order.orderNumber}</span>
                                             <span className={`text-xs px-2 py-0.5 rounded-full ${order.status === 'delivered' ? 'bg-green-100 text-green-700' :
-                                                    order.status === 'producing' ? 'bg-purple-100 text-purple-700' :
-                                                        order.status === 'confirmed' ? 'bg-blue-100 text-blue-700' :
-                                                            'bg-yellow-100 text-yellow-700'
+                                                order.status === 'producing' ? 'bg-purple-100 text-purple-700' :
+                                                    order.status === 'confirmed' ? 'bg-blue-100 text-blue-700' :
+                                                        'bg-yellow-100 text-yellow-700'
                                                 }`}>
                                                 {order.status === 'delivered' ? 'ส่งแล้ว' :
                                                     order.status === 'producing' ? 'กำลังผลิต' :

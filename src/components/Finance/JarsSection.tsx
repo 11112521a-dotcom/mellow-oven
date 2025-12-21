@@ -102,8 +102,8 @@ export const JarsSection: React.FC<JarsSectionProps> = ({ jars, onJarClick }) =>
 
     return (
         <div>
-            <h2 className="text-xl font-bold text-cafe-800 mb-6 flex items-center gap-2">
-                <span className="w-2 h-8 bg-cafe-600 rounded-full"></span>
+            <h2 className="text-xl font-bold text-stone-800 mb-6 flex items-center gap-2">
+                <span className="w-2 h-8 bg-amber-500 rounded-full"></span>
                 กระเป๋าเงิน (Cloud Pockets)
             </h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
@@ -113,7 +113,7 @@ export const JarsSection: React.FC<JarsSectionProps> = ({ jars, onJarClick }) =>
                         <div
                             key={jar.id}
                             onClick={() => onJarClick(jar.id)}
-                            className="bg-white rounded-2xl p-5 shadow-sm hover:shadow-md transition-all cursor-pointer border border-cafe-50 h-40 flex flex-col justify-between relative overflow-hidden group"
+                            className="bg-white rounded-2xl p-5 shadow-sm hover:shadow-md transition-all cursor-pointer border border-stone-100 h-40 flex flex-col justify-between relative overflow-hidden group"
                         >
                             {/* Edit Button */}
                             <button
@@ -139,8 +139,8 @@ export const JarsSection: React.FC<JarsSectionProps> = ({ jars, onJarClick }) =>
                             {/* Bottom Row */}
                             <div className="flex justify-between items-end mt-4">
                                 <div>
-                                    <p className="font-semibold text-cafe-700 text-lg">{jar.name}</p>
-                                    <p className="text-xs text-cafe-400 line-clamp-1">{jar.description}</p>
+                                    <p className="font-semibold text-stone-700 text-lg">{jar.name}</p>
+                                    <p className="text-xs text-stone-400 line-clamp-1">{jar.description}</p>
                                 </div>
                                 <div className={`text-xs font-bold px-2 py-1 rounded-lg ${config.bg} ${config.text}`}>
                                     {config.percentage}%
@@ -159,7 +159,7 @@ export const JarsSection: React.FC<JarsSectionProps> = ({ jars, onJarClick }) =>
                 <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setEditingJar(null)}>
                     <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-xl" onClick={(e) => e.stopPropagation()}>
                         <div className="flex justify-between items-center mb-4">
-                            <h3 className="text-lg font-bold text-cafe-800">แก้ไขยอด {editingJar.name}</h3>
+                            <h3 className="text-lg font-bold text-stone-800">แก้ไขยอด {editingJar.name}</h3>
                             <button onClick={() => setEditingJar(null)} className="p-2 hover:bg-gray-100 rounded-full">
                                 <X size={20} />
                             </button>
@@ -177,7 +177,7 @@ export const JarsSection: React.FC<JarsSectionProps> = ({ jars, onJarClick }) =>
                                     type="number"
                                     value={newBalance}
                                     onChange={(e) => setNewBalance(e.target.value)}
-                                    className="w-full px-4 py-3 border-2 border-cafe-200 rounded-xl text-xl font-bold focus:border-cafe-500 focus:outline-none"
+                                    className="w-full px-4 py-3 border-2 border-stone-200 rounded-xl text-xl font-bold focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-100"
                                     placeholder="0.00"
                                     autoFocus
                                 />
@@ -199,7 +199,7 @@ export const JarsSection: React.FC<JarsSectionProps> = ({ jars, onJarClick }) =>
                             </button>
                             <button
                                 onClick={handleSaveBalance}
-                                className="flex-1 px-4 py-3 bg-gradient-to-r from-cafe-600 to-cafe-700 text-white rounded-xl font-medium transition-all hover:shadow-lg flex items-center justify-center gap-2"
+                                className="flex-1 px-4 py-3 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-xl font-medium transition-all hover:shadow-lg flex items-center justify-center gap-2"
                             >
                                 <Check size={18} /> บันทึก
                             </button>

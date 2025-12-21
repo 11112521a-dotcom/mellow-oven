@@ -315,51 +315,51 @@ export const DailySalesForm: React.FC = () => {
 
     return (
         <div className="space-y-6 animate-in fade-in duration-500">
-            {/* Premium Header */}
-            <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-cafe-800 via-cafe-700 to-cafe-900 p-8 text-white shadow-xl">
-                <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -translate-y-1/2 translate-x-1/2" />
+            {/* Warm Cafe Header */}
+            <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-amber-50 via-orange-50 to-yellow-50 border border-amber-100 p-6 sm:p-8">
+                <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-amber-200/30 to-transparent rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl" />
 
                 <div className="relative flex flex-col md:flex-row md:items-center justify-between gap-6">
                     <div className="flex items-center gap-4">
-                        <div className="w-14 h-14 bg-white/10 backdrop-blur rounded-xl flex items-center justify-center">
-                            <ShoppingCart size={28} />
+                        <div className="w-14 h-14 bg-gradient-to-br from-amber-400 to-orange-500 rounded-2xl flex items-center justify-center shadow-lg shadow-amber-200/50">
+                            <ShoppingCart size={28} className="text-white" />
                         </div>
                         <div>
-                            <h1 className="text-2xl font-bold flex items-center gap-2">
+                            <h1 className="text-2xl font-bold text-stone-800 flex items-center gap-2">
                                 บันทึกยอดขาย
-                                <Sparkles className="text-yellow-300" size={20} />
+                                <Sparkles className="text-amber-500" size={20} />
                             </h1>
-                            <p className="text-cafe-200">Daily Sales Log - เชื่อมกับสต็อกอัตโนมัติ</p>
+                            <p className="text-stone-500">Daily Sales Log - เชื่อมกับสต็อกอัตโนมัติ</p>
                         </div>
                     </div>
 
-                    <div className="flex flex-wrap gap-4">
-                        <div className="bg-white/10 backdrop-blur rounded-xl p-3 flex items-center gap-2">
-                            <Store size={18} className="text-cafe-200" />
+                    <div className="flex flex-wrap gap-3">
+                        <div className="bg-white/80 backdrop-blur-sm rounded-xl p-3 flex items-center gap-2 border border-amber-100 shadow-sm">
+                            <Store size={18} className="text-amber-600" />
                             <select
                                 value={selectedMarketId}
                                 onChange={e => setSelectedMarketId(e.target.value)}
-                                className="bg-transparent border-none text-white font-medium focus:ring-0 cursor-pointer"
+                                className="bg-transparent border-none text-stone-700 font-medium focus:ring-0 cursor-pointer"
                             >
-                                <option value="" className="text-cafe-900">-- เลือกตลาด --</option>
+                                <option value="">-- เลือกตลาด --</option>
                                 {markets.map(m => (
-                                    <option key={m.id} value={m.id} className="text-cafe-900">{m.name}</option>
+                                    <option key={m.id} value={m.id}>{m.name}</option>
                                 ))}
                             </select>
                         </div>
-                        <div className="bg-white/10 backdrop-blur rounded-xl p-3 flex items-center gap-2">
-                            <Calendar size={18} className="text-cafe-200" />
+                        <div className="bg-white/80 backdrop-blur-sm rounded-xl p-3 flex items-center gap-2 border border-amber-100 shadow-sm">
+                            <Calendar size={18} className="text-amber-600" />
                             <input
                                 type="date"
                                 value={date}
                                 onChange={e => setDate(e.target.value)}
-                                className="bg-transparent border-none text-white font-medium focus:ring-0 cursor-pointer"
+                                className="bg-transparent border-none text-stone-700 font-medium focus:ring-0 cursor-pointer"
                             />
                         </div>
 
                         {/* Weather Selector */}
-                        <div className="bg-white/10 backdrop-blur rounded-xl p-2 flex items-center gap-1">
-                            <span className="text-cafe-200 text-sm px-2">อากาศ:</span>
+                        <div className="bg-white/80 backdrop-blur-sm rounded-xl p-2 flex items-center gap-1 border border-amber-100 shadow-sm">
+                            <span className="text-stone-500 text-sm px-2">อากาศ:</span>
                             {[
                                 { id: 'sunny', icon: <Sun size={20} />, label: 'แดด', color: 'text-yellow-300 bg-yellow-500/30' },
                                 { id: 'cloudy', icon: <Cloud size={20} />, label: 'เมฆ', color: 'text-gray-300 bg-gray-500/30' },
@@ -371,8 +371,8 @@ export const DailySalesForm: React.FC = () => {
                                     type="button"
                                     onClick={() => setWeather(weather === w.id ? null : w.id as WeatherCondition)}
                                     className={`p-2 rounded-lg transition-all ${weather === w.id
-                                        ? w.color + ' ring-2 ring-white/50 scale-110'
-                                        : 'text-cafe-300 hover:bg-white/10'
+                                        ? w.color + ' ring-2 ring-amber-400/50 scale-110'
+                                        : 'text-stone-400 hover:bg-amber-50'
                                         }`}
                                     title={w.label}
                                 >
