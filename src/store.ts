@@ -5,6 +5,98 @@ import { Jar, Transaction, Ingredient, PurchaseOrder, Product, DailyReport, JarT
 import type { ForecastOutput } from './lib/forecasting';
 import { ProductionForecast, forecastOutputToDbFormat } from './lib/forecasting/types';
 
+// ==================== MAPPING HELPERS (Selective Real-time) ====================
+
+const mapTransaction = (t: any): Transaction => ({
+    id: t.id,
+    date: t.date,
+    amount: Number(t.amount),
+    type: t.type,
+    fromJar: t.from_jar,
+    toJar: t.to_jar,
+    description: t.description,
+    category: t.category,
+    marketId: t.market_id
+});
+
+const mapIngredient = (i: any): Ingredient => ({
+    id: i.id,
+    name: i.name,
+    unit: i.unit,
+    currentStock: Number(i.current_stock),
+    costPerUnit: Number(i.cost_per_unit),
+    supplier: i.supplier,
+    lastUpdated: i.last_updated || new Date().toISOString(),
+    buyUnit: i.buy_unit,
+    conversionRate: Number(i.conversion_rate) || 1,
+    minStock: Number(i.min_stock) || 10,
+    isHidden: i.is_hidden
+});
+
+const mapProductSaleLog = (s: any): ProductSaleLog => ({
+    id: s.id,
+    recordedAt: s.recorded_at,
+    saleDate: s.sale_date,
+    marketId: s.market_id,
+    marketName: s.market_name,
+    productId: s.product_id,
+    productName: s.product_name,
+    category: s.category,
+    quantitySold: s.quantity_sold,
+    pricePerUnit: s.price_per_unit,
+    totalRevenue: s.total_revenue,
+    costPerUnit: s.cost_per_unit,
+    totalCost: s.total_cost,
+    grossProfit: s.gross_profit,
+    variantId: s.variant_id,
+    variantName: s.variant_name,
+    wasteQty: s.waste_qty || 0,
+    weatherCondition: s.weather_condition
+});
+
+const mapProductionForecast = (f: any): ProductionForecast => ({
+    id: f.id,
+    createdAt: f.created_at,
+    productId: f.product_id,
+    productName: f.product_name,
+    marketId: f.market_id,
+    marketName: f.market_name,
+    forecastForDate: f.forecast_for_date,
+    weatherForecast: f.weather_forecast,
+    historicalDataPoints: f.historical_data_points,
+    baselineForecast: f.baseline_forecast,
+    weatherAdjustedForecast: f.weather_adjusted_forecast,
+    lambdaPoisson: f.lambda_poisson,
+    optimalQuantity: f.optimal_quantity,
+    serviceLevelTarget: f.service_level_target,
+    stockoutProbability: f.stockout_probability,
+    wasteProbability: f.waste_probability,
+    unitPrice: f.unit_price,
+    unitCost: f.unit_cost,
+    expectedDemand: f.expected_demand,
+    expectedProfit: f.expected_profit,
+    confidenceLevel: f.confidence_level,
+    predictionIntervalLower: f.prediction_interval_lower,
+    predictionIntervalUpper: f.prediction_interval_upper,
+    outliersRemoved: f.outliers_removed
+});
+
+const mapDailyInventory = (d: any): DailyInventory => ({
+    id: d.id,
+    createdAt: d.created_at,
+    businessDate: d.business_date,
+    productId: d.product_id,
+    variantId: d.variant_id,
+    variantName: d.variant_name,
+    producedQty: d.produced_qty,
+    toShopQty: d.to_shop_qty,
+    soldQty: d.sold_qty,
+    wasteQty: d.waste_qty,
+    stockYesterday: d.stock_yesterday,
+    leftoverHome: d.leftover_home,
+    unsoldShop: d.unsold_shop
+});
+
 interface AppState {
     // Settings
     storeName: string;
@@ -682,27 +774,40 @@ export const useStore = create<AppState>()(
             },
 
             addTransaction: async (transaction) => {
+                // 1. Optimistic Update: Add to local state IMMEDIATELY
+                set((state) => ({ transactions: [transaction, ...state.transactions] }));
+
                 const dbTransaction = {
                     ...transaction,
                     from_jar: transaction.fromJar,
                     to_jar: transaction.toJar,
-                    market_id: (transaction as any).marketId // Cast if needed
+                    market_id: (transaction as any).marketId
                 };
-                // Remove camelCase keys to avoid errors if strict
                 delete (dbTransaction as any).fromJar;
                 delete (dbTransaction as any).toJar;
                 delete (dbTransaction as any).marketId;
 
                 const { error } = await supabase.from('transactions').insert(dbTransaction);
-                if (!error) {
-                    set((state) => ({ transactions: [transaction, ...state.transactions] }));
-                } else {
+
+                if (error) {
                     console.error('Error adding transaction:', error);
                     alert(`❌ บันทึก Transaction ไม่สำเร็จ: ${error.message}`);
+                    // Revert optimistic update
+                    set((state) => ({
+                        transactions: state.transactions.filter(t => t.id !== transaction.id)
+                    }));
                 }
             },
 
             updateTransaction: async (id, updates) => {
+                const { transactions } = get();
+                const oldTransaction = transactions.find(t => t.id === id);
+
+                // 1. Optimistic Update
+                set((state) => ({
+                    transactions: state.transactions.map((tx) => tx.id === id ? { ...tx, ...updates } : tx)
+                }));
+
                 const dbUpdates: any = { ...updates };
                 if (updates.fromJar) {
                     dbUpdates.from_jar = updates.fromJar;
@@ -714,10 +819,16 @@ export const useStore = create<AppState>()(
                 }
 
                 const { error } = await supabase.from('transactions').update(dbUpdates).eq('id', id);
-                if (!error) {
-                    set((state) => ({
-                        transactions: state.transactions.map((tx) => tx.id === id ? { ...tx, ...updates } : tx)
-                    }));
+
+                if (error) {
+                    console.error('Error updating transaction:', error);
+                    // Revert
+                    if (oldTransaction) {
+                        set((state) => ({
+                            transactions: state.transactions.map((tx) => tx.id === id ? oldTransaction : tx)
+                        }));
+                    }
+                    alert(`❌ แก้ไข Transaction ไม่สำเร็จ: ${error.message}`);
                 }
             },
 
@@ -757,6 +868,9 @@ export const useStore = create<AppState>()(
 
             // Unallocated Profit Management
             addUnallocatedProfit: async (profit) => {
+                // 1. Optimistic Update
+                set((state) => ({ unallocatedProfits: [...state.unallocatedProfits, profit] }));
+
                 const dbProfit = {
                     id: profit.id,
                     date: profit.date,
@@ -766,11 +880,14 @@ export const useStore = create<AppState>()(
                 };
 
                 const { error } = await supabase.from('unallocated_profits').insert(dbProfit);
-                if (!error) {
-                    set((state) => ({ unallocatedProfits: [...state.unallocatedProfits, profit] }));
-                } else {
+
+                if (error) {
                     console.error('Error adding unallocated profit:', error);
                     alert(`❌ บันทึกกำไรไม่สำเร็จ: ${error.message}`);
+                    // Revert
+                    set((state) => ({
+                        unallocatedProfits: state.unallocatedProfits.filter(p => p.id !== profit.id)
+                    }));
                 }
             },
 
@@ -2112,51 +2229,117 @@ export const useStore = create<AppState>()(
             subscribeToRealtime: () => {
                 const { fetchData } = get();
 
-                // Subscribe to Transactions
-                supabase
-                    .channel('public:transactions')
-                    .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, () => {
-                        fetchData();
+                // Transactions
+                supabase.channel('public:transactions')
+                    .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, (payload) => {
+                        if (payload.eventType === 'INSERT') {
+                            set(state => {
+                                if (state.transactions.some(t => t.id === payload.new.id)) return state;
+                                return { transactions: [mapTransaction(payload.new), ...state.transactions] };
+                            });
+                        } else if (payload.eventType === 'UPDATE') {
+                            set(state => ({ transactions: state.transactions.map(t => t.id === payload.new.id ? mapTransaction(payload.new) : t) }));
+                        } else if (payload.eventType === 'DELETE') {
+                            set(state => ({ transactions: state.transactions.filter(t => t.id !== payload.old.id) }));
+                        }
                     })
                     .subscribe();
 
-                // Subscribe to Ingredients
-                supabase
-                    .channel('public:ingredients')
-                    .on('postgres_changes', { event: '*', schema: 'public', table: 'ingredients' }, () => {
-                        fetchData();
+                // Ingredients
+                supabase.channel('public:ingredients')
+                    .on('postgres_changes', { event: '*', schema: 'public', table: 'ingredients' }, (payload) => {
+                        if (payload.eventType === 'INSERT') {
+                            set(state => {
+                                if (state.ingredients.some(i => i.id === payload.new.id)) return state;
+                                return { ingredients: [mapIngredient(payload.new), ...state.ingredients] };
+                            });
+                        } else if (payload.eventType === 'UPDATE') {
+                            set(state => ({ ingredients: state.ingredients.map(i => i.id === payload.new.id ? mapIngredient(payload.new) : i) }));
+                        } else if (payload.eventType === 'DELETE') {
+                            set(state => ({ ingredients: state.ingredients.filter(i => i.id !== payload.old.id) }));
+                        }
                     })
                     .subscribe();
 
-                // Subscribe to Production Forecasts
-                supabase
-                    .channel('public:production_forecasts')
-                    .on('postgres_changes', { event: '*', schema: 'public', table: 'production_forecasts' }, () => {
-                        fetchData();
+                // Production Forecasts
+                supabase.channel('public:production_forecasts')
+                    .on('postgres_changes', { event: '*', schema: 'public', table: 'production_forecasts' }, (payload) => {
+                        if (payload.eventType === 'INSERT') {
+                            set(state => {
+                                if (state.productionForecasts.some(f => f.id === payload.new.id)) return state;
+                                return { productionForecasts: [mapProductionForecast(payload.new), ...state.productionForecasts] };
+                            });
+                        } else if (payload.eventType === 'UPDATE') {
+                            set(state => ({ productionForecasts: state.productionForecasts.map(f => f.id === payload.new.id ? mapProductionForecast(payload.new) : f) }));
+                        } else if (payload.eventType === 'DELETE') {
+                            set(state => ({ productionForecasts: state.productionForecasts.filter(f => f.id !== payload.old.id) }));
+                        }
                     })
                     .subscribe();
 
-                // Subscribe to Markets
-                supabase
-                    .channel('public:markets')
-                    .on('postgres_changes', { event: '*', schema: 'public', table: 'markets' }, () => {
-                        fetchData();
+                // Markets (Assuming direct mapping)
+                supabase.channel('public:markets')
+                    .on('postgres_changes', { event: '*', schema: 'public', table: 'markets' }, (payload) => {
+                        // For simpler tables, we can just fetch data to be safe, or implement mapping if high traffic
+                        // Optimization: Just update local for now (Markets change rarely)
+                        if (payload.eventType === 'INSERT') {
+                            set(state => {
+                                if (state.markets.some(m => m.id === payload.new.id)) return state;
+                                return { markets: [...state.markets, payload.new as Market] };
+                            });
+                        } else if (payload.eventType === 'UPDATE') {
+                            set(state => ({ markets: state.markets.map(m => m.id === payload.new.id ? payload.new as Market : m) }));
+                        } else if (payload.eventType === 'DELETE') {
+                            set(state => ({ markets: state.markets.filter(m => m.id !== payload.old.id) }));
+                        }
                     })
                     .subscribe();
 
-                // Subscribe to Products
-                supabase
-                    .channel('public:products')
-                    .on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, () => {
-                        fetchData();
+                // Products (Assuming direct mapping)
+                supabase.channel('public:products')
+                    .on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, (payload) => {
+                        if (payload.eventType === 'INSERT') {
+                            set(state => {
+                                if (state.products.some(p => p.id === payload.new.id)) return state;
+                                return { products: [...state.products, payload.new as Product] };
+                            });
+                        } else if (payload.eventType === 'UPDATE') {
+                            set(state => ({ products: state.products.map(p => p.id === payload.new.id ? payload.new as Product : p) }));
+                        } else if (payload.eventType === 'DELETE') {
+                            set(state => ({ products: state.products.filter(p => p.id !== payload.old.id) }));
+                        }
                     })
                     .subscribe();
 
-                // Subscribe to Product Sales
-                supabase
-                    .channel('public:product_sales')
-                    .on('postgres_changes', { event: '*', schema: 'public', table: 'product_sales' }, () => {
-                        fetchData();
+                // Product Sales
+                supabase.channel('public:product_sales')
+                    .on('postgres_changes', { event: '*', schema: 'public', table: 'product_sales' }, (payload) => {
+                        if (payload.eventType === 'INSERT') {
+                            set(state => {
+                                if (state.productSales.some(s => s.id === payload.new.id)) return state;
+                                return { productSales: [mapProductSaleLog(payload.new), ...state.productSales] };
+                            });
+                        } else if (payload.eventType === 'UPDATE') {
+                            set(state => ({ productSales: state.productSales.map(s => s.id === payload.new.id ? mapProductSaleLog(payload.new) : s) }));
+                        } else if (payload.eventType === 'DELETE') {
+                            set(state => ({ productSales: state.productSales.filter(s => s.id !== payload.old.id) }));
+                        }
+                    })
+                    .subscribe();
+
+                // Daily Inventory (Stock Log Integration)
+                supabase.channel('public:daily_inventory')
+                    .on('postgres_changes', { event: '*', schema: 'public', table: 'daily_inventory' }, (payload) => {
+                        if (payload.eventType === 'INSERT') {
+                            set(state => {
+                                if (state.dailyInventory.some(d => d.id === payload.new.id)) return state;
+                                return { dailyInventory: [...state.dailyInventory, mapDailyInventory(payload.new)] };
+                            });
+                        } else if (payload.eventType === 'UPDATE') {
+                            set(state => ({ dailyInventory: state.dailyInventory.map(d => d.id === payload.new.id ? mapDailyInventory(payload.new) : d) }));
+                        } else if (payload.eventType === 'DELETE') {
+                            set(state => ({ dailyInventory: state.dailyInventory.filter(d => d.id !== payload.old.id) }));
+                        }
                     })
                     .subscribe();
             },

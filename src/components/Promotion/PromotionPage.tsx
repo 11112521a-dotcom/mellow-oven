@@ -91,24 +91,36 @@ export const PromotionPage: React.FC = () => {
 
     return (
         <div className="space-y-6">
-            {/* Header */}
-            <div className="bg-gradient-to-r from-purple-600 to-pink-600 text-white p-6 rounded-2xl">
-                <div className="flex justify-between items-start">
-                    <div>
-                        <h1 className="text-2xl font-bold flex items-center gap-3">
-                            <Tag size={28} />
-                            Promotion & Snack Box
-                        </h1>
-                        <p className="text-purple-100 mt-2">จัดการโปรโมชั่น, Snack Box และออเดอร์พิเศษ</p>
+            {/* Header - Light Warm Cafe Style */}
+            <div className="bg-white rounded-[2rem] shadow-xl shadow-stone-200/50 border border-stone-100 overflow-hidden relative">
+                {/* Decorative Background Elements */}
+                <div className="absolute top-0 right-0 w-64 h-64 bg-amber-50 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 opacity-50 pointer-events-none" />
+                <div className="absolute bottom-0 left-0 w-48 h-48 bg-orange-50 rounded-full blur-3xl translate-y-1/2 -translate-x-1/2 opacity-50 pointer-events-none" />
+
+                <div className="relative px-8 py-6 flex justify-between items-center sm:items-start gap-4">
+                    <div className="flex items-center gap-5">
+                        <div className="relative">
+                            <div className="absolute inset-0 bg-amber-400 blur-xl opacity-20" />
+                            <div className="relative bg-gradient-to-br from-amber-400 to-orange-500 p-4 rounded-2xl shadow-lg shadow-amber-500/20 text-white">
+                                <Tag size={28} strokeWidth={2.5} />
+                            </div>
+                        </div>
+                        <div>
+                            <h1 className="text-2xl sm:text-3xl font-black text-cafe-900 tracking-tight flex items-center gap-3">
+                                Promotion & Snack Box
+                            </h1>
+                            <p className="text-stone-500 text-sm font-medium mt-1">จัดการโปรโมชั่นและสินค้าชุดพิเศษ</p>
+                        </div>
                     </div>
                     {deliveredOrders.length > 0 && (
                         <button
                             onClick={handleSyncProfits}
                             disabled={isSyncing}
-                            className="bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors disabled:opacity-50"
-                            title="Sync กำไรจาก delivered orders เข้าหน้าการเงิน"
+                            className="bg-cafe-900 hover:bg-cafe-800 text-white px-5 py-2.5 rounded-xl flex items-center gap-2 transition-all shadow-lg hover:shadow-xl active:scale-95 border border-cafe-800"
+                            title="Sync กำไร"
                         >
-                            {isSyncing ? '⏳ กำลัง Sync...' : '🔄 Sync กำไร'}
+                            {isSyncing ? <div className="animate-spin">⏳</div> : <div className="p-1 bg-green-400 rounded-full animate-pulse shadow-[0_0_10px_rgba(74,222,128,0.5)]" />}
+                            <span className="font-bold tracking-wide">{isSyncing ? 'กำลัง Sync...' : 'Sync กำไร'}</span>
                         </button>
                     )}
                 </div>
@@ -116,72 +128,75 @@ export const PromotionPage: React.FC = () => {
 
             {/* Summary Cards */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div className="bg-white rounded-xl shadow-sm p-4">
+                <div className="bg-white rounded-xl shadow-sm border border-stone-100 p-4 hover:shadow-md transition-shadow">
                     <div className="flex items-center gap-3">
-                        <div className="p-2 bg-orange-100 rounded-lg">
-                            <Tag className="text-orange-600" size={20} />
+                        <div className="p-2 bg-orange-100 text-orange-600 rounded-lg">
+                            <Tag size={20} />
                         </div>
                         <div>
-                            <p className="text-2xl font-bold text-cafe-800">{activePromotions}</p>
-                            <p className="text-xs text-gray-500">โปรโมชั่นที่ใช้งาน</p>
+                            <p className="text-2xl font-bold text-cafe-900">{activePromotions}</p>
+                            <p className="text-xs text-cafe-500">โปรโมชั่นที่ใช้งาน</p>
                         </div>
                     </div>
                 </div>
 
-                <div className="bg-white rounded-xl shadow-sm p-4">
+                <div className="bg-white rounded-xl shadow-sm border border-stone-100 p-4 hover:shadow-md transition-shadow">
                     <div className="flex items-center gap-3">
-                        <div className="p-2 bg-purple-100 rounded-lg">
-                            <Package className="text-purple-600" size={20} />
+                        <div className="p-2 bg-purple-100 text-purple-600 rounded-lg">
+                            <Package size={20} />
                         </div>
                         <div>
-                            <p className="text-2xl font-bold text-cafe-800">{activeBundles}</p>
-                            <p className="text-xs text-gray-500">Snack Box</p>
+                            <p className="text-2xl font-bold text-cafe-900">{activeBundles}</p>
+                            <p className="text-xs text-cafe-500">Snack Box</p>
                         </div>
                     </div>
                 </div>
 
-                <div className="bg-white rounded-xl shadow-sm p-4">
+                <div className="bg-white rounded-xl shadow-sm border border-stone-100 p-4 hover:shadow-md transition-shadow">
                     <div className="flex items-center gap-3">
-                        <div className="p-2 bg-yellow-100 rounded-lg">
-                            <AlertCircle className="text-yellow-600" size={20} />
+                        <div className="p-2 bg-yellow-100 text-yellow-600 rounded-lg">
+                            <AlertCircle size={20} />
                         </div>
                         <div>
-                            <p className="text-2xl font-bold text-cafe-800">{pendingOrders}</p>
-                            <p className="text-xs text-gray-500">รอยืนยัน</p>
+                            <p className="text-2xl font-bold text-cafe-900">{pendingOrders}</p>
+                            <p className="text-xs text-cafe-500">รอยืนยัน</p>
                         </div>
                     </div>
                 </div>
 
-                <div className="bg-white rounded-xl shadow-sm p-4">
+                <div className="bg-white rounded-xl shadow-sm border border-stone-100 p-4 hover:shadow-md transition-shadow">
                     <div className="flex items-center gap-3">
-                        <div className="p-2 bg-green-100 rounded-lg">
-                            <Truck className="text-green-600" size={20} />
+                        <div className="p-2 bg-green-100 text-green-600 rounded-lg">
+                            <Truck size={20} />
                         </div>
                         <div>
-                            <p className="text-2xl font-bold text-cafe-800">{todayOrders.length}</p>
-                            <p className="text-xs text-gray-500">ส่งวันนี้</p>
+                            <p className="text-2xl font-bold text-cafe-900">{todayOrders.length}</p>
+                            <p className="text-xs text-cafe-500">ส่งวันนี้</p>
                         </div>
                     </div>
                 </div>
             </div>
 
             {/* Tabs */}
-            <div className="bg-white rounded-xl shadow-sm">
-                <div className="flex border-b">
+            <div className="bg-white rounded-xl shadow-sm border border-stone-100 overflow-hidden">
+                <div className="flex border-b border-stone-100">
                     {tabs.map(tab => (
                         <button
                             key={tab.id}
                             onClick={() => setActiveTab(tab.id)}
-                            className={`flex-1 py-4 px-4 flex items-center justify-center gap-2 font-medium transition-colors
+                            className={`flex-1 py-4 px-4 flex items-center justify-center gap-2 font-medium transition-all relative overflow-hidden
                                 ${activeTab === tab.id
-                                    ? 'text-purple-600 border-b-2 border-purple-600 bg-purple-50'
-                                    : 'text-gray-500 hover:text-gray-700'
+                                    ? 'text-amber-700 bg-amber-50'
+                                    : 'text-stone-500 hover:text-stone-700 hover:bg-stone-50'
                                 }`}
                         >
+                            {activeTab === tab.id && (
+                                <div className="absolute inset-x-0 bottom-0 h-0.5 bg-amber-500" />
+                            )}
                             <tab.icon size={18} />
                             <span className="hidden sm:inline">{tab.label}</span>
                             {tab.count > 0 && (
-                                <span className="bg-purple-100 text-purple-700 text-xs px-2 py-0.5 rounded-full">
+                                <span className={`text-xs px-2 py-0.5 rounded-full ${activeTab === tab.id ? 'bg-amber-200 text-amber-800' : 'bg-stone-100 text-stone-600'}`}>
                                     {tab.count}
                                 </span>
                             )}
@@ -189,78 +204,95 @@ export const PromotionPage: React.FC = () => {
                     ))}
                 </div>
 
-                <div className="p-4">
+                <div className="p-6 bg-stone-50/30 min-h-[400px]">
                     {/* Promotions Tab */}
                     {activeTab === 'promotions' && (
-                        <div>
-                            <div className="flex justify-between items-center mb-4">
-                                <h3 className="font-bold text-cafe-800">รายการโปรโมชั่น</h3>
+                        <div className="animate-in fade-in duration-300">
+                            <div className="flex justify-between items-center mb-6">
+                                <h3 className="text-lg font-bold text-cafe-900 flex items-center gap-2">
+                                    <Tag className="text-amber-600" size={20} />
+                                    รายการโปรโมชั่น
+                                </h3>
                                 <button
                                     onClick={() => setShowAddPromoModal(true)}
-                                    className="bg-purple-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-purple-700 transition-colors"
+                                    className="bg-cafe-900 text-white px-4 py-2.5 rounded-xl flex items-center gap-2 hover:bg-cafe-800 transition-all shadow-sm active:scale-95"
                                 >
                                     <Plus size={18} />
-                                    เพิ่มโปรโมชั่น
+                                    <span>เพิ่มโปรโมชั่น</span>
                                 </button>
                             </div>
 
                             {promotions.length === 0 ? (
-                                <div className="text-center py-12 text-gray-400">
-                                    <Tag size={48} className="mx-auto mb-4 opacity-50" />
-                                    <p>ยังไม่มีโปรโมชั่น</p>
-                                    <p className="text-sm mt-1">กดปุ่ม "+ เพิ่มโปรโมชั่น" เพื่อสร้างโปรโมชั่นใหม่</p>
+                                <div className="text-center py-16 text-stone-400 bg-white rounded-2xl border-2 border-dashed border-stone-200">
+                                    <Tag size={48} className="mx-auto mb-4 opacity-50 text-stone-300" />
+                                    <p className="text-lg font-medium text-stone-500">ยังไม่มีโปรโมชั่น</p>
+                                    <p className="text-sm mt-1">สร้างโปรโมชั่นใหม่เพื่อกระตุ้นยอดขาย</p>
                                 </div>
                             ) : (
-                                <div className="space-y-3">
+                                <div className="space-y-4">
                                     {promotions.map(promo => (
                                         <div
                                             key={promo.id}
-                                            className={`p-4 rounded-xl border-2 transition-all ${promo.isActive ? 'border-green-200 bg-green-50/30' : 'border-gray-200 bg-gray-50 opacity-60'}`}
+                                            className={`p-5 rounded-2xl border transition-all duration-300 hover:shadow-md ${promo.isActive
+                                                ? 'border-amber-200 bg-white hover:border-amber-300'
+                                                : 'border-stone-200 bg-stone-50 opacity-70 grayscale'}`}
                                         >
                                             <div className="flex items-start justify-between">
                                                 <div className="flex-1">
-                                                    <div className="flex items-center gap-2">
-                                                        <h4 className="font-bold text-cafe-800">{promo.name}</h4>
+                                                    <div className="flex items-center gap-3">
+                                                        <h4 className="font-bold text-lg text-cafe-900">{promo.name}</h4>
                                                         {promo.isActive ? (
-                                                            <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">ใช้งาน</span>
+                                                            <span className="text-[10px] bg-green-100 text-green-700 px-2 py-1 rounded-full font-bold uppercase tracking-wider">Active</span>
                                                         ) : (
-                                                            <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">ปิดการใช้งาน</span>
+                                                            <span className="text-[10px] bg-stone-200 text-stone-500 px-2 py-1 rounded-full font-bold uppercase tracking-wider">Inactive</span>
                                                         )}
                                                     </div>
-                                                    <p className="text-sm text-gray-600 mt-1">
+                                                    <p className="text-sm text-cafe-600 mt-1 flex items-center gap-2">
+                                                        <span className="w-1.5 h-1.5 rounded-full bg-cafe-400"></span>
                                                         {promo.productName} {promo.variantName && `(${promo.variantName})`}
                                                     </p>
-                                                    <div className="flex items-center gap-4 mt-2">
-                                                        <span className="text-gray-400 line-through">{formatCurrency(promo.originalPrice)}</span>
-                                                        <span className="text-lg font-bold text-green-600">{formatCurrency(promo.discountPrice)}</span>
-                                                        <span className="text-xs bg-red-100 text-red-600 px-2 py-0.5 rounded">-{promo.discountPercent.toFixed(0)}%</span>
+
+                                                    <div className="flex flex-wrap items-center gap-3 mt-4">
+                                                        <div className="flex items-baseline gap-2 bg-stone-100 px-3 py-1.5 rounded-lg border border-stone-200">
+                                                            <span className="text-sm text-stone-400 line-through decoration-stone-400/50">{formatCurrency(promo.originalPrice)}</span>
+                                                            <span className="text-lg font-bold text-amber-600 border-l border-stone-300 pl-2">{formatCurrency(promo.discountPrice)}</span>
+                                                        </div>
+                                                        <span className="text-xs bg-red-50 text-red-600 font-bold px-2 py-1 rounded border border-red-100">-{promo.discountPercent.toFixed(0)}% OFF</span>
+                                                        <span className="text-xs text-stone-500 flex items-center gap-1 bg-white px-2 py-1 rounded border border-stone-200">
+                                                            <Package size={12} /> ขั้นต่ำ {promo.minQuantity}
+                                                        </span>
+                                                        {promo.validUntil && (
+                                                            <span className="text-xs text-stone-500 flex items-center gap-1 bg-white px-2 py-1 rounded border border-stone-200">
+                                                                <Calendar size={12} /> ถึง {new Date(promo.validUntil).toLocaleDateString('th-TH')}
+                                                            </span>
+                                                        )}
                                                     </div>
-                                                    <p className="text-xs text-gray-400 mt-2">
-                                                        ขั้นต่ำ {promo.minQuantity} ชิ้น
-                                                        {promo.validUntil && ` • หมดอายุ ${promo.validUntil}`}
-                                                    </p>
                                                 </div>
-                                                <div className="flex items-center gap-2">
+
+                                                <div className="flex items-center gap-1 bg-stone-100 p-1 rounded-xl">
                                                     <button
                                                         onClick={() => setEditingPromotion(promo)}
-                                                        className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                                        className="p-2 text-stone-500 hover:text-cafe-900 hover:bg-white rounded-lg transition-all"
                                                         title="แก้ไข"
                                                     >
-                                                        <Edit2 size={18} />
+                                                        <Edit2 size={16} />
                                                     </button>
                                                     <button
                                                         onClick={() => updatePromotion(promo.id, { isActive: !promo.isActive })}
-                                                        className={`p-2 rounded-lg transition-colors ${promo.isActive ? 'text-green-600 hover:bg-green-100' : 'text-gray-400 hover:bg-gray-100'}`}
+                                                        className={`p-2 rounded-lg transition-all ${promo.isActive
+                                                            ? 'text-green-600 hover:bg-white hover:shadow-sm'
+                                                            : 'text-stone-400 hover:bg-white hover:text-stone-600'}`}
                                                         title={promo.isActive ? 'ปิดการใช้งาน' : 'เปิดการใช้งาน'}
                                                     >
                                                         {promo.isActive ? <ToggleRight size={20} /> : <ToggleLeft size={20} />}
                                                     </button>
+                                                    <div className="w-px h-6 bg-stone-200 mx-1"></div>
                                                     <button
                                                         onClick={() => deletePromotion(promo.id)}
-                                                        className="p-2 text-red-400 hover:bg-red-50 rounded-lg transition-colors"
+                                                        className="p-2 text-stone-400 hover:text-red-500 hover:bg-white rounded-lg transition-all"
                                                         title="ลบ"
                                                     >
-                                                        <Trash2 size={18} />
+                                                        <Trash2 size={16} />
                                                     </button>
                                                 </div>
                                             </div>
@@ -273,12 +305,15 @@ export const PromotionPage: React.FC = () => {
 
                     {/* Bundles Tab */}
                     {activeTab === 'bundles' && (
-                        <div>
-                            <div className="flex justify-between items-center mb-4">
-                                <h3 className="font-bold text-cafe-800">รายการ Snack Box</h3>
+                        <div className="animate-in fade-in duration-300">
+                            <div className="flex justify-between items-center mb-6">
+                                <h3 className="text-lg font-bold text-cafe-900 flex items-center gap-2">
+                                    <Package className="text-purple-600" size={20} />
+                                    รายการ Snack Box
+                                </h3>
                                 <button
                                     onClick={() => setShowAddBundleModal(true)}
-                                    className="bg-purple-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-purple-700 transition-colors"
+                                    className="bg-cafe-900 text-white px-4 py-2.5 rounded-xl flex items-center gap-2 hover:bg-cafe-800 transition-all shadow-sm active:scale-95"
                                 >
                                     <Plus size={18} />
                                     สร้าง Snack Box
@@ -286,60 +321,66 @@ export const PromotionPage: React.FC = () => {
                             </div>
 
                             {bundles.length === 0 ? (
-                                <div className="text-center py-12 text-gray-400">
-                                    <Package size={48} className="mx-auto mb-4 opacity-50" />
-                                    <p>ยังไม่มี Snack Box</p>
-                                    <p className="text-sm mt-1">กดปุ่ม "+ สร้าง Snack Box" เพื่อสร้างชุดสินค้า</p>
+                                <div className="text-center py-16 text-stone-400 bg-white rounded-2xl border-2 border-dashed border-stone-200">
+                                    <Package size={48} className="mx-auto mb-4 opacity-50 text-stone-300" />
+                                    <p className="text-lg font-medium text-stone-500">ยังไม่มี Snack Box</p>
+                                    <p className="text-sm mt-1">สร้างชุดสินค้าเพื่อเพิ่มมูลค่าการขาย</p>
                                 </div>
                             ) : (
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     {bundles.map(bundle => (
                                         <div
                                             key={bundle.id}
-                                            className={`p-4 rounded-xl border-2 transition-all ${bundle.isActive ? 'border-purple-200 bg-purple-50/30' : 'border-gray-200 bg-gray-50 opacity-60'}`}
+                                            className={`p-5 rounded-2xl border transition-all duration-300 hover:shadow-md ${bundle.isActive
+                                                ? 'border-purple-200 bg-white hover:border-purple-300'
+                                                : 'border-stone-200 bg-stone-50 opacity-70 grayscale'}`}
                                         >
-                                            <div className="flex items-start justify-between mb-3">
+                                            <div className="flex justify-between items-start mb-4">
                                                 <div>
-                                                    <h4 className="font-bold text-cafe-800">{bundle.name}</h4>
-                                                    {bundle.description && (
-                                                        <p className="text-sm text-gray-500">{bundle.description}</p>
-                                                    )}
+                                                    <h4 className="font-bold text-lg text-cafe-900">{bundle.name}</h4>
+                                                    <p className="text-sm text-cafe-500">{bundle.description}</p>
                                                 </div>
-                                                <div className="flex gap-2">
+                                                <div className="flex gap-1">
                                                     <button
                                                         onClick={() => updateBundle(bundle.id, { isActive: !bundle.isActive })}
-                                                        className={`p-1.5 rounded transition-colors ${bundle.isActive ? 'text-green-600' : 'text-gray-400'}`}
+                                                        className={`p-1.5 rounded-lg transition-colors ${bundle.isActive ? 'text-green-600 hover:bg-green-50' : 'text-stone-400 hover:bg-stone-200'}`}
                                                     >
-                                                        {bundle.isActive ? <ToggleRight size={18} /> : <ToggleLeft size={18} />}
+                                                        {bundle.isActive ? <ToggleRight size={20} /> : <ToggleLeft size={20} />}
                                                     </button>
                                                     <button
                                                         onClick={() => deleteBundle(bundle.id)}
-                                                        className="p-1.5 text-red-400 hover:bg-red-50 rounded transition-colors"
+                                                        className="p-1.5 text-stone-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
                                                     >
-                                                        <Trash2 size={16} />
+                                                        <Trash2 size={18} />
                                                     </button>
                                                 </div>
                                             </div>
 
-                                            <div className="bg-white/60 rounded-lg p-3 mb-3">
-                                                <p className="text-xs text-gray-500 mb-2">รายการในชุด:</p>
-                                                <div className="space-y-1">
-                                                    {bundle.items.map(item => (
-                                                        <div key={item.id} className="flex justify-between text-sm">
-                                                            <span>{item.productName} {item.variantName && `(${item.variantName})`}</span>
-                                                            <span className="text-gray-500">x{item.quantity}</span>
-                                                        </div>
-                                                    ))}
-                                                </div>
+                                            <div className="bg-stone-50 p-3 rounded-xl mb-4 border border-stone-100">
+                                                <p className="text-xs text-stone-500 font-semibold mb-2 uppercase tracking-wider">สินค้าในชุด</p>
+                                                <ul className="space-y-1">
+                                                    {bundle.items.map((item, idx) => {
+                                                        const product = products.find(p => p.id === item.productId);
+                                                        const variant = product?.variants?.find(v => v.id === item.variantId);
+                                                        return (
+                                                            <li key={idx} className="text-sm flex justify-between items-center text-cafe-700">
+                                                                <span className="flex items-center gap-2">
+                                                                    <span className="w-1 h-1 bg-stone-300 rounded-full"></span>
+                                                                    {product?.name} {variant && `(${variant.name})`}
+                                                                </span>
+                                                                <span className="font-medium bg-white px-2 py-0.5 rounded text-xs border border-stone-200">x{item.quantity}</span>
+                                                            </li>
+                                                        );
+                                                    })}
+                                                </ul>
                                             </div>
 
-                                            <div className="flex items-center justify-between">
-                                                <div>
-                                                    <p className="text-xs text-gray-400">ต้นทุน {formatCurrency(bundle.estimatedCost)}</p>
+                                            <div className="flex items-center justify-between mt-auto">
+                                                <div className="text-sm text-stone-400 line-through">
+                                                    {/* Calculate total original price logic roughly if needed, otherwise skip */}
                                                 </div>
-                                                <div className="text-right">
-                                                    <p className="text-lg font-bold text-purple-600">{formatCurrency(bundle.bundlePrice)}</p>
-                                                    <p className="text-xs text-green-600">กำไร {bundle.profitMargin.toFixed(0)}%</p>
+                                                <div className="text-xl font-black text-purple-600 bg-purple-50 px-3 py-1 rounded-lg border border-purple-100">
+                                                    {formatCurrency(bundle.bundlePrice)}
                                                 </div>
                                             </div>
                                         </div>
@@ -351,102 +392,113 @@ export const PromotionPage: React.FC = () => {
 
                     {/* Orders Tab */}
                     {activeTab === 'orders' && (
-                        <div>
-                            <div className="flex justify-between items-center mb-4">
-                                <h3 className="font-bold text-cafe-800">รายการออเดอร์พิเศษ</h3>
+                        <div className="animate-in fade-in duration-300">
+                            <div className="flex justify-between items-center mb-6">
+                                <h3 className="text-lg font-bold text-cafe-900 flex items-center gap-2">
+                                    <ShoppingBag className="text-sky-500" size={20} />
+                                    ออเดอร์พิเศษ
+                                </h3>
                                 <button
                                     onClick={() => setShowAddOrderModal(true)}
-                                    className="bg-purple-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-purple-700 transition-colors"
+                                    className="bg-cafe-900 text-white px-4 py-2.5 rounded-xl flex items-center gap-2 hover:bg-cafe-800 transition-all shadow-sm active:scale-95"
                                 >
                                     <Plus size={18} />
-                                    สร้างออเดอร์
+                                    รับออเดอร์
                                 </button>
                             </div>
 
                             {specialOrders.length === 0 ? (
-                                <div className="text-center py-12 text-gray-400">
-                                    <ShoppingBag size={48} className="mx-auto mb-4 opacity-50" />
-                                    <p>ยังไม่มีออเดอร์พิเศษ</p>
-                                    <p className="text-sm mt-1">กดปุ่ม "+ สร้างออเดอร์" เพื่อบันทึกออเดอร์ใหม่</p>
+                                <div className="text-center py-16 text-stone-400 bg-white rounded-2xl border-2 border-dashed border-stone-200">
+                                    <ShoppingBag size={48} className="mx-auto mb-4 opacity-50 text-stone-300" />
+                                    <p className="text-lg font-medium text-stone-500">ไม่มีออเดอร์พิเศษ</p>
+                                    <p className="text-sm mt-1">รับงานจัดเบรค งานเลี้ยง งานบุญ ฯลฯ</p>
                                 </div>
                             ) : (
-                                <div className="space-y-3">
+                                <div className="space-y-4">
                                     {specialOrders.map(order => (
                                         <div
                                             key={order.id}
-                                            className={`p-4 rounded-xl border-2 transition-all ${order.status === 'cancelled' ? 'border-red-200 bg-red-50/30 opacity-60' : 'border-gray-200'}`}
+                                            className="bg-white p-5 rounded-2xl border border-stone-200 shadow-sm hover:shadow-md transition-all"
                                         >
-                                            <div className="flex items-start justify-between">
+                                            <div className="flex flex-col md:flex-row justify-between gap-4">
                                                 <div className="flex-1">
-                                                    <div className="flex items-center gap-2 flex-wrap">
-                                                        <span className="font-mono text-sm font-bold text-purple-600">{order.orderNumber}</span>
-                                                        <span className={`text-xs px-2 py-0.5 rounded-full ${statusColors[order.status]}`}>
+                                                    <div className="flex items-center gap-3 mb-2">
+                                                        <h4 className="font-bold text-lg text-cafe-900">{order.customerName}</h4>
+                                                        <span className={`text-xs px-2.5 py-1 rounded-full font-bold uppercase tracking-wider ${statusColors[order.status]}`}>
                                                             {statusLabels[order.status]}
                                                         </span>
-                                                    </div>
-
-                                                    {order.customerName && (
-                                                        <p className="text-sm text-gray-600 mt-1 flex items-center gap-1">
-                                                            <Users size={14} />
-                                                            {order.customerName}
-                                                            {order.customerPhone && ` • ${order.customerPhone}`}
-                                                        </p>
-                                                    )}
-
-                                                    <div className="flex items-center gap-4 mt-2 text-sm">
-                                                        <span className="flex items-center gap-1 text-gray-500">
-                                                            <Calendar size={14} />
-                                                            ส่ง {order.deliveryDate}
-                                                        </span>
-                                                        <span className="text-gray-500">
-                                                            จำนวน {order.totalQuantity} ชิ้น
+                                                        <span className="text-xs text-stone-400 flex items-center gap-1">
+                                                            <Calendar size={12} /> ส่ง {new Date(order.deliveryDate).toLocaleDateString('th-TH')}
                                                         </span>
                                                     </div>
 
-                                                    <div className="flex items-center gap-4 mt-2">
-                                                        <span className="text-green-600 font-bold">{formatCurrency(order.totalRevenue)}</span>
-                                                        <span className="text-xs text-gray-400">กำไร {formatCurrency(order.grossProfit)}</span>
+                                                    <div className="flex items-center gap-2 text-sm text-cafe-600 mb-4">
+                                                        <Users size={14} /> {order.customerName} {order.customerPhone && `(${order.customerPhone})`}
+                                                    </div>
+
+                                                    <div className="bg-stone-50 p-3 rounded-xl border border-stone-100">
+                                                        <ul className="space-y-1">
+                                                            {order.items.map((item, idx) => {
+                                                                const product = products.find(p => p.id === item.productId);
+                                                                const variant = product?.variants?.find(v => v.id === item.variantId);
+                                                                return (
+                                                                    <li key={idx} className="text-sm flex justify-between text-cafe-700">
+                                                                        <span>• {product?.name} {variant && `(${variant.name})`}</span>
+                                                                        <span className="font-mono text-stone-500">x{item.quantity}</span>
+                                                                    </li>
+                                                                );
+                                                            })}
+                                                        </ul>
                                                     </div>
                                                 </div>
 
-                                                {order.status !== 'cancelled' && order.status !== 'delivered' && (
-                                                    <div className="flex flex-col gap-2">
+                                                <div className="flex flex-col items-end justify-between min-w-[200px]">
+                                                    <div className="text-right mb-4">
+                                                        <p className="text-xs text-stone-400 mb-1">ยอดรวมสุทธิ</p>
+                                                        <p className="text-2xl font-black text-cafe-900">{formatCurrency(order.totalRevenue)}</p>
+
+                                                    </div>
+
+                                                    <div className="flex gap-2 w-full justify-end">
                                                         {order.status === 'pending' && (
                                                             <button
                                                                 onClick={() => updateSpecialOrderStatus(order.id, 'confirmed')}
-                                                                className="p-2 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition-colors"
-                                                                title="ยืนยันออเดอร์"
+                                                                className="flex-1 bg-amber-500 hover:bg-amber-600 text-white py-2 px-4 rounded-xl text-sm font-bold transition-colors shadow-sm shadow-amber-200"
                                                             >
-                                                                <Check size={18} />
+                                                                ยืนยัน
                                                             </button>
                                                         )}
                                                         {order.status === 'confirmed' && (
                                                             <button
                                                                 onClick={() => updateSpecialOrderStatus(order.id, 'producing')}
-                                                                className="p-2 bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 transition-colors"
-                                                                title="เริ่มผลิต"
+                                                                className="flex-1 bg-blue-500 hover:bg-blue-600 text-white py-2 px-4 rounded-xl text-sm font-bold transition-colors shadow-sm shadow-blue-200"
                                                             >
-                                                                <Package size={18} />
+                                                                ผลิต
                                                             </button>
                                                         )}
                                                         {order.status === 'producing' && (
                                                             <button
                                                                 onClick={() => updateSpecialOrderStatus(order.id, 'delivered')}
-                                                                className="p-2 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition-colors"
-                                                                title="ส่งแล้ว"
+                                                                className="flex-1 bg-green-500 hover:bg-green-600 text-white py-2 px-4 rounded-xl text-sm font-bold transition-colors shadow-sm shadow-green-200"
                                                             >
-                                                                <Truck size={18} />
+                                                                ส่งแล้ว
                                                             </button>
                                                         )}
-                                                        <button
-                                                            onClick={() => cancelSpecialOrder(order.id)}
-                                                            className="p-2 text-red-400 hover:bg-red-50 rounded-lg transition-colors"
-                                                            title="ยกเลิก"
-                                                        >
-                                                            <X size={18} />
-                                                        </button>
+                                                        {order.status !== 'cancelled' && order.status !== 'delivered' && (
+                                                            <button
+                                                                onClick={() => {
+                                                                    if (confirm('ยืนยันการยกเลิกออเดอร์?')) {
+                                                                        cancelSpecialOrder(order.id);
+                                                                    }
+                                                                }}
+                                                                className="bg-white border border-stone-200 text-stone-400 hover:text-red-500 hover:border-red-200 hover:bg-red-50 py-2 px-3 rounded-xl transition-all"
+                                                                title="ยกเลิก"
+                                                            >
+                                                                <X size={18} />
+                                                            </button>
+                                                        )}
                                                     </div>
-                                                )}
+                                                </div>
                                             </div>
                                         </div>
                                     ))}
@@ -458,130 +510,23 @@ export const PromotionPage: React.FC = () => {
             </div>
 
             {/* Modals */}
-            <AddPromotionModal isOpen={showAddPromoModal} onClose={() => setShowAddPromoModal(false)} />
-            <AddSpecialOrderModal isOpen={showAddOrderModal} onClose={() => setShowAddOrderModal(false)} />
-
-            {/* Edit Promotion Modal */}
-            {editingPromotion && (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-                    <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
-                        <div className="flex justify-between items-center mb-4">
-                            <h3 className="text-lg font-bold text-cafe-800">แก้ไขโปรโมชั่น</h3>
-                            <button
-                                onClick={() => setEditingPromotion(null)}
-                                className="p-2 hover:bg-gray-100 rounded-lg"
-                            >
-                                <X size={20} />
-                            </button>
-                        </div>
-
-                        <form onSubmit={(e) => {
-                            e.preventDefault();
-                            const form = e.target as HTMLFormElement;
-                            const formData = new FormData(form);
-                            const discountPrice = parseFloat(formData.get('discountPrice') as string);
-                            const discountPercent = ((editingPromotion.originalPrice - discountPrice) / editingPromotion.originalPrice) * 100;
-
-                            updatePromotion(editingPromotion.id, {
-                                name: formData.get('name') as string,
-                                discountPrice,
-                                discountPercent,
-                                minQuantity: parseInt(formData.get('minQuantity') as string) || 1,
-                                validUntil: formData.get('validUntil') as string || null,
-                                isActive: formData.get('isActive') === 'on'
-                            });
-                            setEditingPromotion(null);
-                        }}>
-                            <div className="space-y-4">
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">ชื่อโปรโมชั่น</label>
-                                    <input
-                                        name="name"
-                                        type="text"
-                                        defaultValue={editingPromotion.name}
-                                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                                    />
-                                </div>
-
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">สินค้า</label>
-                                    <p className="text-gray-600 bg-gray-50 px-3 py-2 rounded-lg">
-                                        {editingPromotion.productName} {editingPromotion.variantName && `(${editingPromotion.variantName})`}
-                                    </p>
-                                </div>
-
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">ราคาปกติ</label>
-                                        <p className="text-gray-400 bg-gray-50 px-3 py-2 rounded-lg">
-                                            {formatCurrency(editingPromotion.originalPrice)}
-                                        </p>
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">ราคาโปร</label>
-                                        <input
-                                            name="discountPrice"
-                                            type="number"
-                                            step="0.01"
-                                            defaultValue={editingPromotion.discountPrice}
-                                            className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                                        />
-                                    </div>
-                                </div>
-
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">จำนวนขั้นต่ำ</label>
-                                        <input
-                                            name="minQuantity"
-                                            type="number"
-                                            min="1"
-                                            defaultValue={editingPromotion.minQuantity}
-                                            className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">หมดอายุ</label>
-                                        <input
-                                            name="validUntil"
-                                            type="date"
-                                            defaultValue={editingPromotion.validUntil || ''}
-                                            className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                                        />
-                                    </div>
-                                </div>
-
-                                <div className="flex items-center gap-2">
-                                    <input
-                                        name="isActive"
-                                        type="checkbox"
-                                        defaultChecked={editingPromotion.isActive}
-                                        className="w-5 h-5 text-purple-600 rounded focus:ring-purple-500"
-                                    />
-                                    <label className="text-sm font-medium text-gray-700">เปิดใช้งาน</label>
-                                </div>
-                            </div>
-
-                            <div className="flex gap-3 mt-6">
-                                <button
-                                    type="button"
-                                    onClick={() => setEditingPromotion(null)}
-                                    className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
-                                >
-                                    ยกเลิก
-                                </button>
-                                <button
-                                    type="submit"
-                                    className="flex-1 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700"
-                                >
-                                    บันทึก
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
+            {showAddPromoModal && (
+                <AddPromotionModal isOpen={true} onClose={() => setShowAddPromoModal(false)} />
             )}
-        </div>
+            {showAddBundleModal && (
+                <AddSpecialOrderModal isOpen={true} onClose={() => setShowAddBundleModal(false)} mode="bundle" />
+            )}
+            {showAddOrderModal && (
+                <AddSpecialOrderModal isOpen={true} onClose={() => setShowAddOrderModal(false)} mode="order" />
+            )}
+            {editingPromotion && (
+                <AddPromotionModal
+                    isOpen={true}
+                    onClose={() => setEditingPromotion(null)}
+                    editingPromotion={editingPromotion}
+                />
+            )}
+        </div >
     );
 };
 

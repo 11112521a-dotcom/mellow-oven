@@ -177,20 +177,22 @@ export const ProductionPlanner: React.FC = () => {
     const handleSavePlan = async () => {
         setIsSaving(true);
         try {
-            for (const result of results) {
-                if (!result.error) {
-                    await saveForecast(
-                        result.forecast,
-                        result.productId,
-                        result.productName,
-                        selectedMarket,
-                        getMarketName(selectedMarket),
-                        selectedDate,
-                        selectedWeather
-                    );
-                }
-            }
-            // Show success feedback (could use a toast here)
+            // Optimistic/Parallel Save: Fire all requests at once
+            const savePromises = results
+                .filter(result => !result.error)
+                .map(result => saveForecast(
+                    result.forecast,
+                    result.productId,
+                    result.productName,
+                    selectedMarket,
+                    getMarketName(selectedMarket),
+                    selectedDate,
+                    selectedWeather
+                ));
+
+            await Promise.all(savePromises);
+
+            // Show success feedback
             alert('บันทึกแผนการผลิตเรียบร้อยแล้ว!');
         } catch (error) {
             console.error('Failed to save plan:', error);

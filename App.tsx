@@ -2,15 +2,28 @@ import React, { useState, useEffect } from 'react';
 import { useStore } from './src/store';
 import { Layout } from './src/components/Layout';
 import { Login } from './src/pages/Login';
-import Dashboard from './pages/Dashboard';
-import Financials from './pages/Financials';
-import Sales from './pages/Sales';
-import Production from './pages/Production';
-import Inventory from './pages/Inventory';
-import SalesReport from './pages/SalesReport';
-import MenuStock from './pages/MenuStock';
-import PromotionPage from './src/components/Promotion/PromotionPage';
 import { Loader2 } from 'lucide-react';
+import { Suspense, lazy } from 'react';
+
+// Lazy Load Pages
+const Dashboard = lazy(() => import('./pages/Dashboard'));
+const Financials = lazy(() => import('./pages/Financials'));
+const Sales = lazy(() => import('./pages/Sales'));
+const Production = lazy(() => import('./pages/Production'));
+const Inventory = lazy(() => import('./pages/Inventory'));
+const SalesReport = lazy(() => import('./pages/SalesReport'));
+const MenuStock = lazy(() => import('./pages/MenuStock'));
+const PromotionPage = lazy(() => import('./src/components/Promotion/PromotionPage'));
+
+// Loading Fallback Component
+const PageLoader = () => (
+  <div className="flex h-[calc(100vh-100px)] items-center justify-center">
+    <div className="flex flex-col items-center gap-2">
+      <Loader2 className="h-8 w-8 animate-spin text-amber-500" />
+      <p className="text-sm text-stone-500 animate-pulse">กำลังโหลด...</p>
+    </div>
+  </div>
+);
 
 const App: React.FC = () => {
   // Persist active tab in localStorage
@@ -52,19 +65,25 @@ const App: React.FC = () => {
     return <Login />;
   }
   const renderContent = () => {
-    switch (activeTab) {
-      case 'dashboard': return <Dashboard onNavigate={setActiveTab} />;
-      case 'financials':
-        return userRole === 'owner' ? <Financials /> : <div className="p-8 text-center text-cafe-500">Access Denied</div>;
-      case 'sales': return <Sales />;
-      case 'salesreport': return <SalesReport />;
-      case 'menustock': return <MenuStock />;
-      case 'production':
-        return userRole === 'owner' ? <Production /> : <div className="p-8 text-center text-cafe-500">Access Denied</div>;
-      case 'promotion': return <PromotionPage />;
-      case 'inventory': return <Inventory />;
-      default: return <Dashboard />;
-    }
+    return (
+      <Suspense fallback={<PageLoader />}>
+        {(() => {
+          switch (activeTab) {
+            case 'dashboard': return <Dashboard onNavigate={setActiveTab} />;
+            case 'financials':
+              return userRole === 'owner' ? <Financials /> : <div className="p-8 text-center text-cafe-500">Access Denied</div>;
+            case 'sales': return <Sales />;
+            case 'salesreport': return <SalesReport />;
+            case 'menustock': return <MenuStock />;
+            case 'production':
+              return userRole === 'owner' ? <Production /> : <div className="p-8 text-center text-cafe-500">Access Denied</div>;
+            case 'promotion': return <PromotionPage />;
+            case 'inventory': return <Inventory />;
+            default: return <Dashboard />;
+          }
+        })()}
+      </Suspense>
+    );
   };
 
   return (

@@ -28,39 +28,39 @@ const getJarIcon = (id: string) => {
     }
 };
 
-// Premium Jar Colors - Softer, more cafe-like
+// Premium Jar Colors - Softer, more cafe-like with Warm undertones
 const jarStyles: Record<string, { gradient: string, bg: string, text: string, accent: string, ring: string }> = {
     'Working': {
         gradient: 'from-sky-400 to-blue-500',
-        bg: 'bg-gradient-to-br from-sky-50 via-blue-50 to-indigo-50',
+        bg: 'bg-gradient-to-br from-sky-50 via-blue-50/50 to-white', // Softer
         text: 'text-sky-700',
         accent: 'bg-sky-500',
         ring: 'ring-sky-200'
     },
     'CapEx': {
         gradient: 'from-violet-400 to-purple-500',
-        bg: 'bg-gradient-to-br from-violet-50 via-purple-50 to-fuchsia-50',
+        bg: 'bg-gradient-to-br from-violet-50 via-purple-50/50 to-white',
         text: 'text-violet-700',
         accent: 'bg-violet-500',
         ring: 'ring-violet-200'
     },
     'Opex': {
         gradient: 'from-amber-400 to-orange-500',
-        bg: 'bg-gradient-to-br from-amber-50 via-orange-50 to-yellow-50',
-        text: 'text-amber-700',
+        bg: 'bg-gradient-to-br from-amber-50 via-orange-50/50 to-white',
+        text: 'text-amber-800',
         accent: 'bg-amber-500',
         ring: 'ring-amber-200'
     },
     'Emergency': {
         gradient: 'from-rose-400 to-red-500',
-        bg: 'bg-gradient-to-br from-rose-50 via-red-50 to-pink-50',
+        bg: 'bg-gradient-to-br from-rose-50 via-red-50/50 to-white',
         text: 'text-rose-700',
         accent: 'bg-rose-500',
         ring: 'ring-rose-200'
     },
     'Owner': {
         gradient: 'from-emerald-400 to-teal-500',
-        bg: 'bg-gradient-to-br from-emerald-50 via-teal-50 to-green-50',
+        bg: 'bg-gradient-to-br from-emerald-50 via-teal-50/50 to-white',
         text: 'text-emerald-700',
         accent: 'bg-emerald-500',
         ring: 'ring-emerald-200'
@@ -285,101 +285,95 @@ export const AllocationStation: React.FC<AllocationStationProps> = ({ onAllocate
     const isValidAllocation = numAmount > 0 && Math.abs(totalPercentage - 100) < 0.1;
 
     return (
-        <div className="bg-white/80 backdrop-blur-xl rounded-[2rem] shadow-2xl shadow-stone-200/50 border border-stone-100 overflow-hidden">
+        <div className="bg-white rounded-[2rem] shadow-xl shadow-stone-200/50 border border-stone-100 overflow-hidden relative">
             {/* ═══════════════════════════════════════════════════════════════
-                🎨 PREMIUM HEADER - Warm Cafe Style with Glassmorphism
+                🎨 PREMIUM HEADER - Light Warm Cafe Style
                ═══════════════════════════════════════════════════════════════ */}
-            <div className="relative overflow-hidden">
-                {/* Warm gradient background */}
-                <div className="absolute inset-0 bg-gradient-to-br from-stone-800 via-amber-900/95 to-stone-900" />
-                <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-amber-400/20 via-transparent to-transparent" />
-                <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom_left,_var(--tw-gradient-stops))] from-orange-500/10 via-transparent to-transparent" />
 
-                {/* Subtle pattern overlay */}
-                <div className="absolute inset-0 opacity-5" style={{
-                    backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.4'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`
-                }} />
+            {/* Decorative Background Elements */}
+            <div className="absolute top-0 right-0 w-64 h-64 bg-amber-50 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 opacity-50 pointer-events-none" />
+            <div className="absolute bottom-0 left-0 w-48 h-48 bg-orange-50 rounded-full blur-3xl translate-y-1/2 -translate-x-1/2 opacity-50 pointer-events-none" />
 
-                <div className="relative px-8 py-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                    <div className="flex items-center gap-4">
-                        {/* Glowing Icon */}
-                        <div className="relative">
-                            <div className="absolute inset-0 bg-gradient-to-br from-amber-400 to-orange-500 blur-xl opacity-60" />
-                            <div className="relative bg-gradient-to-br from-amber-400 via-orange-400 to-amber-500 p-4 rounded-2xl shadow-xl shadow-amber-500/30">
-                                <PieChart size={28} className="text-white" strokeWidth={2.5} />
-                            </div>
-                        </div>
-                        <div>
-                            <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight flex items-center gap-3">
-                                Allocation Station
-                                <Sparkles size={22} className="text-amber-300" />
-                            </h2>
-                            <p className="text-amber-200/80 text-sm font-medium">ศูนย์บัญชาการจัดสรรเงิน</p>
+            <div className="relative px-8 py-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                <div className="flex items-center gap-5">
+                    {/* Glowing Icon */}
+                    <div className="relative">
+                        <div className="absolute inset-0 bg-amber-400 blur-xl opacity-20" />
+                        <div className="relative bg-gradient-to-br from-amber-400 to-orange-500 p-4 rounded-2xl shadow-lg shadow-amber-500/20 text-white">
+                            <PieChart size={28} strokeWidth={2.5} />
                         </div>
                     </div>
-
-                    {/* Mode Toggle - Glass Style */}
-                    <div className="flex items-center gap-2">
-                        <div className="bg-white/10 backdrop-blur-md p-1.5 rounded-2xl flex gap-1 border border-white/10">
-                            <button
-                                onClick={() => setInputMode('percentage')}
-                                className={`px-5 py-2.5 rounded-xl text-sm font-bold transition-all duration-300 flex items-center gap-2 ${inputMode === 'percentage'
-                                    ? 'bg-gradient-to-r from-amber-400 to-orange-500 text-white shadow-lg shadow-amber-500/40'
-                                    : 'text-amber-200/70 hover:text-white hover:bg-white/10'
-                                    }`}
-                            >
-                                <Percent size={16} />
-                                <span className="hidden sm:inline">เปอร์เซ็นต์</span>
-                            </button>
-                            <button
-                                onClick={() => setInputMode('amount')}
-                                className={`px-5 py-2.5 rounded-xl text-sm font-bold transition-all duration-300 flex items-center gap-2 ${inputMode === 'amount'
-                                    ? 'bg-gradient-to-r from-amber-400 to-orange-500 text-white shadow-lg shadow-amber-500/40'
-                                    : 'text-amber-200/70 hover:text-white hover:bg-white/10'
-                                    }`}
-                            >
-                                <BadgeDollarSign size={16} />
-                                <span className="hidden sm:inline">จำนวนเงิน</span>
-                            </button>
-                        </div>
-
-                        {/* Lock Button */}
-                        <button
-                            onClick={() => setIsLocked(!isLocked)}
-                            className={`p-3 rounded-xl backdrop-blur-md border transition-all duration-300 ${isLocked
-                                ? 'bg-rose-500/20 border-rose-400/30 text-rose-300 shadow-lg shadow-rose-500/20'
-                                : 'bg-white/10 border-white/10 text-amber-200/60 hover:text-white hover:bg-white/20'}`}
-                            title={isLocked ? 'ปลดล็อก' : 'ล็อกป้องกันแก้ไข'}
-                        >
-                            {isLocked ? <Lock size={18} /> : <Unlock size={18} />}
-                        </button>
+                    <div>
+                        <h2 className="text-2xl sm:text-3xl font-black text-cafe-900 tracking-tight flex items-center gap-3">
+                            Allocation Station
+                            <Sparkles size={22} className="text-amber-400" />
+                        </h2>
+                        <p className="text-stone-500 text-sm font-medium mt-1">ศูนย์บัญชาการจัดสรรเงิน</p>
                     </div>
                 </div>
+
+                {/* Mode Toggle - Light Style */}
+                <div className="flex items-center gap-2">
+                    <div className="bg-stone-100 p-1.5 rounded-2xl flex gap-1 border border-stone-200">
+                        <button
+                            onClick={() => setInputMode('percentage')}
+                            className={`px-5 py-2.5 rounded-xl text-sm font-bold transition-all duration-300 flex items-center gap-2 ${inputMode === 'percentage'
+                                ? 'bg-gradient-to-r from-amber-400 to-orange-500 text-white shadow-lg shadow-amber-500/30'
+                                : 'text-stone-500 hover:text-stone-700 hover:bg-white/50'
+                                }`}
+                        >
+                            <Percent size={16} />
+                            <span className="hidden sm:inline">เปอร์เซ็นต์</span>
+                        </button>
+                        <button
+                            onClick={() => setInputMode('amount')}
+                            className={`px-5 py-2.5 rounded-xl text-sm font-bold transition-all duration-300 flex items-center gap-2 ${inputMode === 'amount'
+                                ? 'bg-gradient-to-r from-amber-400 to-orange-500 text-white shadow-lg shadow-amber-500/30'
+                                : 'text-stone-500 hover:text-stone-700 hover:bg-white/50'
+                                }`}
+                        >
+                            <BadgeDollarSign size={16} />
+                            <span className="hidden sm:inline">จำนวนเงิน</span>
+                        </button>
+                    </div>
+
+                    {/* Lock Button */}
+                    <button
+                        onClick={() => setIsLocked(!isLocked)}
+                        className={`p-3.5 rounded-xl border transition-all duration-300 shadow-sm ${isLocked
+                            ? 'bg-rose-50 border-rose-200 text-rose-500 hover:bg-rose-100'
+                            : 'bg-white border-stone-200 text-stone-400 hover:text-stone-600 hover:border-stone-300 hover:bg-stone-50'}`}
+                        title={isLocked ? 'ปลดล็อก' : 'ล็อกป้องกันแก้ไข'}
+                    >
+                        {isLocked ? <Lock size={18} /> : <Unlock size={18} />}
+                    </button>
+                </div>
             </div>
+
 
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-0">
                 {/* ═══════════════════════════════════════════════════════════
                     💰 SOURCE COLUMN - Left Side
                    ═══════════════════════════════════════════════════════════ */}
-                <div className="lg:col-span-5 p-6 lg:p-8 border-b lg:border-b-0 lg:border-r border-stone-100 bg-gradient-to-b from-stone-50/50 to-white">
-                    <h3 className="text-sm font-black text-stone-400 uppercase tracking-widest mb-5 flex items-center gap-3">
-                        <span className="w-7 h-7 bg-gradient-to-br from-stone-200 to-stone-300 rounded-full flex items-center justify-center text-xs text-stone-600 font-black shadow-sm">1</span>
+                <div className="lg:col-span-5 p-6 lg:p-8 border-b lg:border-b-0 lg:border-r border-stone-100 bg-gradient-to-br from-stone-50/40 via-white to-amber-50/20">
+                    <h3 className="text-sm font-black text-amber-700 uppercase tracking-widest mb-5 flex items-center gap-3">
+                        <span className="w-7 h-7 bg-gradient-to-br from-amber-400 to-orange-500 rounded-full flex items-center justify-center text-xs text-white font-black shadow-md shadow-amber-400/30">1</span>
                         แหล่งเงิน
                     </h3>
 
-                    {/* Source Cards - Neumorphism Style */}
+                    {/* Source Cards - Vibrant Style */}
                     <div className="grid grid-cols-2 gap-4 mb-6">
                         <button
                             onClick={() => { setAllocationSource('manual'); setAmount(''); setShowPreview(false); }}
                             className={`group relative p-5 rounded-2xl text-sm font-bold transition-all duration-300 flex flex-col items-center gap-4 ${allocationSource === 'manual'
-                                ? 'bg-white text-stone-800 shadow-xl shadow-stone-200/50 ring-2 ring-stone-300'
-                                : 'bg-stone-50 text-stone-400 hover:bg-white hover:shadow-lg hover:text-stone-600'
+                                ? 'bg-gradient-to-br from-amber-50 to-orange-50 text-amber-900 shadow-xl shadow-amber-200/50 ring-2 ring-amber-300'
+                                : 'bg-stone-50 text-stone-500 hover:bg-amber-50 hover:shadow-lg hover:text-amber-700 border border-stone-200 hover:border-amber-200'
                                 }`}
                         >
                             <div className={`p-4 rounded-2xl transition-all duration-300 ${allocationSource === 'manual'
-                                ? 'bg-gradient-to-br from-stone-100 to-stone-200 shadow-inner'
-                                : 'bg-stone-100 group-hover:bg-stone-200'}`}>
-                                <DollarSign size={28} className={allocationSource === 'manual' ? 'text-stone-700' : 'text-stone-400'} />
+                                ? 'bg-gradient-to-br from-amber-400 to-orange-500 shadow-lg shadow-amber-400/40'
+                                : 'bg-stone-200 group-hover:bg-gradient-to-br group-hover:from-amber-300 group-hover:to-orange-400 group-hover:shadow-lg'}`}>
+                                <DollarSign size={28} className={allocationSource === 'manual' ? 'text-white' : 'text-stone-500 group-hover:text-white'} />
                             </div>
                             <span className="font-bold">ระบุเอง</span>
                         </button>
@@ -387,36 +381,36 @@ export const AllocationStation: React.FC<AllocationStationProps> = ({ onAllocate
                         <button
                             onClick={() => setAllocationSource('profit')}
                             className={`group relative p-5 rounded-2xl text-sm font-bold transition-all duration-300 flex flex-col items-center gap-4 overflow-hidden ${allocationSource === 'profit'
-                                ? 'bg-gradient-to-br from-emerald-50 to-teal-50 text-emerald-700 shadow-xl shadow-emerald-200/50 ring-2 ring-emerald-300'
-                                : 'bg-stone-50 text-stone-400 hover:bg-emerald-50/50 hover:shadow-lg hover:text-emerald-600'
+                                ? 'bg-gradient-to-br from-emerald-50 to-teal-100 text-emerald-900 shadow-xl shadow-emerald-300/50 ring-2 ring-emerald-400'
+                                : 'bg-stone-50 text-stone-500 hover:bg-emerald-50 hover:shadow-lg hover:text-emerald-700 border border-stone-200 hover:border-emerald-300'
                                 }`}
                         >
                             {allocationSource === 'profit' && (
-                                <div className="absolute inset-0 bg-gradient-to-br from-emerald-400/10 to-transparent" />
+                                <div className="absolute inset-0 bg-gradient-to-br from-emerald-400/10 to-teal-400/10" />
                             )}
                             <div className={`relative p-4 rounded-2xl transition-all duration-300 ${allocationSource === 'profit'
-                                ? 'bg-gradient-to-br from-emerald-100 to-teal-100 shadow-inner'
-                                : 'bg-stone-100 group-hover:bg-emerald-100'}`}>
-                                <Zap size={28} className={allocationSource === 'profit' ? 'text-emerald-600' : 'text-stone-400'} />
+                                ? 'bg-gradient-to-br from-emerald-400 to-teal-500 shadow-lg shadow-emerald-400/40'
+                                : 'bg-stone-200 group-hover:bg-gradient-to-br group-hover:from-emerald-400 group-hover:to-teal-500 group-hover:shadow-lg'}`}>
+                                <Zap size={28} className={allocationSource === 'profit' ? 'text-white' : 'text-stone-500 group-hover:text-white'} />
                             </div>
                             <span className="relative font-bold">จากกำไร</span>
                             {unallocatedBalance > 0 && (
-                                <span className="absolute -top-1 -right-1 bg-gradient-to-r from-emerald-500 to-teal-500 text-white text-xs px-2.5 py-1 rounded-full font-bold shadow-lg shadow-emerald-500/30">
+                                <span className="absolute -top-1 -right-1 bg-gradient-to-r from-emerald-500 to-teal-500 text-white text-xs px-2.5 py-1 rounded-full font-bold shadow-lg shadow-emerald-500/40 animate-pulse">
                                     {formatCurrency(unallocatedBalance)}
                                 </span>
                             )}
                         </button>
                     </div>
 
-                    {/* Amount Input Area - Glass Effect */}
-                    <div className="relative bg-white p-6 rounded-2xl border border-stone-100 shadow-lg shadow-stone-100/50">
+                    {/* Amount Input Area - Warm Glass Effect */}
+                    <div className="relative bg-white p-6 rounded-2xl border border-stone-100 shadow-xl shadow-stone-200/40">
                         {allocationSource === 'profit' && (
                             <div className="mb-5">
                                 <label className="block text-xs font-bold text-emerald-600 mb-2 uppercase tracking-wider">เลือกวันที่</label>
                                 <select
                                     value={selectedProfitDate}
                                     onChange={(e) => setSelectedProfitDate(e.target.value)}
-                                    className="w-full p-4 text-sm bg-gradient-to-r from-emerald-50 to-teal-50 border-2 border-emerald-200 rounded-xl text-emerald-800 outline-none focus:ring-4 focus:ring-emerald-100 transition-all font-bold cursor-pointer"
+                                    className="w-full p-4 text-sm bg-gradient-to-r from-emerald-50 to-teal-50 border-2 border-emerald-200/50 rounded-xl text-emerald-800 outline-none focus:ring-4 focus:ring-emerald-100 transition-all font-bold cursor-pointer"
                                 >
                                     <option value="all">✨ ยอดรวมทั้งหมด ({formatCurrency(unallocatedBalance)})</option>
                                     {availableDates.map(date => (
@@ -439,7 +433,7 @@ export const AllocationStation: React.FC<AllocationStationProps> = ({ onAllocate
                                     disabled={allocationSource === 'profit'}
                                     className={`w-full pl-14 pr-5 py-6 text-4xl font-black text-center rounded-2xl outline-none transition-all duration-300 ${allocationSource === 'profit'
                                         ? 'bg-gradient-to-r from-emerald-50 to-teal-50 text-emerald-600 border-2 border-emerald-200'
-                                        : 'bg-stone-50 focus:bg-white focus:ring-4 focus:ring-amber-100 text-stone-800 border-2 border-transparent focus:border-amber-300'
+                                        : 'bg-stone-50 focus:bg-white focus:ring-4 focus:ring-amber-100 text-cafe-900 border-2 border-transparent focus:border-amber-200'
                                         }`}
                                     placeholder="0"
                                 />
@@ -540,7 +534,7 @@ export const AllocationStation: React.FC<AllocationStationProps> = ({ onAllocate
                                 ? 'bg-stone-100 text-stone-400 cursor-not-allowed shadow-none'
                                 : allocationSource === 'profit'
                                     ? 'bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 text-white hover:shadow-2xl hover:shadow-emerald-300/50 hover:-translate-y-0.5'
-                                    : 'bg-gradient-to-r from-stone-800 via-stone-900 to-stone-800 text-white hover:shadow-2xl hover:shadow-stone-400/30 hover:-translate-y-0.5'
+                                    : 'bg-cafe-900 text-white hover:bg-cafe-800 hover:shadow-2xl hover:shadow-stone-400/30 hover:-translate-y-0.5'
                                 }`}
                         >
                             {allocationSource === 'profit' ? <Sparkles className="animate-pulse" /> : <Check />}
@@ -555,8 +549,8 @@ export const AllocationStation: React.FC<AllocationStationProps> = ({ onAllocate
                    ═══════════════════════════════════════════════════════════ */}
                 <div className="lg:col-span-7 p-6 lg:p-8">
                     <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-                        <h3 className="text-sm font-black text-stone-400 uppercase tracking-widest flex items-center gap-3">
-                            <span className="w-7 h-7 bg-gradient-to-br from-stone-200 to-stone-300 rounded-full flex items-center justify-center text-xs text-stone-600 font-black shadow-sm">2</span>
+                        <h3 className="text-sm font-black text-violet-700 uppercase tracking-widest flex items-center gap-3">
+                            <span className="w-7 h-7 bg-gradient-to-br from-violet-400 to-purple-500 rounded-full flex items-center justify-center text-xs text-white font-black shadow-md shadow-violet-400/30">2</span>
                             สัดส่วน
                         </h3>
 
@@ -586,8 +580,8 @@ export const AllocationStation: React.FC<AllocationStationProps> = ({ onAllocate
                                 key={profile.id}
                                 onClick={() => setSelectedProfileId(profile.id)}
                                 className={`group flex items-center gap-2 px-4 py-2.5 rounded-full border-2 text-sm font-bold cursor-pointer transition-all duration-300 ${selectedProfileId === profile.id
-                                    ? 'bg-gradient-to-r from-stone-800 to-stone-900 text-white border-stone-800 shadow-xl shadow-stone-300/50'
-                                    : 'bg-white text-stone-600 border-stone-200 hover:border-stone-400 hover:shadow-lg'
+                                    ? 'bg-cafe-900 text-white border-cafe-900 shadow-xl shadow-stone-400/30'
+                                    : 'bg-white text-stone-500 border-stone-200 hover:border-stone-300 hover:shadow-md'
                                     }`}
                             >
                                 {defaultProfileId === profile.id && (
@@ -658,16 +652,16 @@ export const AllocationStation: React.FC<AllocationStationProps> = ({ onAllocate
                             return (
                                 <div
                                     key={jar.id}
-                                    className={`p-5 rounded-2xl border-2 transition-all duration-300 hover:shadow-xl hover:-translate-y-0.5 ${style.bg} ${style.ring} ring-0 hover:ring-2`}
+                                    className={`p-5 rounded-2xl border transition-all duration-300 hover:shadow-xl hover:-translate-y-0.5 ${style.bg} border-stone-100 hover:border-amber-100`}
                                 >
                                     <div className="flex justify-between items-center mb-4">
                                         <div className="flex items-center gap-4">
-                                            <div className={`p-3 rounded-xl bg-gradient-to-br ${style.gradient} shadow-lg`}>
+                                            <div className={`p-3 rounded-xl bg-gradient-to-br ${style.gradient} shadow-lg shadow-stone-200/50`}>
                                                 <JarIcon size={22} className="text-white" />
                                             </div>
                                             <div>
                                                 <p className={`font-black text-lg ${style.text}`}>{jar.name}</p>
-                                                <p className="text-xs text-stone-400">{jar.description}</p>
+                                                <p className="text-xs text-stone-500 font-medium">{jar.description}</p>
                                             </div>
                                         </div>
                                         <div className="text-right">
@@ -678,7 +672,7 @@ export const AllocationStation: React.FC<AllocationStationProps> = ({ onAllocate
                                                         value={percentage.toFixed(0)}
                                                         onChange={(e) => handlePercentageChange(jar.id, e.target.value)}
                                                         disabled={isLocked}
-                                                        className={`w-16 text-right bg-white/80 border-2 rounded-xl px-3 py-2 font-black text-xl outline-none focus:bg-white focus:ring-2 transition-all ${style.text} ${style.ring} ${isLocked ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                                        className={`w-16 text-right bg-white border rounded-xl px-3 py-2 font-black text-xl outline-none focus:ring-2 transition-all ${style.text} ${style.ring} ${isLocked ? 'opacity-50 cursor-not-allowed border-transparent' : 'border-stone-200 hover:border-stone-300'}`}
                                                     />
                                                     <span className={`text-lg font-black ${style.text}`}>%</span>
                                                 </div>
@@ -690,7 +684,7 @@ export const AllocationStation: React.FC<AllocationStationProps> = ({ onAllocate
                                                         value={currentAmounts[jar.id]}
                                                         onChange={(e) => handleAmountChange(jar.id, e.target.value)}
                                                         disabled={isLocked}
-                                                        className={`w-28 text-right bg-white/80 border-2 rounded-xl px-3 py-2 font-black text-xl outline-none focus:bg-white focus:ring-2 transition-all ${style.text} ${style.ring} ${isLocked ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                                        className={`w-28 text-right bg-white border rounded-xl px-3 py-2 font-black text-xl outline-none focus:ring-2 transition-all ${style.text} ${style.ring} ${isLocked ? 'opacity-50 cursor-not-allowed border-transparent' : 'border-stone-200 hover:border-stone-300'}`}
                                                     />
                                                 </div>
                                             )}
@@ -703,7 +697,7 @@ export const AllocationStation: React.FC<AllocationStationProps> = ({ onAllocate
                                     </div>
 
                                     {inputMode === 'percentage' && (
-                                        <div className="relative h-3 bg-black/5 rounded-full overflow-hidden">
+                                        <div className="relative h-2.5 bg-stone-100 rounded-full overflow-hidden">
                                             <div
                                                 className={`absolute inset-y-0 left-0 bg-gradient-to-r ${style.gradient} rounded-full transition-all duration-300`}
                                                 style={{ width: `${percentage}%` }}
@@ -745,55 +739,57 @@ export const AllocationStation: React.FC<AllocationStationProps> = ({ onAllocate
             </div>
 
             {/* Rename Profile Modal */}
-            {renameModal.isOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-                    <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden animate-in zoom-in-95 duration-200">
-                        <div className="p-5 bg-gradient-to-r from-sky-500 to-indigo-600 text-white">
-                            <h3 className="font-bold flex items-center gap-2 text-lg">
-                                <Edit2 size={20} />
-                                เปลี่ยนชื่อโปรไฟล์
-                            </h3>
-                        </div>
-                        <div className="p-5 space-y-4">
-                            <input
-                                autoFocus
-                                type="text"
-                                value={renameModal.currentName}
-                                onChange={(e) => setRenameModal(prev => ({ ...prev, currentName: e.target.value }))}
-                                onKeyDown={(e) => {
-                                    if (e.key === 'Enter' && renameModal.currentName.trim()) {
-                                        renameAllocationProfile(renameModal.profileId, renameModal.currentName.trim());
-                                        setRenameModal({ isOpen: false, profileId: '', currentName: '' });
-                                    }
-                                }}
-                                className="w-full px-5 py-4 border-2 border-stone-200 rounded-xl focus:border-sky-500 focus:ring-4 focus:ring-sky-100 outline-none text-lg font-medium"
-                                placeholder="ชื่อโปรไฟล์ใหม่..."
-                            />
-                            <div className="flex gap-3">
-                                <button
-                                    onClick={() => setRenameModal({ isOpen: false, profileId: '', currentName: '' })}
-                                    className="flex-1 px-5 py-4 border-2 border-stone-200 rounded-xl text-stone-600 font-bold hover:bg-stone-50 transition-colors flex items-center justify-center gap-2"
-                                >
-                                    <X size={18} />
-                                    ยกเลิก
-                                </button>
-                                <button
-                                    onClick={() => {
-                                        if (renameModal.currentName.trim()) {
+            {
+                renameModal.isOpen && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+                        <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden animate-in zoom-in-95 duration-200">
+                            <div className="p-5 bg-gradient-to-r from-sky-500 to-indigo-600 text-white">
+                                <h3 className="font-bold flex items-center gap-2 text-lg">
+                                    <Edit2 size={20} />
+                                    เปลี่ยนชื่อโปรไฟล์
+                                </h3>
+                            </div>
+                            <div className="p-5 space-y-4">
+                                <input
+                                    autoFocus
+                                    type="text"
+                                    value={renameModal.currentName}
+                                    onChange={(e) => setRenameModal(prev => ({ ...prev, currentName: e.target.value }))}
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter' && renameModal.currentName.trim()) {
                                             renameAllocationProfile(renameModal.profileId, renameModal.currentName.trim());
                                             setRenameModal({ isOpen: false, profileId: '', currentName: '' });
                                         }
                                     }}
-                                    className="flex-1 px-5 py-4 bg-gradient-to-r from-sky-500 to-indigo-600 text-white rounded-xl font-bold hover:shadow-lg transition-all flex items-center justify-center gap-2"
-                                >
-                                    <Check size={18} />
-                                    บันทึก
-                                </button>
+                                    className="w-full px-5 py-4 border-2 border-stone-200 rounded-xl focus:border-sky-500 focus:ring-4 focus:ring-sky-100 outline-none text-lg font-medium"
+                                    placeholder="ชื่อโปรไฟล์ใหม่..."
+                                />
+                                <div className="flex gap-3">
+                                    <button
+                                        onClick={() => setRenameModal({ isOpen: false, profileId: '', currentName: '' })}
+                                        className="flex-1 px-5 py-4 border-2 border-stone-200 rounded-xl text-stone-600 font-bold hover:bg-stone-50 transition-colors flex items-center justify-center gap-2"
+                                    >
+                                        <X size={18} />
+                                        ยกเลิก
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            if (renameModal.currentName.trim()) {
+                                                renameAllocationProfile(renameModal.profileId, renameModal.currentName.trim());
+                                                setRenameModal({ isOpen: false, profileId: '', currentName: '' });
+                                            }
+                                        }}
+                                        className="flex-1 px-5 py-4 bg-gradient-to-r from-sky-500 to-indigo-600 text-white rounded-xl font-bold hover:shadow-lg transition-all flex items-center justify-center gap-2"
+                                    >
+                                        <Check size={18} />
+                                        บันทึก
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     </div>
-                </div>
-            )}
-        </div>
+                )
+            }
+        </div >
     );
 };
