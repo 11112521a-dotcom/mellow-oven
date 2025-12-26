@@ -251,16 +251,18 @@ export const DailySalesForm: React.FC = () => {
             });
         }
 
-        // FIX: Record COGS Transaction to Working Capital (cost recovery only!)
-        // This prevents double-counting: COGS goes to Working, Profit goes to Unallocated
-        if (totalCOGS > 0) {
+        // FIX: Record COGS + Waste Cost Transaction to Working Capital
+        // This includes both sold items cost AND waste cost to recover all production costs
+        const totalCostRecovery = totalCOGS + totalWasteCost;
+        if (totalCostRecovery > 0) {
+            const wasteNote = totalWasteCost > 0 ? ` (รวมของเสีย ฿${totalWasteCost.toLocaleString()})` : '';
             await addTransaction({
                 id: crypto.randomUUID(),
                 date: new Date().toISOString(),
-                amount: totalCOGS,
+                amount: totalCostRecovery,
                 type: 'INCOME',
                 toJar: 'Working',
-                description: `คืนต้นทุน ${date} - ${marketName}`,
+                description: `คืนต้นทุน ${date} - ${marketName}${wasteNote}`,
                 category: 'COGS',
                 marketId: selectedMarketId
             });
