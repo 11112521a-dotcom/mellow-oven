@@ -40,6 +40,94 @@ const ConfirmModal: React.FC<{
     );
 };
 
+// Success Modal - Beautiful card with sales breakdown
+const SuccessModal: React.FC<{
+    isOpen: boolean;
+    onClose: () => void;
+    data: {
+        revenue: number;
+        wasteHome: number;
+        wasteShop: number;
+        cogsTotal: number;
+        profit: number;
+    } | null;
+}> = ({ isOpen, onClose, data }) => {
+    if (!isOpen || !data) return null;
+
+    const formatMoney = (n: number) => `฿${n.toLocaleString()}`;
+    const totalWaste = data.wasteHome + data.wasteShop;
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
+            <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full overflow-hidden animate-in zoom-in-95 duration-200">
+                {/* Header */}
+                <div className="bg-gradient-to-r from-emerald-500 via-green-500 to-teal-500 p-6 text-white text-center relative overflow-hidden">
+                    <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(255,255,255,0.2),transparent_50%)]" />
+                    <div className="relative">
+                        <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-3">
+                            <Check size={32} className="text-white" />
+                        </div>
+                        <h2 className="text-2xl font-black">บันทึกสำเร็จ! 🎉</h2>
+                    </div>
+                </div>
+
+                {/* Body */}
+                <div className="p-6 space-y-4">
+                    {/* Revenue */}
+                    <div className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-2xl p-4 border border-amber-100">
+                        <div className="flex justify-between items-center">
+                            <span className="text-amber-700 font-medium">💰 รายได้วันนี้</span>
+                            <span className="text-2xl font-black text-amber-600">{formatMoney(data.revenue)}</span>
+                        </div>
+                    </div>
+
+                    {/* Waste Breakdown */}
+                    {totalWaste > 0 && (
+                        <div className="bg-gradient-to-r from-red-50 to-rose-50 rounded-2xl p-4 border border-red-100">
+                            <div className="flex justify-between items-center mb-2">
+                                <span className="text-red-600 font-medium">🗑️ ของเสียวันนี้</span>
+                                <span className="text-lg font-bold text-red-500">{formatMoney(totalWaste)}</span>
+                            </div>
+                            <div className="text-sm text-red-400 space-y-1 pl-6">
+                                {data.wasteHome > 0 && <div>• เสียที่บ้าน: {formatMoney(data.wasteHome)}</div>}
+                                {data.wasteShop > 0 && <div>• เสียที่ร้าน: {formatMoney(data.wasteShop)}</div>}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* COGS + Waste */}
+                    <div className="bg-gradient-to-r from-stone-50 to-slate-50 rounded-2xl p-4 border border-stone-100">
+                        <div className="flex justify-between items-center">
+                            <span className="text-stone-600 font-medium">📦 COGS + ของเสีย</span>
+                            <span className="text-lg font-bold text-stone-700">{formatMoney(data.cogsTotal)}</span>
+                        </div>
+                    </div>
+
+                    {/* Profit */}
+                    <div className={`rounded-2xl p-4 border ${data.profit >= 0 ? 'bg-gradient-to-r from-emerald-50 to-green-50 border-emerald-100' : 'bg-gradient-to-r from-red-50 to-rose-50 border-red-100'}`}>
+                        <div className="flex justify-between items-center">
+                            <span className={`font-medium ${data.profit >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>✨ กำไรสุทธิ</span>
+                            <span className={`text-2xl font-black ${data.profit >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>{formatMoney(data.profit)}</span>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Footer */}
+                <div className="p-4 bg-gray-50 border-t">
+                    <button
+                        onClick={onClose}
+                        className="w-full px-6 py-3.5 bg-gradient-to-r from-emerald-500 to-green-500 text-white rounded-xl font-bold transition-all hover:shadow-lg hover:-translate-y-0.5 flex items-center justify-center gap-2"
+                    >
+                        <Sparkles size={18} />
+                        ปิด
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+
 export const DailySalesForm: React.FC = () => {
     const {
         products, addTransaction, updateJarBalance, deductStockByRecipe, markets,
@@ -54,6 +142,16 @@ export const DailySalesForm: React.FC = () => {
     const [weather, setWeather] = useState<WeatherCondition>(null); // NEW: Weather state
     const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set()); // NEW: For collapsible groups
     const [hasSaved, setHasSaved] = useState(false); // FIX: Track if already saved to prevent duplicate entries
+
+    // Success Modal State
+    const [showSuccessModal, setShowSuccessModal] = useState(false);
+    const [successData, setSuccessData] = useState<{
+        revenue: number;
+        wasteHome: number;
+        wasteShop: number;
+        cogsTotal: number;
+        profit: number;
+    } | null>(null);
 
     // Fetch daily inventory on date change (to get "To Shop" values)
     useEffect(() => {
@@ -314,7 +412,30 @@ export const DailySalesForm: React.FC = () => {
 
         // FIX: Mark as saved to prevent duplicate entries
         setHasSaved(true);
-        alert('✅ บันทึกยอดขายสำเร็จ!');
+
+        // Calculate waste at home from daily_inventory (wastageQty logged in MenuStockPlanner)
+        const wasteHomeTotal = logs.reduce((sum, log) => {
+            const invRecord = dailyInventory.find(d =>
+                d.businessDate === date &&
+                d.productId === log.productId &&
+                (d.variantId || '') === (log.variantId || '')
+            );
+            if (invRecord?.wasteQty) {
+                const unitCost = log.variant ? (log.variant.cost || log.product.cost) : log.product.cost;
+                return sum + (invRecord.wasteQty * unitCost);
+            }
+            return sum;
+        }, 0);
+
+        // Show success modal with breakdown
+        setSuccessData({
+            revenue: totalRevenue,
+            wasteHome: wasteHomeTotal,
+            wasteShop: totalWasteCost, // Waste entered in this form
+            cogsTotal: totalCOGS + totalWasteCost + wasteHomeTotal,
+            profit: trueProfit - wasteHomeTotal // Deduct wasteHome too
+        });
+        setShowSuccessModal(true);
     };
 
     const totalAvailable = logs.reduce((sum, log) => sum + (log.preparedQty || 0), 0);
@@ -570,6 +691,13 @@ export const DailySalesForm: React.FC = () => {
                     </div>
                 </div>
             </ConfirmModal>
+
+            {/* Success Modal - Shows after saving */}
+            <SuccessModal
+                isOpen={showSuccessModal}
+                onClose={() => setShowSuccessModal(false)}
+                data={successData}
+            />
         </div>
     );
 };
