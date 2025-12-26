@@ -752,8 +752,12 @@ export const useStore = create<AppState>()(
 
                 const lastRecord = relevantRecords[0];
 
+                // FIX: Add null safety for older records without leftoverHome/unsoldShop
+                const leftoverHome = lastRecord.leftoverHome ?? 0;
+                const unsoldShop = lastRecord.unsoldShop ?? 0;
+
                 // Stock = leftoverHome + unsoldShop
-                return lastRecord.leftoverHome + lastRecord.unsoldShop;
+                return leftoverHome + unsoldShop;
             },
 
             addStockLog: async (log) => {

@@ -213,23 +213,28 @@ export const DailySalesForm: React.FC = () => {
         const marketName = markets.find(m => m.id === selectedMarketId)?.name || 'Unknown Market';
 
         // Update daily_inventory with sold_qty for each product/variant (VARIANT-AWARE!)
+        // FIX: Always update soldQty, even if no inventory record exists (creates one if needed)
         for (const log of logs) {
-            // Find inventory record matching BOTH productId AND variantId
-            const inventoryRecord = dailyInventory.find(
-                d => d.businessDate === date &&
-                    d.productId === log.productId &&
-                    (d.variantId || '') === (log.variantId || '')
-            );
-            if (inventoryRecord) {
+            // Only process items that had sales or waste
+            if (log.soldQty > 0 || log.wasteQty > 0) {
+                // Find existing inventory record matching BOTH productId AND variantId
+                const inventoryRecord = dailyInventory.find(
+                    d => d.businessDate === date &&
+                        d.productId === log.productId &&
+                        (d.variantId || '') === (log.variantId || '')
+                );
+
+                // FIX: Always call upsert - use existing values or defaults
                 await upsertDailyInventory({
                     businessDate: date,
                     productId: log.productId,
                     variantId: log.variantId,
                     variantName: log.variant?.name,
-                    producedQty: inventoryRecord.producedQty,
-                    toShopQty: inventoryRecord.toShopQty,
+                    producedQty: inventoryRecord?.producedQty || 0,
+                    toShopQty: inventoryRecord?.toShopQty || log.preparedQty || 0, // Use preparedQty as fallback
                     soldQty: log.soldQty,
-                    stockYesterday: inventoryRecord.stockYesterday
+                    wasteQty: log.wasteQty || 0, // FIX: Also sync waste from sales form
+                    stockYesterday: inventoryRecord?.stockYesterday || 0
                 });
             }
         }
