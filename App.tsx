@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useStore } from './src/store';
 import { Layout } from './src/components/Layout';
 import { Login } from './src/pages/Login';
+import { ErrorBoundary, PageErrorBoundary } from './src/components/ErrorBoundary';
 import { Loader2 } from 'lucide-react';
 import { Suspense, lazy } from 'react';
 
@@ -87,13 +88,17 @@ const App: React.FC = () => {
   };
 
   return (
-    <Layout activeTab={activeTab} onTabChange={setActiveTab}>
-      <header className="mb-8">
-        <h2 className="text-3xl font-bold text-cafe-800 capitalize">{activeTab === 'financials' ? 'การเงิน (Finance)' : activeTab}</h2>
-        <p className="text-cafe-500">Manage your bakery efficiently.</p>
-      </header>
-      {renderContent()}
-    </Layout>
+    <ErrorBoundary>
+      <Layout activeTab={activeTab} onTabChange={setActiveTab}>
+        <header className="mb-8">
+          <h2 className="text-3xl font-bold text-cafe-800 capitalize">{activeTab === 'financials' ? 'การเงิน (Finance)' : activeTab}</h2>
+          <p className="text-cafe-500">Manage your bakery efficiently.</p>
+        </header>
+        <PageErrorBoundary>
+          {renderContent()}
+        </PageErrorBoundary>
+      </Layout>
+    </ErrorBoundary>
   );
 }
 

@@ -347,7 +347,7 @@ export const MenuStockPlanner: React.FC = () => {
             d.productId === item.productId &&
             (d.variantId || '') === (item.variantId || '')
         );
-        return saved || { producedQty: 0, toShopQty: 0, wasteQty: 0, stockYesterday: getYesterdayForItem(item) };
+        return saved || { producedQty: 0, toShopQty: 0, wasteQty: 0, soldQty: 0, stockYesterday: getYesterdayForItem(item) };
     };
 
     // Calculate today's stock = yesterday + ALL confirmed production
@@ -557,6 +557,7 @@ export const MenuStockPlanner: React.FC = () => {
 
             if (bulkActionModal.type === 'produceAll') {
                 // ADD to existing production and save
+                // TODO: Refactor to Atomic Update or RPC to prevent Race Condition
                 await upsertDailyInventory({
                     businessDate,
                     productId: item.productId,
@@ -564,6 +565,8 @@ export const MenuStockPlanner: React.FC = () => {
                     variantName: item.isVariant ? item.name : undefined,
                     producedQty: (saved.producedQty || 0) + value,
                     toShopQty: saved.toShopQty || 0,
+                    wasteQty: saved.wasteQty || 0,   // PRESERVE existing waste
+                    soldQty: saved.soldQty || 0,     // PRESERVE existing sold
                     stockYesterday
                 });
             } else if (bulkActionModal.type === 'sendAll') {
@@ -575,6 +578,7 @@ export const MenuStockPlanner: React.FC = () => {
                 const safeTransfer = Math.min(value, availableStock); // Never send more than available
 
                 if (safeTransfer > 0) {
+                    // TODO: Refactor to Atomic Update or RPC to prevent Race Condition
                     await upsertDailyInventory({
                         businessDate,
                         productId: item.productId,
@@ -582,6 +586,8 @@ export const MenuStockPlanner: React.FC = () => {
                         variantName: item.isVariant ? item.name : undefined,
                         producedQty: saved.producedQty || 0,
                         toShopQty: alreadySent + safeTransfer,
+                        wasteQty: saved.wasteQty || 0,   // PRESERVE existing waste
+                        soldQty: saved.soldQty || 0,     // PRESERVE existing sold
                         stockYesterday
                     });
                 }
@@ -627,6 +633,8 @@ export const MenuStockPlanner: React.FC = () => {
         }
 
         // Save to DB
+        // TODO: Refactor to Atomic Update or RPC to prevent Race Condition
+        // Current pattern is Check-Then-Act which is vulnerable if 2 users edit simultaneously
         await upsertDailyInventory({
             businessDate,
             productId: item.productId,
@@ -634,6 +642,8 @@ export const MenuStockPlanner: React.FC = () => {
             variantName: item.isVariant ? item.name : undefined,
             producedQty: newProducedQty,
             toShopQty: newToShopQty,
+            wasteQty: saved.wasteQty || 0,   // PRESERVE existing waste
+            soldQty: saved.soldQty || 0,      // PRESERVE existing sold
             stockYesterday
         });
 
@@ -679,6 +689,7 @@ export const MenuStockPlanner: React.FC = () => {
                 const saved = getSavedRecord(item);
                 const stockYesterday = saved.stockYesterday ?? getYesterdayForItem(item);
 
+                // TODO: Refactor to Atomic Update or RPC to prevent Race Condition
                 await upsertDailyInventory({
                     businessDate,
                     productId: item.productId,
@@ -686,6 +697,8 @@ export const MenuStockPlanner: React.FC = () => {
                     variantName: item.isVariant ? item.name : undefined,
                     producedQty: (saved.producedQty || 0) + value, // ADD mode
                     toShopQty: saved.toShopQty || 0,
+                    wasteQty: saved.wasteQty || 0,   // PRESERVE existing waste
+                    soldQty: saved.soldQty || 0,     // PRESERVE existing sold
                     stockYesterday
                 });
             }
@@ -708,6 +721,7 @@ export const MenuStockPlanner: React.FC = () => {
                 const needed = Math.max(0, targetValue - currentStock);
 
                 if (needed > 0) {
+                    // TODO: Refactor to Atomic Update or RPC to prevent Race Condition
                     await upsertDailyInventory({
                         businessDate,
                         productId: item.productId,
@@ -715,6 +729,8 @@ export const MenuStockPlanner: React.FC = () => {
                         variantName: item.isVariant ? item.name : undefined,
                         producedQty: (saved.producedQty || 0) + needed, // Add ONLY what's needed
                         toShopQty: saved.toShopQty || 0,
+                        wasteQty: saved.wasteQty || 0,   // PRESERVE existing waste
+                        soldQty: saved.soldQty || 0,     // PRESERVE existing sold
                         stockYesterday
                     });
                 }
@@ -741,6 +757,7 @@ export const MenuStockPlanner: React.FC = () => {
             const saved = getSavedRecord(item);
             const stockYesterday = saved.stockYesterday ?? getYesterdayForItem(item);
 
+            // TODO: Refactor to Atomic Update or RPC to prevent Race Condition
             await upsertDailyInventory({
                 businessDate,
                 productId: item.productId,
@@ -748,6 +765,8 @@ export const MenuStockPlanner: React.FC = () => {
                 variantName: item.isVariant ? item.name : undefined,
                 producedQty: saved.producedQty || 0,
                 toShopQty: (saved.toShopQty || 0) + value,
+                wasteQty: saved.wasteQty || 0,   // PRESERVE existing waste
+                soldQty: saved.soldQty || 0,     // PRESERVE existing sold
                 stockYesterday
             });
         }

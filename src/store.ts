@@ -4,36 +4,37 @@ import { supabase } from './lib/supabase';
 import { Jar, Transaction, Ingredient, PurchaseOrder, Product, DailyReport, JarType, Market, Goal, Alert, JarHistory, JarCustomization, UnallocatedProfit, ProductSaleLog, AllocationProfile, StockLog, DailyInventory, Promotion, Bundle, BundleItem, SpecialOrder, SpecialOrderItem, SpecialOrderStatus } from '../types';
 import type { ForecastOutput } from './lib/forecasting';
 import { ProductionForecast, forecastOutputToDbFormat } from './lib/forecasting/types';
+import type { DbTransactionRow, DbIngredientRow, DbProductSaleLogRow, DbProductionForecastRow, DbDailyInventoryRow } from './lib/db-types';
 
 // ==================== MAPPING HELPERS (Selective Real-time) ====================
 
-const mapTransaction = (t: any): Transaction => ({
+const mapTransaction = (t: DbTransactionRow): Transaction => ({
     id: t.id,
     date: t.date,
     amount: Number(t.amount),
     type: t.type,
-    fromJar: t.from_jar,
-    toJar: t.to_jar,
-    description: t.description,
-    category: t.category,
-    marketId: t.market_id
+    fromJar: (t.from_jar as JarType) ?? undefined,
+    toJar: (t.to_jar as JarType) ?? undefined,
+    description: t.description ?? '',
+    category: t.category ?? undefined,
+    marketId: t.market_id ?? undefined
 });
 
-const mapIngredient = (i: any): Ingredient => ({
+const mapIngredient = (i: DbIngredientRow): Ingredient => ({
     id: i.id,
     name: i.name,
     unit: i.unit,
     currentStock: Number(i.current_stock),
     costPerUnit: Number(i.cost_per_unit),
-    supplier: i.supplier,
+    supplier: i.supplier ?? '',
     lastUpdated: i.last_updated || new Date().toISOString(),
-    buyUnit: i.buy_unit,
+    buyUnit: i.buy_unit ?? undefined,
     conversionRate: Number(i.conversion_rate) || 1,
     minStock: Number(i.min_stock) || 10,
-    isHidden: i.is_hidden
+    isHidden: i.is_hidden ?? false
 });
 
-const mapProductSaleLog = (s: any): ProductSaleLog => ({
+const mapProductSaleLog = (s: DbProductSaleLogRow): ProductSaleLog => ({
     id: s.id,
     recordedAt: s.recorded_at,
     saleDate: s.sale_date,
@@ -48,21 +49,21 @@ const mapProductSaleLog = (s: any): ProductSaleLog => ({
     costPerUnit: s.cost_per_unit,
     totalCost: s.total_cost,
     grossProfit: s.gross_profit,
-    variantId: s.variant_id,
-    variantName: s.variant_name,
+    variantId: s.variant_id ?? undefined,
+    variantName: s.variant_name ?? undefined,
     wasteQty: s.waste_qty || 0,
-    weatherCondition: s.weather_condition
+    weatherCondition: s.weather_condition ?? undefined
 });
 
-const mapProductionForecast = (f: any): ProductionForecast => ({
+const mapProductionForecast = (f: DbProductionForecastRow): ProductionForecast => ({
     id: f.id,
     createdAt: f.created_at,
     productId: f.product_id,
     productName: f.product_name,
-    marketId: f.market_id,
-    marketName: f.market_name,
+    marketId: f.market_id ?? undefined,
+    marketName: f.market_name ?? undefined,
     forecastForDate: f.forecast_for_date,
-    weatherForecast: f.weather_forecast,
+    weatherForecast: f.weather_forecast ?? undefined,
     historicalDataPoints: f.historical_data_points,
     baselineForecast: f.baseline_forecast,
     weatherAdjustedForecast: f.weather_adjusted_forecast,
@@ -81,17 +82,17 @@ const mapProductionForecast = (f: any): ProductionForecast => ({
     outliersRemoved: f.outliers_removed
 });
 
-const mapDailyInventory = (d: any): DailyInventory => ({
+const mapDailyInventory = (d: DbDailyInventoryRow): DailyInventory => ({
     id: d.id,
     createdAt: d.created_at,
     businessDate: d.business_date,
     productId: d.product_id,
-    variantId: d.variant_id,
-    variantName: d.variant_name,
+    variantId: d.variant_id ?? undefined,
+    variantName: d.variant_name ?? undefined,
     producedQty: d.produced_qty,
     toShopQty: d.to_shop_qty,
     soldQty: d.sold_qty,
-    wasteQty: d.waste_qty,
+    wasteQty: d.waste_qty ?? 0,
     stockYesterday: d.stock_yesterday,
     leftoverHome: d.leftover_home,
     unsoldShop: d.unsold_shop
@@ -677,10 +678,14 @@ export const useStore = create<AppState>()(
                 let data, error;
 
                 if (existingData?.id) {
-                    // Update existing
+                    // Update existing - PRESERVE IMMUTABLE FIELDS
+                    // History should be immutable: once stockYesterday is set, never change it
+                    const updateRecord = { ...dbRecord };
+                    delete updateRecord.stock_yesterday; // Never overwrite historical snapshot
+
                     const result = await supabase
                         .from('daily_inventory')
-                        .update(dbRecord)
+                        .update(updateRecord)
                         .eq('id', existingData.id)
                         .select()
                         .single();
@@ -2239,10 +2244,10 @@ export const useStore = create<AppState>()(
                         if (payload.eventType === 'INSERT') {
                             set(state => {
                                 if (state.transactions.some(t => t.id === payload.new.id)) return state;
-                                return { transactions: [mapTransaction(payload.new), ...state.transactions] };
+                                return { transactions: [mapTransaction(payload.new as DbTransactionRow), ...state.transactions] };
                             });
                         } else if (payload.eventType === 'UPDATE') {
-                            set(state => ({ transactions: state.transactions.map(t => t.id === payload.new.id ? mapTransaction(payload.new) : t) }));
+                            set(state => ({ transactions: state.transactions.map(t => t.id === payload.new.id ? mapTransaction(payload.new as DbTransactionRow) : t) }));
                         } else if (payload.eventType === 'DELETE') {
                             set(state => ({ transactions: state.transactions.filter(t => t.id !== payload.old.id) }));
                         }
@@ -2255,10 +2260,10 @@ export const useStore = create<AppState>()(
                         if (payload.eventType === 'INSERT') {
                             set(state => {
                                 if (state.ingredients.some(i => i.id === payload.new.id)) return state;
-                                return { ingredients: [mapIngredient(payload.new), ...state.ingredients] };
+                                return { ingredients: [mapIngredient(payload.new as DbIngredientRow), ...state.ingredients] };
                             });
                         } else if (payload.eventType === 'UPDATE') {
-                            set(state => ({ ingredients: state.ingredients.map(i => i.id === payload.new.id ? mapIngredient(payload.new) : i) }));
+                            set(state => ({ ingredients: state.ingredients.map(i => i.id === payload.new.id ? mapIngredient(payload.new as DbIngredientRow) : i) }));
                         } else if (payload.eventType === 'DELETE') {
                             set(state => ({ ingredients: state.ingredients.filter(i => i.id !== payload.old.id) }));
                         }
@@ -2271,10 +2276,10 @@ export const useStore = create<AppState>()(
                         if (payload.eventType === 'INSERT') {
                             set(state => {
                                 if (state.productionForecasts.some(f => f.id === payload.new.id)) return state;
-                                return { productionForecasts: [mapProductionForecast(payload.new), ...state.productionForecasts] };
+                                return { productionForecasts: [mapProductionForecast(payload.new as DbProductionForecastRow), ...state.productionForecasts] };
                             });
                         } else if (payload.eventType === 'UPDATE') {
-                            set(state => ({ productionForecasts: state.productionForecasts.map(f => f.id === payload.new.id ? mapProductionForecast(payload.new) : f) }));
+                            set(state => ({ productionForecasts: state.productionForecasts.map(f => f.id === payload.new.id ? mapProductionForecast(payload.new as DbProductionForecastRow) : f) }));
                         } else if (payload.eventType === 'DELETE') {
                             set(state => ({ productionForecasts: state.productionForecasts.filter(f => f.id !== payload.old.id) }));
                         }
@@ -2321,10 +2326,10 @@ export const useStore = create<AppState>()(
                         if (payload.eventType === 'INSERT') {
                             set(state => {
                                 if (state.productSales.some(s => s.id === payload.new.id)) return state;
-                                return { productSales: [mapProductSaleLog(payload.new), ...state.productSales] };
+                                return { productSales: [mapProductSaleLog(payload.new as DbProductSaleLogRow), ...state.productSales] };
                             });
                         } else if (payload.eventType === 'UPDATE') {
-                            set(state => ({ productSales: state.productSales.map(s => s.id === payload.new.id ? mapProductSaleLog(payload.new) : s) }));
+                            set(state => ({ productSales: state.productSales.map(s => s.id === payload.new.id ? mapProductSaleLog(payload.new as DbProductSaleLogRow) : s) }));
                         } else if (payload.eventType === 'DELETE') {
                             set(state => ({ productSales: state.productSales.filter(s => s.id !== payload.old.id) }));
                         }
@@ -2337,10 +2342,10 @@ export const useStore = create<AppState>()(
                         if (payload.eventType === 'INSERT') {
                             set(state => {
                                 if (state.dailyInventory.some(d => d.id === payload.new.id)) return state;
-                                return { dailyInventory: [...state.dailyInventory, mapDailyInventory(payload.new)] };
+                                return { dailyInventory: [...state.dailyInventory, mapDailyInventory(payload.new as DbDailyInventoryRow)] };
                             });
                         } else if (payload.eventType === 'UPDATE') {
-                            set(state => ({ dailyInventory: state.dailyInventory.map(d => d.id === payload.new.id ? mapDailyInventory(payload.new) : d) }));
+                            set(state => ({ dailyInventory: state.dailyInventory.map(d => d.id === payload.new.id ? mapDailyInventory(payload.new as DbDailyInventoryRow) : d) }));
                         } else if (payload.eventType === 'DELETE') {
                             set(state => ({ dailyInventory: state.dailyInventory.filter(d => d.id !== payload.old.id) }));
                         }
