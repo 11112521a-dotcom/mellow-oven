@@ -83,6 +83,7 @@ export interface InventorySlice {
     upsertDailyInventory: (record: Partial<DailyInventory> & { businessDate: string; productId: string; variantId?: string }) => Promise<void>;
     getYesterdayStock: (productId: string, todayDate: string, variantId?: string) => number;
     deductStockByRecipe: (productId: string, quantity: number, variantId?: string) => void;
+    deductStockForBundleOrder: (orderId: string) => Promise<void>; // NEW: Deduct stock for Bundle orders
 }
 
 export interface ProductsSlice {

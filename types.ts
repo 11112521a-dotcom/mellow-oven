@@ -134,7 +134,8 @@ export interface Product {
   price: number;
   cost: number; // This can now be auto-calculated from recipe
   recipe?: Recipe;
-  variants?: Variant[]; // New: List of variants
+  variants?: Variant[]; // List of variants
+  bundleConfig?: BundleConfig | null; // NEW: Config for composite products (Snack Box)
 }
 
 export interface Variant {
@@ -364,4 +365,42 @@ export interface SpecialOrderItem {
   subtotalCost: number;
   subtotalProfit: number;
   sortOrder: number;
+  selectedOptions?: BundleSelectionSnapshot | null; // NEW: Snapshot of selected bundle choices
+}
+
+// ==================== BUNDLE SYSTEM TYPES ====================
+
+// ตัวเลือกย่อยในแต่ละ Slot (เช่น "บราวนี่", "ครัวซองต์")
+export interface BundleOption {
+  id: string;          // ID ของตัวเลือก (ใช้ productId หรือสร้างใหม่ก็ได้)
+  productId: string;   // Link ไปยัง Inventory จริง (UUID)
+  name: string;        // ชื่อที่แสดง (Snapshot เผื่อเปลี่ยนชื่อ)
+  surcharge: number;   // ราคาบวกเพิ่ม (0 = ไม่บวก)
+  isDefault?: boolean; // เป็นตัวเลือกเริ่มต้นไหม (ไม่ใช้ใน Phase 1)
+}
+
+// หลุมให้เลือก (เช่น "เลือกขนม", "เลือกน้ำ")
+export interface BundleSlot {
+  id: string;          // Key สำหรับอ้างอิง (เช่น 'main_snack', 'drink')
+  title: string;       // หัวข้อที่โชว์ลูกค้า
+  type: 'single' | 'multiple'; // Phase 1 ใช้ 'single' ไปก่อน
+  required: boolean;   // บังคับเลือกไหม
+  options: BundleOption[];
+}
+
+// Config หลักที่จะอยู่ใน Product (JSONB)
+export interface BundleConfig {
+  isBundle: boolean;
+  basePrice: number;   // ราคาตั้งต้น (เช่น ค่ากล่อง + ค่าแรง)
+  slots: BundleSlot[];
+}
+
+// สิ่งที่บันทึกตอนขาย (Snapshot) - Historical Data Protection
+export interface BundleSelectionSnapshot {
+  [slotId: string]: {
+    productId: string;   // ID สินค้าที่เลือก
+    productName: string; // ชื่อตอนที่ขาย (Snapshot)
+    unitCost: number;    // ต้นทุนตอนที่ขาย (Snapshot)
+    surcharge: number;   // ราคาเพิ่มตอนที่ขาย (Snapshot)
+  };
 }

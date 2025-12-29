@@ -16,11 +16,13 @@ import {
     AlertCircle,
     Check,
     X,
-    Truck
+    Truck,
+    Scissors
 } from 'lucide-react';
 import { Promotion, Bundle, SpecialOrder, SpecialOrderStatus } from '../../../types';
 import { AddPromotionModal } from './AddPromotionModal';
 import { AddSpecialOrderModal } from './AddSpecialOrderModal';
+import { CreateBundleOrderModal } from './CreateBundleOrderModal';
 
 type Tab = 'promotions' | 'bundles' | 'orders';
 
@@ -52,13 +54,15 @@ export const PromotionPage: React.FC = () => {
         deleteBundle,
         updateSpecialOrderStatus,
         cancelSpecialOrder,
-        syncDeliveredOrderProfits
+        syncDeliveredOrderProfits,
+        deductStockForBundleOrder
     } = useStore();
 
     const [activeTab, setActiveTab] = useState<Tab>('promotions');
     const [showAddPromoModal, setShowAddPromoModal] = useState(false);
     const [showAddBundleModal, setShowAddBundleModal] = useState(false);
     const [showAddOrderModal, setShowAddOrderModal] = useState(false);
+    const [showBundleOrderModal, setShowBundleOrderModal] = useState(false);
     const [isSyncing, setIsSyncing] = useState(false);
     const [editingPromotion, setEditingPromotion] = useState<Promotion | null>(null);
 
@@ -484,6 +488,26 @@ export const PromotionPage: React.FC = () => {
                                                                 ส่งแล้ว
                                                             </button>
                                                         )}
+                                                        {(order.status === 'confirmed' || order.status === 'producing') && !order.stockDeducted && (
+                                                            <button
+                                                                onClick={async () => {
+                                                                    if (confirm('ยืนยันตัดสต็อกวัตถุดิบสำหรับออเดอร์นี้?')) {
+                                                                        await deductStockForBundleOrder(order.id);
+                                                                        alert('✅ ตัดสต็อกเรียบร้อยแล้ว!');
+                                                                    }
+                                                                }}
+                                                                className="bg-orange-500 hover:bg-orange-600 text-white py-2 px-3 rounded-xl text-sm font-bold transition-colors shadow-sm shadow-orange-200 flex items-center gap-1"
+                                                                title="ตัดสต็อก"
+                                                            >
+                                                                <Scissors size={16} />
+                                                                ตัดสต็อก
+                                                            </button>
+                                                        )}
+                                                        {order.stockDeducted && (
+                                                            <span className="text-xs text-green-600 bg-green-50 px-2 py-1 rounded-lg flex items-center gap-1">
+                                                                <Check size={14} /> ตัดสต็อกแล้ว
+                                                            </span>
+                                                        )}
                                                         {order.status !== 'cancelled' && order.status !== 'delivered' && (
                                                             <button
                                                                 onClick={() => {
@@ -518,6 +542,9 @@ export const PromotionPage: React.FC = () => {
             )}
             {showAddOrderModal && (
                 <AddSpecialOrderModal isOpen={true} onClose={() => setShowAddOrderModal(false)} mode="order" />
+            )}
+            {showBundleOrderModal && (
+                <CreateBundleOrderModal isOpen={true} onClose={() => setShowBundleOrderModal(false)} />
             )}
             {editingPromotion && (
                 <AddPromotionModal

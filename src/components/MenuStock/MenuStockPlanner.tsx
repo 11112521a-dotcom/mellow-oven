@@ -1,7 +1,8 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useStore } from '@/src/store';
-import { Package, Save, Calendar, AlertCircle, Flame, Truck, X, Check, Sparkles, ChevronDown, ChevronUp, Layers, Box, Edit2, RotateCcw, Target, Zap, Trash2 } from 'lucide-react';
+import { Package, Save, Calendar, AlertCircle, Flame, Truck, X, Check, Sparkles, ChevronDown, ChevronUp, Layers, Box, Edit2, RotateCcw, Target, Zap, Trash2, RefreshCw } from 'lucide-react';
 import { Product, Variant } from '@/types';
+import { useDraftStorage } from '@/src/hooks/useFormDraft';
 
 // Type for flattened product/variant item
 interface InventoryItem {
@@ -233,6 +234,15 @@ export const MenuStockPlanner: React.FC = () => {
 
     const [businessDate, setBusinessDate] = useState(() => new Date().toISOString().split('T')[0]);
     const [isSaving, setIsSaving] = useState(false);
+    const [draftRestored, setDraftRestored] = useState(false);
+
+    // Draft storage for auto-save
+    const draftKey = `menu-stock-${businessDate}`;
+    const { saveDraft, loadDraft, clearDraft } = useDraftStorage<{
+        pendingProduction: Record<string, number>;
+        pendingTransfer: Record<string, number>;
+        pendingWaste: Record<string, number>;
+    }>(draftKey);
 
     // Pending inputs BEFORE confirm (resets after confirm)
     const [pendingProduction, setPendingProduction] = useState<Record<string, number>>({});
@@ -266,6 +276,51 @@ export const MenuStockPlanner: React.FC = () => {
     const [bulkTransfer, setBulkTransfer] = useState<Record<string, number>>({});
     const [bulkTarget, setBulkTarget] = useState<Record<string, number>>({}); // NEW: Target Input State
     const [pendingWaste, setPendingWaste] = useState<Record<string, number>>({});  // NEW: Waste at home
+
+    // Auto-save draft when pending values change
+    useEffect(() => {
+        const hasPendingData =
+            Object.keys(pendingProduction).length > 0 ||
+            Object.keys(pendingTransfer).length > 0 ||
+            Object.keys(pendingWaste).length > 0;
+
+        if (hasPendingData) {
+            saveDraft({ pendingProduction, pendingTransfer, pendingWaste });
+        }
+    }, [pendingProduction, pendingTransfer, pendingWaste, saveDraft]);
+
+    // Restore draft on mount or date change
+    useEffect(() => {
+        const draft = loadDraft();
+        if (draft) {
+            if (Object.keys(draft.pendingProduction || {}).length > 0) {
+                setPendingProduction(draft.pendingProduction);
+            }
+            if (Object.keys(draft.pendingTransfer || {}).length > 0) {
+                setPendingTransfer(draft.pendingTransfer);
+            }
+            if (Object.keys(draft.pendingWaste || {}).length > 0) {
+                setPendingWaste(draft.pendingWaste);
+            }
+            const hasData =
+                Object.keys(draft.pendingProduction || {}).length > 0 ||
+                Object.keys(draft.pendingTransfer || {}).length > 0 ||
+                Object.keys(draft.pendingWaste || {}).length > 0;
+            if (hasData) {
+                setDraftRestored(true);
+                setTimeout(() => setDraftRestored(false), 5000); // Hide after 5s
+            }
+        }
+    }, [businessDate]); // Re-run when date changes
+
+    // Clear draft after successful save
+    const handleClearDraft = useCallback(() => {
+        clearDraft();
+        setPendingProduction({});
+        setPendingTransfer({});
+        setPendingWaste({});
+        setDraftRestored(false);
+    }, [clearDraft]);
 
     // Target Production Modal State
     const [targetModal, setTargetModal] = useState<{
@@ -1064,6 +1119,28 @@ export const MenuStockPlanner: React.FC = () => {
                     </div>
                 </div>
             </header>
+
+            {/* Draft Restored Notification */}
+            {draftRestored && (
+                <div className="flex items-center justify-between bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-xl p-4 shadow-sm animate-pulse">
+                    <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center">
+                            <RefreshCw size={20} className="text-amber-600" />
+                        </div>
+                        <div>
+                            <p className="font-semibold text-amber-800">กู้คืนข้อมูลที่ยังไม่ได้บันทึก</p>
+                            <p className="text-sm text-amber-600">ข้อมูลที่กรอกค้างไว้ถูกกู้คืนแล้ว</p>
+                        </div>
+                    </div>
+                    <button
+                        onClick={handleClearDraft}
+                        className="flex items-center gap-2 px-4 py-2 bg-amber-100 hover:bg-amber-200 text-amber-700 rounded-lg transition-colors text-sm font-medium"
+                    >
+                        <Trash2 size={16} />
+                        ล้างข้อมูลค้าง
+                    </button>
+                </div>
+            )}
 
             {/* Product Groups */}
             <div className="space-y-4">
