@@ -34,8 +34,23 @@ export const createProductsSlice: StateCreator<AppState, [], [], ProductsSlice> 
     },
 
     removeProduct: async (id) => {
-        set((state) => ({ products: state.products.filter((p) => p.id !== id) }));
-        await supabase.from('products').delete().eq('id', id);
+        // FIX: Pessimistic Delete - wait for DB success before updating local state
+        try {
+            const { error } = await supabase.from('products').delete().eq('id', id);
+
+            if (error) {
+                console.error('[removeProduct] Database delete failed:', error);
+                throw new Error(`ลบสินค้าไม่สำเร็จ: ${error.message}`);
+            }
+
+            // Only update local state AFTER DB success
+            set((state) => ({ products: state.products.filter((p) => p.id !== id) }));
+
+            console.log('[removeProduct] Successfully deleted product:', id);
+        } catch (err) {
+            console.error('[removeProduct] Error:', err);
+            throw err;  // Re-throw for UI to handle
+        }
     },
 
     addDailyReport: async (report) => {

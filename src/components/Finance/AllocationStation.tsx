@@ -139,9 +139,25 @@ export const AllocationStation: React.FC<AllocationStationProps> = ({ onAllocate
     const previewAmounts = useMemo(() => {
         const numAmount = parseFloat(amount) || 0;
         const preview: Record<JarType, number> = {} as Record<JarType, number>;
+
+        // Helper: Round down to nearest 5 (e.g., 208.05 → 205)
+        const roundToFive = (n: number) => Math.floor(n / 5) * 5;
+
+        let totalRounded = 0;
+
+        // Round all jars EXCEPT Owner
         jars.forEach(jar => {
-            preview[jar.id] = (numAmount * (currentAllocations[jar.id] || 0)) / 100;
+            if (jar.id !== 'Owner') {
+                const rawAmount = (numAmount * (currentAllocations[jar.id] || 0)) / 100;
+                const rounded = roundToFive(rawAmount);
+                preview[jar.id] = rounded;
+                totalRounded += rounded;
+            }
         });
+
+        // Owner gets the remainder
+        preview['Owner'] = numAmount - totalRounded;
+
         return preview;
     }, [amount, currentAllocations, jars]);
 
@@ -180,10 +196,22 @@ export const AllocationStation: React.FC<AllocationStationProps> = ({ onAllocate
             const numAmount = parseFloat(amount);
             if (!isNaN(numAmount)) {
                 const newAmounts: Record<JarType, string> = {} as Record<JarType, string>;
+                const roundToFive = (n: number) => Math.floor(n / 5) * 5;
+                let totalRounded = 0;
+
+                // Round all except Owner
                 jars.forEach(jar => {
-                    const jarAmount = (numAmount * (currentAllocations[jar.id] || 0)) / 100;
-                    newAmounts[jar.id] = jarAmount.toFixed(2);
+                    if (jar.id !== 'Owner') {
+                        const rawAmount = (numAmount * (currentAllocations[jar.id] || 0)) / 100;
+                        const rounded = roundToFive(rawAmount);
+                        newAmounts[jar.id] = rounded.toFixed(0);
+                        totalRounded += rounded;
+                    }
                 });
+
+                // Owner gets remainder
+                newAmounts['Owner'] = (numAmount - totalRounded).toFixed(2);
+
                 setCurrentAmounts(newAmounts);
             }
         }

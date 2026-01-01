@@ -481,13 +481,18 @@ export const MenuStockPlanner: React.FC = () => {
 
         setIsSaving(true);
         try {
+            // FIX: Preserve wasteQty and soldQty from existing record
+            const saved = getSavedRecord(item);
+
             await upsertDailyInventory({
                 businessDate,
                 productId: item.productId,
                 variantId: item.variantId || null,
                 stockYesterday,
                 producedQty,
-                toShopQty
+                toShopQty,
+                wasteQty: saved.wasteQty || 0,    // PRESERVE existing waste
+                soldQty: saved.soldQty || 0       // PRESERVE existing sold
             });
             await fetchDailyInventory(businessDate);
         } finally {

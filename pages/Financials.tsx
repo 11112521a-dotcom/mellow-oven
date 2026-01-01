@@ -49,10 +49,32 @@ const Financials: React.FC = () => {
             }
         }
 
-        // Create a batch of transactions
+        // Helper: Round down to nearest 5 (e.g., 208.05 → 205, 138.70 → 135)
+        const roundToFive = (n: number) => Math.floor(n / 5) * 5;
+
+        // Calculate raw amounts first
+        const rawAmounts: Record<JarType, number> = {} as Record<JarType, number>;
+        let totalRounded = 0;
+
+        // Round all jars EXCEPT Owner
         Object.entries(allocations).forEach(([jarId, percentage]) => {
-            const jarAmount = (amount * percentage) / 100;
+            const rawAmount = (amount * percentage) / 100;
+            if (jarId !== 'Owner') {
+                const rounded = roundToFive(rawAmount);
+                rawAmounts[jarId as JarType] = rounded;
+                totalRounded += rounded;
+            }
+        });
+
+        // Owner gets the remainder (to keep total exact)
+        const ownerRemainder = amount - totalRounded;
+        rawAmounts['Owner'] = ownerRemainder;
+
+        // Create transactions with rounded amounts
+        Object.entries(rawAmounts).forEach(([jarId, jarAmount]) => {
             if (jarAmount > 0) {
+                const percentage = allocations[jarId as JarType] || 0;
+
                 // Update Balance
                 updateJarBalance(jarId as JarType, jarAmount);
 

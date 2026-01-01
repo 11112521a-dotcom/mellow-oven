@@ -44,6 +44,15 @@ const App: React.FC = () => {
   // Initial Data Load & Session Check
   useEffect(() => {
     const init = async () => {
+      // FIX: One-time cache purge to clear stale product data (v2.0 cache reset)
+      const CACHE_VERSION = 'v2.0-zombie-fix';
+      const lastVersion = localStorage.getItem('cache-version');
+      if (lastVersion !== CACHE_VERSION) {
+        console.log('[App] Purging stale cache (Zombie Data Fix)');
+        localStorage.removeItem('mellow-oven-storage');
+        localStorage.setItem('cache-version', CACHE_VERSION);
+      }
+
       await checkSession();
       await fetchData();
       subscribeToRealtime();

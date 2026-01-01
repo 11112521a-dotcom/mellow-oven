@@ -410,13 +410,15 @@ export const useStore = create<AppState>()(
         }),
         {
             name: 'mellow-oven-storage',
+            // FIX: Removed products and productSales from cache to prevent Zombie Data
+            // These items change frequently and caching them causes stale data issues
             partialize: (state) => ({
                 storeName: state.storeName,
                 jars: state.jars,
                 jarCustomizations: state.jarCustomizations,
-                defaultProfileId: state.defaultProfileId,
-                products: state.products,
-                productSales: state.productSales
+                defaultProfileId: state.defaultProfileId
+                // products: state.products,      // REMOVED - Zombie Data Risk
+                // productSales: state.productSales  // REMOVED - Zombie Data Risk
             })
         }
     )
