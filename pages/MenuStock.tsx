@@ -1,10 +1,10 @@
 import React from 'react';
-import { MenuStockPlanner } from '../src/components/MenuStock/MenuStockPlanner';
+import { MenuStockPlannerV2 } from '../src/components/MenuStock/MenuStockPlannerV2';
 
 const MenuStock: React.FC = () => {
     return (
         <div className="space-y-6 animate-fade-in">
-            <MenuStockPlanner />
+            <MenuStockPlannerV2 />
         </div>
     );
 };
