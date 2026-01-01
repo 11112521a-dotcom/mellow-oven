@@ -511,13 +511,16 @@ export const MenuStockPlanner: React.FC = () => {
             const saved = getSavedRecord(item);
             const stockYesterday = saved.stockYesterday ?? getYesterdayForItem(item);
             const confirmedProduction = saved.producedQty || 0;
+            const wasteQty = saved.wasteQty || 0;
             const totalStock = stockYesterday + confirmedProduction;
-            // Calculate neededProduction immediately with target
-            const neededProduction = Math.max(0, targetValue - totalStock);
+            // 🛡️ PHASE 1 FIX #3: Subtract waste from actual sellable stock
+            const actualSellableStock = totalStock - wasteQty;
+            const neededProduction = Math.max(0, targetValue - actualSellableStock);
             return {
                 item,
                 stockYesterday,
                 confirmedProduction,
+                wasteQty,
                 neededProduction
             };
         });
@@ -537,7 +540,10 @@ export const MenuStockPlanner: React.FC = () => {
 
         const updatedItems = targetModal.items.map(itemData => {
             const totalStock = itemData.stockYesterday + itemData.confirmedProduction;
-            const needed = Math.max(0, targetValue - totalStock);
+            // 🛡️ PHASE 1 FIX #3: Subtract waste from actual sellable stock
+            const wasteQty = itemData.wasteQty || 0;
+            const actualSellableStock = totalStock - wasteQty;
+            const needed = Math.max(0, targetValue - actualSellableStock);
             return { ...itemData, neededProduction: needed };
         });
 
@@ -603,60 +609,133 @@ export const MenuStockPlanner: React.FC = () => {
         });
     };
 
-    // Confirm Bulk Action (Produce All / Send All) - NOW SAVES DIRECTLY TO DB!
+    // Confirm Bulk Action (Produce All / Send All) - 🚀 PHASE 2: BATCH RPC!
     const confirmBulkAction = async () => {
         if (!bulkActionModal) return;
 
         setIsSaving(true);
 
-        for (const { item, value } of bulkActionModal.items) {
-            if (value <= 0) continue;
+        try {
+            // 🛡️ PHASE 1 FIX #1: Silent Fetch - Get latest data before processing
+            await fetchDailyInventory(businessDate);
 
-            const saved = getSavedRecord(item);
-            const stockYesterday = saved.stockYesterday ?? getYesterdayForItem(item);
+            // 🚀 PHASE 2: Build batch records array (instead of loop upsert)
+            const batchRecords: Array<{
+                businessDate: string;
+                productId: string;
+                variantId: string | null;
+                variantName: string | null;
+                producedQty: number;
+                toShopQty: number;
+                wasteQty: number;
+                soldQty: number;
+                stockYesterday: number;
+            }> = [];
 
-            if (bulkActionModal.type === 'produceAll') {
-                // ADD to existing production and save
-                // TODO: Refactor to Atomic Update or RPC to prevent Race Condition
-                await upsertDailyInventory({
-                    businessDate,
-                    productId: item.productId,
-                    variantId: item.variantId,
-                    variantName: item.isVariant ? item.name : undefined,
-                    producedQty: (saved.producedQty || 0) + value,
-                    toShopQty: saved.toShopQty || 0,
-                    wasteQty: saved.wasteQty || 0,   // PRESERVE existing waste
-                    soldQty: saved.soldQty || 0,     // PRESERVE existing sold
-                    stockYesterday
-                });
-            } else if (bulkActionModal.type === 'sendAll') {
-                // ADD to existing transfer and save
-                // FIX: Cap transfer to prevent negative stock
-                const totalProduced = stockYesterday + (saved.producedQty || 0);
-                const alreadySent = saved.toShopQty || 0;
-                const availableStock = Math.max(0, totalProduced - alreadySent);
-                const safeTransfer = Math.min(value, availableStock); // Never send more than available
+            for (const { item, value } of bulkActionModal.items) {
+                if (value <= 0) continue;
 
-                if (safeTransfer > 0) {
-                    // TODO: Refactor to Atomic Update or RPC to prevent Race Condition
-                    await upsertDailyInventory({
+                // 🛡️ PHASE 1 FIX #2: Zombie Check - Skip products that no longer exist
+                const productExists = products.find(p => p.id === item.productId);
+                if (!productExists) {
+                    console.warn(`[confirmBulkAction] Skipped zombie product: ${item.productId}`);
+                    continue;
+                }
+
+                const saved = getSavedRecord(item);
+                const stockYesterday = saved.stockYesterday ?? getYesterdayForItem(item);
+
+                if (bulkActionModal.type === 'produceAll') {
+                    // ADD to existing production
+                    batchRecords.push({
                         businessDate,
                         productId: item.productId,
-                        variantId: item.variantId,
-                        variantName: item.isVariant ? item.name : undefined,
-                        producedQty: saved.producedQty || 0,
-                        toShopQty: alreadySent + safeTransfer,
+                        variantId: item.variantId || null,
+                        variantName: item.isVariant ? item.name : null,
+                        producedQty: (saved.producedQty || 0) + value,
+                        toShopQty: saved.toShopQty || 0,
                         wasteQty: saved.wasteQty || 0,   // PRESERVE existing waste
                         soldQty: saved.soldQty || 0,     // PRESERVE existing sold
                         stockYesterday
                     });
+                } else if (bulkActionModal.type === 'sendAll') {
+                    // ADD to existing transfer with safety check
+                    const totalProduced = stockYesterday + (saved.producedQty || 0);
+                    const alreadySent = saved.toShopQty || 0;
+                    const availableStock = Math.max(0, totalProduced - alreadySent);
+                    const safeTransfer = Math.min(value, availableStock);
+
+                    if (safeTransfer > 0) {
+                        batchRecords.push({
+                            businessDate,
+                            productId: item.productId,
+                            variantId: item.variantId || null,
+                            variantName: item.isVariant ? item.name : null,
+                            producedQty: saved.producedQty || 0,
+                            toShopQty: alreadySent + safeTransfer,
+                            wasteQty: saved.wasteQty || 0,   // PRESERVE existing waste
+                            soldQty: saved.soldQty || 0,     // PRESERVE existing sold
+                            stockYesterday
+                        });
+                    }
                 }
             }
-        }
 
-        await fetchDailyInventory(businessDate);
-        setIsSaving(false);
-        setBulkActionModal(null);
+            // 🚀 PHASE 2: Single batch RPC call (if RPC exists) or fallback to Promise.all
+            if (batchRecords.length > 0) {
+                // Try RPC first, fallback to parallel upsert if RPC not available
+                try {
+                    const { data, error } = await (await import('@/src/lib/supabase')).supabase
+                        .rpc('bulk_upsert_daily_inventory', { p_records: batchRecords });
+
+                    if (error) {
+                        console.warn('[confirmBulkAction] RPC not available, falling back to parallel upsert:', error.message);
+                        // Fallback: Parallel upsert using Promise.all
+                        await Promise.all(batchRecords.map(record =>
+                            upsertDailyInventory({
+                                businessDate: record.businessDate,
+                                productId: record.productId,
+                                variantId: record.variantId || undefined,
+                                variantName: record.variantName || undefined,
+                                producedQty: record.producedQty,
+                                toShopQty: record.toShopQty,
+                                wasteQty: record.wasteQty,
+                                soldQty: record.soldQty,
+                                stockYesterday: record.stockYesterday
+                            })
+                        ));
+                    } else {
+                        console.log(`[confirmBulkAction] Batch RPC success:`, data);
+                    }
+                } catch (rpcError) {
+                    // Fallback: Parallel upsert
+                    console.warn('[confirmBulkAction] RPC failed, using parallel upsert');
+                    await Promise.all(batchRecords.map(record =>
+                        upsertDailyInventory({
+                            businessDate: record.businessDate,
+                            productId: record.productId,
+                            variantId: record.variantId || undefined,
+                            variantName: record.variantName || undefined,
+                            producedQty: record.producedQty,
+                            toShopQty: record.toShopQty,
+                            wasteQty: record.wasteQty,
+                            soldQty: record.soldQty,
+                            stockYesterday: record.stockYesterday
+                        })
+                    ));
+                }
+            }
+
+            // Refresh data
+            await fetchDailyInventory(businessDate);
+
+        } catch (error) {
+            console.error('[confirmBulkAction] Error:', error);
+            alert('เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง');
+        } finally {
+            setIsSaving(false);
+            setBulkActionModal(null);
+        }
     };
 
     // Apply confirmed action - ADD to existing values in DB
