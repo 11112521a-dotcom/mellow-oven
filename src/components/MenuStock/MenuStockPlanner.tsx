@@ -592,7 +592,8 @@ export const MenuStockPlanner: React.FC = () => {
             // pendingProduction is NOT saved yet, so don't include it
             const confirmedStock = stockYesterday + (saved.producedQty || 0);
             const alreadySent = saved.toShopQty || 0;
-            const availableStock = Math.max(0, confirmedStock - alreadySent);
+            const wasteQty = saved.wasteQty || 0;  // 🛡️ FIX: Subtract waste!
+            const availableStock = Math.max(0, confirmedStock - alreadySent - wasteQty);
             return {
                 item,
                 value: availableStock,
