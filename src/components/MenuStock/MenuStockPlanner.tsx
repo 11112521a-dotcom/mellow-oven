@@ -19,16 +19,28 @@ interface InventoryItem {
 const ConfirmModal: React.FC<{
     isOpen: boolean;
     onClose: () => void;
-    onConfirm: () => void;
+    onConfirm: () => void | Promise<void>;  // Allow async
     title: string;
     message: React.ReactNode;
     confirmText?: string;
     type?: 'production' | 'transfer';
 }> = ({ isOpen, onClose, onConfirm, title, message, confirmText = 'ยืนยัน', type = 'production' }) => {
+    const [isLoading, setIsLoading] = React.useState(false);
+
     if (!isOpen) return null;
 
     const bgColor = type === 'production' ? 'from-blue-500 to-indigo-600' : 'from-amber-500 to-orange-600';
     const Icon = type === 'production' ? Flame : Truck;
+
+    const handleConfirm = async () => {
+        setIsLoading(true);
+        try {
+            await onConfirm();
+            onClose();
+        } finally {
+            setIsLoading(false);
+        }
+    };
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
@@ -52,17 +64,23 @@ const ConfirmModal: React.FC<{
                 <div className="flex gap-3 p-4 bg-gray-50 border-t">
                     <button
                         onClick={onClose}
-                        className="flex-1 px-4 py-3 bg-gray-100 hover:bg-gray-200 rounded-xl font-medium transition-colors flex items-center justify-center gap-2"
+                        disabled={isLoading}
+                        className="flex-1 px-4 py-3 bg-gray-100 hover:bg-gray-200 rounded-xl font-medium transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
                     >
                         <X size={18} />
                         ยกเลิก
                     </button>
                     <button
-                        onClick={() => { onConfirm(); onClose(); }}
-                        className={`flex-1 px-4 py-3 bg-gradient-to-r ${bgColor} text-white rounded-xl font-medium transition-all hover:shadow-lg flex items-center justify-center gap-2`}
+                        onClick={handleConfirm}
+                        disabled={isLoading}
+                        className={`flex-1 px-4 py-3 bg-gradient-to-r ${bgColor} text-white rounded-xl font-medium transition-all hover:shadow-lg flex items-center justify-center gap-2 disabled:opacity-50`}
                     >
-                        <Check size={18} />
-                        {confirmText}
+                        {isLoading ? (
+                            <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        ) : (
+                            <Check size={18} />
+                        )}
+                        {isLoading ? 'กำลังทำ...' : confirmText}
                     </button>
                 </div>
             </div>
@@ -74,14 +92,26 @@ const ConfirmModal: React.FC<{
 const BulkActionModal: React.FC<{
     isOpen: boolean;
     onClose: () => void;
-    onConfirm: () => void;
+    onConfirm: () => void | Promise<void>;  // Allow async
     title: string;
     icon: React.ReactNode;
     gradient: string;
     children: React.ReactNode;
     confirmText?: string;
 }> = ({ isOpen, onClose, onConfirm, title, icon, gradient, children, confirmText = 'ยืนยัน' }) => {
+    const [isLoading, setIsLoading] = React.useState(false);
+
     if (!isOpen) return null;
+
+    const handleConfirm = async () => {
+        setIsLoading(true);
+        try {
+            await onConfirm();  // Wait for async to complete
+        } finally {
+            setIsLoading(false);
+            // Note: onClose is already called inside confirmBulkAction via setBulkActionModal(null)
+        }
+    };
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
@@ -105,17 +135,23 @@ const BulkActionModal: React.FC<{
                 <div className="flex gap-3 p-4 bg-gray-50 border-t">
                     <button
                         onClick={onClose}
-                        className="flex-1 px-4 py-3 bg-gray-100 hover:bg-gray-200 rounded-xl font-medium transition-colors flex items-center justify-center gap-2"
+                        disabled={isLoading}
+                        className="flex-1 px-4 py-3 bg-gray-100 hover:bg-gray-200 rounded-xl font-medium transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
                     >
                         <X size={18} />
                         ยกเลิก
                     </button>
                     <button
-                        onClick={() => { onConfirm(); onClose(); }}
-                        className={`flex-1 px-4 py-3 bg-gradient-to-r ${gradient} text-white rounded-xl font-medium transition-all hover:shadow-lg flex items-center justify-center gap-2`}
+                        onClick={handleConfirm}
+                        disabled={isLoading}
+                        className={`flex-1 px-4 py-3 bg-gradient-to-r ${gradient} text-white rounded-xl font-medium transition-all hover:shadow-lg flex items-center justify-center gap-2 disabled:opacity-50`}
                     >
-                        <Check size={18} />
-                        {confirmText}
+                        {isLoading ? (
+                            <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        ) : (
+                            <Check size={18} />
+                        )}
+                        {isLoading ? 'กำลังทำ...' : confirmText}
                     </button>
                 </div>
             </div>
@@ -127,7 +163,7 @@ const BulkActionModal: React.FC<{
 const EditInventoryModal: React.FC<{
     isOpen: boolean;
     onClose: () => void;
-    onSave: (producedQty: number, toShopQty: number) => void;
+    onSave: (producedQty: number, toShopQty: number) => void | Promise<void>;  // Allow async
     itemName: string;
     currentProduced: number;
     currentTransfer: number;
@@ -135,6 +171,7 @@ const EditInventoryModal: React.FC<{
 }> = ({ isOpen, onClose, onSave, itemName, currentProduced, currentTransfer, stockYesterday }) => {
     const [produced, setProduced] = useState(currentProduced);
     const [transfer, setTransfer] = useState(currentTransfer);
+    const [isLoading, setIsLoading] = useState(false);
 
     useEffect(() => {
         setProduced(currentProduced);
@@ -145,6 +182,16 @@ const EditInventoryModal: React.FC<{
 
     const todayStock = stockYesterday + produced;
     const leftover = todayStock - transfer;
+
+    const handleSave = async () => {
+        setIsLoading(true);
+        try {
+            await onSave(produced, transfer);
+            onClose();
+        } finally {
+            setIsLoading(false);
+        }
+    };
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
@@ -178,6 +225,7 @@ const EditInventoryModal: React.FC<{
                                 value={produced}
                                 onChange={e => setProduced(Math.max(0, parseInt(e.target.value) || 0))}
                                 className="w-full p-3 text-lg font-bold text-center border-2 border-blue-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                                disabled={isLoading}
                             />
                         </div>
 
@@ -190,6 +238,7 @@ const EditInventoryModal: React.FC<{
                                 value={transfer}
                                 onChange={e => setTransfer(Math.max(0, parseInt(e.target.value) || 0))}
                                 className="w-full p-3 text-lg font-bold text-center border-2 border-violet-200 rounded-xl focus:border-violet-500 focus:ring-2 focus:ring-violet-200"
+                                disabled={isLoading}
                             />
                         </div>
                     </div>
@@ -211,23 +260,30 @@ const EditInventoryModal: React.FC<{
                 <div className="flex gap-3 p-4 bg-gray-50 border-t">
                     <button
                         onClick={onClose}
-                        className="flex-1 px-4 py-3 bg-gray-100 hover:bg-gray-200 rounded-xl font-medium transition-colors flex items-center justify-center gap-2"
+                        disabled={isLoading}
+                        className="flex-1 px-4 py-3 bg-gray-100 hover:bg-gray-200 rounded-xl font-medium transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
                     >
                         <X size={18} />
                         ยกเลิก
                     </button>
                     <button
-                        onClick={() => { onSave(produced, transfer); onClose(); }}
-                        className="flex-1 px-4 py-3 bg-gradient-to-r from-purple-500 to-indigo-600 text-white rounded-xl font-medium transition-all hover:shadow-lg flex items-center justify-center gap-2"
+                        onClick={handleSave}
+                        disabled={isLoading}
+                        className="flex-1 px-4 py-3 bg-gradient-to-r from-purple-500 to-indigo-600 text-white rounded-xl font-medium transition-all hover:shadow-lg flex items-center justify-center gap-2 disabled:opacity-50"
                     >
-                        <Save size={18} />
-                        บันทึก
+                        {isLoading ? (
+                            <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        ) : (
+                            <Save size={18} />
+                        )}
+                        {isLoading ? 'กำลังบันทึก...' : 'บันทึก'}
                     </button>
                 </div>
             </div>
         </div>
     );
 };
+
 
 export const MenuStockPlanner: React.FC = () => {
     const { products, dailyInventory, fetchDailyInventory, upsertDailyInventory, getYesterdayStock } = useStore();
@@ -465,25 +521,25 @@ export const MenuStockPlanner: React.FC = () => {
 
     // Handle Edit Save with confirmation
     const handleEditSave = async (producedQty: number, toShopQty: number) => {
-        if (!editModal) return;
+        console.log('[handleEditSave] Called with:', { producedQty, toShopQty, hasEditModal: !!editModal });
+
+        if (!editModal) {
+            console.error('[handleEditSave] editModal is null! Cannot save.');
+            return;
+        }
 
         const item = editModal.item;
         const stockYesterday = editModal.stockYesterday;
 
-        // Show confirmation before saving
-        const confirmed = window.confirm(
-            `ยืนยันการแก้ไขข้อมูล?\n\n` +
-            `📦 ผลิตแล้ว: ${editModal.currentProduced} → ${producedQty}\n` +
-            `🚚 ส่งไปร้าน: ${editModal.currentTransfer} → ${toShopQty}`
-        );
-
-        if (!confirmed) return;
+        console.log('[handleEditSave] Item:', item.name, 'stockYesterday:', stockYesterday);
 
         setIsSaving(true);
         try {
             // FIX: Preserve wasteQty and soldQty from existing record
             const saved = getSavedRecord(item);
+            console.log('[handleEditSave] Saved record:', saved);
 
+            console.log('[handleEditSave] Calling upsertDailyInventory...');
             await upsertDailyInventory({
                 businessDate,
                 productId: item.productId,
@@ -494,7 +550,12 @@ export const MenuStockPlanner: React.FC = () => {
                 wasteQty: saved.wasteQty || 0,    // PRESERVE existing waste
                 soldQty: saved.soldQty || 0       // PRESERVE existing sold
             });
+            console.log('[handleEditSave] upsertDailyInventory done!');
+
             await fetchDailyInventory(businessDate);
+            console.log('[handleEditSave] fetchDailyInventory done!');
+        } catch (error) {
+            console.error('[handleEditSave] Error:', error);
         } finally {
             setIsSaving(false);
             setEditModal(null);
@@ -634,7 +695,11 @@ export const MenuStockPlanner: React.FC = () => {
             }> = [];
 
             for (const { item, value } of bulkActionModal.items) {
-                if (value <= 0) continue;
+                console.log(`[confirmBulkAction] Processing item: ${item.name}, modal value: ${value}`);
+                if (value <= 0) {
+                    console.log(`[confirmBulkAction] Skipped: value <= 0`);
+                    continue;
+                }
 
                 // 🛡️ PHASE 1 FIX #2: Zombie Check - Skip products that no longer exist
                 const productExists = products.find(p => p.id === item.productId);
@@ -645,6 +710,7 @@ export const MenuStockPlanner: React.FC = () => {
 
                 const saved = getSavedRecord(item);
                 const stockYesterday = saved.stockYesterday ?? getYesterdayForItem(item);
+                console.log(`[confirmBulkAction] saved record:`, saved);
 
                 if (bulkActionModal.type === 'produceAll') {
                     // ADD to existing production
@@ -663,8 +729,13 @@ export const MenuStockPlanner: React.FC = () => {
                     // ADD to existing transfer with safety check
                     const totalProduced = stockYesterday + (saved.producedQty || 0);
                     const alreadySent = saved.toShopQty || 0;
-                    const availableStock = Math.max(0, totalProduced - alreadySent);
+                    const wasteQty = saved.wasteQty || 0;  // 🛡️ FIX: Must subtract waste!
+                    const availableStock = Math.max(0, totalProduced - alreadySent - wasteQty);
                     const safeTransfer = Math.min(value, availableStock);
+
+                    console.log(`[confirmBulkAction] sendAll calc:`, {
+                        totalProduced, alreadySent, wasteQty, availableStock, safeTransfer, value
+                    });
 
                     if (safeTransfer > 0) {
                         batchRecords.push({
@@ -678,53 +749,31 @@ export const MenuStockPlanner: React.FC = () => {
                             soldQty: saved.soldQty || 0,     // PRESERVE existing sold
                             stockYesterday
                         });
+                    } else {
+                        console.log(`[confirmBulkAction] Skipped: safeTransfer <= 0`);
                     }
                 }
             }
 
+            console.log(`[confirmBulkAction] batchRecords count: ${batchRecords.length}`, batchRecords);
+
             // 🚀 PHASE 2: Single batch RPC call (if RPC exists) or fallback to Promise.all
             if (batchRecords.length > 0) {
-                // Try RPC first, fallback to parallel upsert if RPC not available
-                try {
-                    const { data, error } = await (await import('@/src/lib/supabase')).supabase
-                        .rpc('bulk_upsert_daily_inventory', { p_records: batchRecords });
-
-                    if (error) {
-                        console.warn('[confirmBulkAction] RPC not available, falling back to parallel upsert:', error.message);
-                        // Fallback: Parallel upsert using Promise.all
-                        await Promise.all(batchRecords.map(record =>
-                            upsertDailyInventory({
-                                businessDate: record.businessDate,
-                                productId: record.productId,
-                                variantId: record.variantId || undefined,
-                                variantName: record.variantName || undefined,
-                                producedQty: record.producedQty,
-                                toShopQty: record.toShopQty,
-                                wasteQty: record.wasteQty,
-                                soldQty: record.soldQty,
-                                stockYesterday: record.stockYesterday
-                            })
-                        ));
-                    } else {
-                        console.log(`[confirmBulkAction] Batch RPC success:`, data);
-                    }
-                } catch (rpcError) {
-                    // Fallback: Parallel upsert
-                    console.warn('[confirmBulkAction] RPC failed, using parallel upsert');
-                    await Promise.all(batchRecords.map(record =>
-                        upsertDailyInventory({
-                            businessDate: record.businessDate,
-                            productId: record.productId,
-                            variantId: record.variantId || undefined,
-                            variantName: record.variantName || undefined,
-                            producedQty: record.producedQty,
-                            toShopQty: record.toShopQty,
-                            wasteQty: record.wasteQty,
-                            soldQty: record.soldQty,
-                            stockYesterday: record.stockYesterday
-                        })
-                    ));
-                }
+                // TEMP: Skip RPC and use fallback directly to debug
+                console.log('[confirmBulkAction] Using fallback upsert (RPC bypassed for debug)');
+                await Promise.all(batchRecords.map(record =>
+                    upsertDailyInventory({
+                        businessDate: record.businessDate,
+                        productId: record.productId,
+                        variantId: record.variantId || undefined,
+                        variantName: record.variantName || undefined,
+                        producedQty: record.producedQty,
+                        toShopQty: record.toShopQty,
+                        wasteQty: record.wasteQty,
+                        soldQty: record.soldQty,
+                        stockYesterday: record.stockYesterday
+                    })
+                ));
             }
 
             // Refresh data
