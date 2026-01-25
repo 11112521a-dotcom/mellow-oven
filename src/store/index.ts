@@ -7,6 +7,12 @@ import { createInventorySlice } from './slices/inventorySlice';
 import { createProductsSlice } from './slices/productsSlice';
 import { createSalesSlice } from './slices/salesSlice';
 import { createPromotionSlice } from './slices/promotionSlice';
+import { createShopInfoSlice } from './slices/shopInfoSlice';
+import { createSnackBoxSlice } from './slices/snackBoxSlice';
+import { createPromotionOrderSlice } from './slices/promotionOrderSlice';
+import { createQuotationSlice } from './slices/quotationSlice';
+import { createInvoiceSlice } from './slices/invoiceSlice';
+import { createReceiptSlice } from './slices/receiptSlice';
 import { supabase } from '../lib/supabase';
 import {
     mapTransaction, mapIngredient, mapProductSaleLog,
@@ -24,6 +30,14 @@ export const useStore = create<AppState>()(
             ...createProductsSlice(set, get, api),
             ...createSalesSlice(set, get, api),
             ...createPromotionSlice(set, get, api),
+            // NEW: Snack Box & Promotion System Slices
+            ...createShopInfoSlice(set, get, api),
+            ...createSnackBoxSlice(set, get, api),
+            ...createPromotionOrderSlice(set, get, api),
+            ...createQuotationSlice(set, get, api),
+            // NEW: Invoice & Receipt System
+            ...createInvoiceSlice(set, get, api),
+            ...createReceiptSlice(set, get, api),
 
             // ==================== SHARED ACTIONS ====================
             storeName: 'Mellow Oven',

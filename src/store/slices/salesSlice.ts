@@ -36,7 +36,49 @@ export const createSalesSlice: StateCreator<AppState, [], [], SalesSlice> = (set
         if (error) console.error('Error adding product sale log:', error);
     },
 
+    fetchProductSales: async () => {
+        const { data, error } = await supabase
+            .from('product_sales')
+            .select('*')
+            .order('sale_date', { ascending: false });
+
+        if (error) {
+            console.error('Error fetching product sales:', error);
+            return;
+        }
+
+        const mappedData = (data || []).map(row => ({
+            id: row.id,
+            recordedAt: row.recorded_at,
+            saleDate: row.sale_date,
+            marketId: row.market_id,
+            marketName: row.market_name,
+            productId: row.product_id,
+            productName: row.product_name,
+            category: row.category,
+            quantitySold: row.quantity_sold,
+            pricePerUnit: row.price_per_unit,
+            totalRevenue: row.total_revenue,
+            costPerUnit: row.cost_per_unit,
+            totalCost: row.total_cost,
+            grossProfit: row.gross_profit,
+            variantId: row.variant_id,
+            variantName: row.variant_name,
+            wasteQty: row.waste_qty,
+            weatherCondition: row.weather_condition
+        }));
+
+        set({ productSales: mappedData });
+    },
+
     getProductSalesByDate: (date) => get().productSales.filter(sale => sale.saleDate === date),
+
+    getProductSalesByDateRange: (fromDate, toDate) => {
+        return get().productSales.filter(sale =>
+            sale.saleDate >= fromDate && sale.saleDate <= toDate
+        );
+    },
+
     getProductSalesByProduct: (productId) => get().productSales.filter(sale => sale.productId === productId),
 
     updateProductSaleLog: async (id, updates) => {

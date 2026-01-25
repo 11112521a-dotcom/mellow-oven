@@ -404,3 +404,203 @@ export interface BundleSelectionSnapshot {
     surcharge: number;   // ราคาเพิ่มตอนที่ขาย (Snapshot)
   };
 }
+
+// ==================== SNACK BOX & PROMOTION TYPES ====================
+
+// Shop Info - ข้อมูลร้านค้า
+export interface ShopInfo {
+  id: string;
+  shopName: string;
+  ownerName: string;
+  idCardNumber: string;
+
+  // Address
+  addressNumber: string;
+  addressMoo: string;
+  addressSoi: string;
+  addressRoad: string;
+  addressSubdistrict: string;
+  addressDistrict: string;
+  addressProvince: string;
+  addressPostalCode: string;
+
+  // Contact
+  phone: string;
+  lineId: string;
+  email: string;
+  facebook: string;
+
+  // Bank
+  bankName: string;
+  bankAccountName: string;
+  bankAccountNumber: string;
+
+  // Logo (Supabase Storage URL)
+  logoUrl: string | null;
+
+  updatedAt: string;
+}
+
+// Packaging Options - บรรจุภัณฑ์
+export interface PackagingOption {
+  id: string;
+  name: string;
+  extraCost: number;
+  isActive: boolean;
+  sortOrder: number;
+}
+
+// Snack Box Set Item - รายการสินค้าใน Set
+export interface SnackBoxSetItem {
+  id: string;
+  setId: string;
+  category: string;
+  quantity: number;
+  selectionType: 'pick_one' | 'pick_many' | 'all';
+  productIds: string[];
+  sortOrder: number;
+}
+
+// Snack Box Set - Set Menu
+export interface SnackBoxSet {
+  id: string;
+  name: string;
+  nameThai: string;
+  description: string;
+  price: number;
+  minQuantity: number;
+  packagingId: string;
+  packaging?: PackagingOption;
+  items: SnackBoxSetItem[];
+  isActive: boolean;
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Promotion Order Status
+export type PromotionOrderStatus = 'pending' | 'confirmed' | 'preparing' | 'delivered' | 'cancelled';
+
+// Promotion Order Item - รายการสินค้าในออเดอร์
+export interface PromotionOrderItem {
+  id: string;
+  orderId: string;
+  productId: string;
+  variantId: string | null;
+  variantNote: string;
+  quantity: number;
+  unitPrice: number;
+  lineTotal: number;
+  // Joined fields for display
+  productName?: string;
+  variantName?: string;
+}
+
+// Promotion Order - ออเดอร์โปรโมชั่น
+export interface PromotionOrder {
+  id: string;
+  orderNumber: string;
+  customerName: string;
+  customerPhone: string;
+  customerAddress: string;
+  deliveryDate: string;
+  deliveryTime: string;
+  calculatedPrice: number;
+  manualPrice: number | null;
+  useManualPrice: boolean;
+  discountNote: string;
+  totalPrice: number;
+  notes: string;
+  status: PromotionOrderStatus;
+  items: PromotionOrderItem[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Quotation Item
+export interface QuotationItem {
+  name: string;
+  description: string;
+  quantity: number;
+  unitPrice: number;
+  lineTotal: number;
+}
+
+// Quotation Status
+export type QuotationStatus = 'draft' | 'sent' | 'accepted' | 'invoiced' | 'expired' | 'cancelled';
+
+// Quotation - ใบเสนอราคา
+export interface Quotation {
+  id: string;
+  quotationNumber: string;
+  customerName: string;
+  customerAddress: string;
+  customerContact: string;
+  customerPhone: string;
+  orderId: string | null;
+  items: QuotationItem[];
+  subtotal: number;
+  discountAmount: number;
+  discountNote: string;
+  totalPrice: number;
+  totalPriceText: string;
+  validityDays: number;
+  conditions: string;
+  status: QuotationStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// ============================================================
+// Invoice (ใบแจ้งหนี้/ใบวางบิล)
+// ============================================================
+
+// Invoice Status
+export type InvoiceStatus = 'draft' | 'sent' | 'paid' | 'overdue' | 'cancelled';
+
+// Invoice - ใบแจ้งหนี้
+export interface Invoice {
+  id: string;
+  invoiceNumber: string;
+  quotationId: string | null; // Reference for tracking (data is snapshotted)
+  customerName: string;
+  customerAddress: string;
+  customerContact: string;
+  customerPhone: string;
+  items: QuotationItem[]; // SNAPSHOTTED at creation time
+  subtotal: number;
+  discountAmount: number;
+  discountNote: string;
+  totalPrice: number;
+  dueDate: string; // Payment due date
+  paymentTerms: string; // e.g., "Net 30", "COD"
+  notes: string;
+  status: InvoiceStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// ============================================================
+// Receipt (ใบเสร็จรับเงิน)
+// ============================================================
+
+// Payment Method
+export type PaymentMethod = 'cash' | 'transfer' | 'credit' | 'other';
+
+// Receipt - ใบเสร็จรับเงิน
+export interface Receipt {
+  id: string;
+  receiptNumber: string;
+  quotationId: string | null; // Reference for tracking
+  invoiceId: string | null; // Reference for tracking
+  customerName: string;
+  customerAddress: string;
+  customerPhone: string;
+  items: QuotationItem[]; // SNAPSHOTTED at creation time
+  totalPrice: number;
+  paymentMethod: PaymentMethod;
+  paymentDate: string;
+  paymentNote: string;
+  receivedBy: string;
+  createdAt: string;
+}

@@ -15,6 +15,7 @@ const Inventory = lazy(() => import('./pages/Inventory'));
 const SalesReport = lazy(() => import('./pages/SalesReport'));
 const MenuStock = lazy(() => import('./pages/MenuStock'));
 const PromotionPage = lazy(() => import('./src/components/Promotion/PromotionPage'));
+const Settings = lazy(() => import('./pages/Settings'));
 
 // Loading Fallback Component
 const PageLoader = () => (
@@ -89,6 +90,7 @@ const App: React.FC = () => {
               return userRole === 'owner' ? <Production /> : <div className="p-8 text-center text-cafe-500">Access Denied</div>;
             case 'promotion': return <PromotionPage />;
             case 'inventory': return <Inventory />;
+            case 'settings': return <Settings />;
             default: return <Dashboard />;
           }
         })()}

@@ -17,14 +17,22 @@ import {
     Check,
     X,
     Truck,
-    Scissors
+    Scissors,
+    FileText,
+    ClipboardList,
+    Receipt
 } from 'lucide-react';
 import { Promotion, Bundle, SpecialOrder, SpecialOrderStatus } from '../../../types';
 import { AddPromotionModal } from './AddPromotionModal';
 import { AddSpecialOrderModal } from './AddSpecialOrderModal';
 import { CreateBundleOrderModal } from './CreateBundleOrderModal';
+import { PromotionOrderList } from '../PromotionOrder';
+import { QuotationList } from '../Quotation';
+import { SnackBoxManager } from '../SnackBox';
+import { InvoiceList } from '../Invoice';
+import { ReceiptList } from '../Receipt';
 
-type Tab = 'promotions' | 'bundles' | 'orders';
+type Tab = 'snackbox' | 'promoOrders' | 'quotations' | 'invoices' | 'receipts';
 
 const statusColors: Record<SpecialOrderStatus, string> = {
     pending: 'bg-yellow-100 text-yellow-800',
@@ -58,7 +66,7 @@ export const PromotionPage: React.FC = () => {
         deductStockForBundleOrder
     } = useStore();
 
-    const [activeTab, setActiveTab] = useState<Tab>('promotions');
+    const [activeTab, setActiveTab] = useState<Tab>('snackbox');
     const [showAddPromoModal, setShowAddPromoModal] = useState(false);
     const [showAddBundleModal, setShowAddBundleModal] = useState(false);
     const [showAddOrderModal, setShowAddOrderModal] = useState(false);
@@ -88,9 +96,11 @@ export const PromotionPage: React.FC = () => {
     };
 
     const tabs = [
-        { id: 'promotions' as Tab, label: 'โปรโมชั่น', icon: Tag, count: activePromotions },
-        { id: 'bundles' as Tab, label: 'Snack Box', icon: Package, count: activeBundles },
-        { id: 'orders' as Tab, label: 'ออเดอร์พิเศษ', icon: ShoppingBag, count: pendingOrders }
+        { id: 'snackbox' as Tab, label: 'Snack Box', icon: Package, count: 0 },
+        { id: 'promoOrders' as Tab, label: 'ออเดอร์โปรโมชั่น', icon: ClipboardList, count: 0 },
+        { id: 'quotations' as Tab, label: 'ใบเสนอราคา', icon: FileText, count: 0 },
+        { id: 'invoices' as Tab, label: 'ใบแจ้งหนี้', icon: FileText, count: 0 },
+        { id: 'receipts' as Tab, label: 'ใบเสร็จ', icon: Receipt, count: 0 }
     ];
 
     return (
@@ -209,325 +219,38 @@ export const PromotionPage: React.FC = () => {
                 </div>
 
                 <div className="p-6 bg-stone-50/30 min-h-[400px]">
-                    {/* Promotions Tab */}
-                    {activeTab === 'promotions' && (
+                    {/* Snack Box Tab */}
+                    {activeTab === 'snackbox' && (
                         <div className="animate-in fade-in duration-300">
-                            <div className="flex justify-between items-center mb-6">
-                                <h3 className="text-lg font-bold text-cafe-900 flex items-center gap-2">
-                                    <Tag className="text-amber-600" size={20} />
-                                    รายการโปรโมชั่น
-                                </h3>
-                                <button
-                                    onClick={() => setShowAddPromoModal(true)}
-                                    className="bg-cafe-900 text-white px-4 py-2.5 rounded-xl flex items-center gap-2 hover:bg-cafe-800 transition-all shadow-sm active:scale-95"
-                                >
-                                    <Plus size={18} />
-                                    <span>เพิ่มโปรโมชั่น</span>
-                                </button>
-                            </div>
-
-                            {promotions.length === 0 ? (
-                                <div className="text-center py-16 text-stone-400 bg-white rounded-2xl border-2 border-dashed border-stone-200">
-                                    <Tag size={48} className="mx-auto mb-4 opacity-50 text-stone-300" />
-                                    <p className="text-lg font-medium text-stone-500">ยังไม่มีโปรโมชั่น</p>
-                                    <p className="text-sm mt-1">สร้างโปรโมชั่นใหม่เพื่อกระตุ้นยอดขาย</p>
-                                </div>
-                            ) : (
-                                <div className="space-y-4">
-                                    {promotions.map(promo => (
-                                        <div
-                                            key={promo.id}
-                                            className={`p-5 rounded-2xl border transition-all duration-300 hover:shadow-md ${promo.isActive
-                                                ? 'border-amber-200 bg-white hover:border-amber-300'
-                                                : 'border-stone-200 bg-stone-50 opacity-70 grayscale'}`}
-                                        >
-                                            <div className="flex items-start justify-between">
-                                                <div className="flex-1">
-                                                    <div className="flex items-center gap-3">
-                                                        <h4 className="font-bold text-lg text-cafe-900">{promo.name}</h4>
-                                                        {promo.isActive ? (
-                                                            <span className="text-[10px] bg-green-100 text-green-700 px-2 py-1 rounded-full font-bold uppercase tracking-wider">Active</span>
-                                                        ) : (
-                                                            <span className="text-[10px] bg-stone-200 text-stone-500 px-2 py-1 rounded-full font-bold uppercase tracking-wider">Inactive</span>
-                                                        )}
-                                                    </div>
-                                                    <p className="text-sm text-cafe-600 mt-1 flex items-center gap-2">
-                                                        <span className="w-1.5 h-1.5 rounded-full bg-cafe-400"></span>
-                                                        {promo.productName} {promo.variantName && `(${promo.variantName})`}
-                                                    </p>
-
-                                                    <div className="flex flex-wrap items-center gap-3 mt-4">
-                                                        <div className="flex items-baseline gap-2 bg-stone-100 px-3 py-1.5 rounded-lg border border-stone-200">
-                                                            <span className="text-sm text-stone-400 line-through decoration-stone-400/50">{formatCurrency(promo.originalPrice)}</span>
-                                                            <span className="text-lg font-bold text-amber-600 border-l border-stone-300 pl-2">{formatCurrency(promo.discountPrice)}</span>
-                                                        </div>
-                                                        <span className="text-xs bg-red-50 text-red-600 font-bold px-2 py-1 rounded border border-red-100">-{promo.discountPercent.toFixed(0)}% OFF</span>
-                                                        <span className="text-xs text-stone-500 flex items-center gap-1 bg-white px-2 py-1 rounded border border-stone-200">
-                                                            <Package size={12} /> ขั้นต่ำ {promo.minQuantity}
-                                                        </span>
-                                                        {promo.validUntil && (
-                                                            <span className="text-xs text-stone-500 flex items-center gap-1 bg-white px-2 py-1 rounded border border-stone-200">
-                                                                <Calendar size={12} /> ถึง {new Date(promo.validUntil).toLocaleDateString('th-TH')}
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                </div>
-
-                                                <div className="flex items-center gap-1 bg-stone-100 p-1 rounded-xl">
-                                                    <button
-                                                        onClick={() => setEditingPromotion(promo)}
-                                                        className="p-2 text-stone-500 hover:text-cafe-900 hover:bg-white rounded-lg transition-all"
-                                                        title="แก้ไข"
-                                                    >
-                                                        <Edit2 size={16} />
-                                                    </button>
-                                                    <button
-                                                        onClick={() => updatePromotion(promo.id, { isActive: !promo.isActive })}
-                                                        className={`p-2 rounded-lg transition-all ${promo.isActive
-                                                            ? 'text-green-600 hover:bg-white hover:shadow-sm'
-                                                            : 'text-stone-400 hover:bg-white hover:text-stone-600'}`}
-                                                        title={promo.isActive ? 'ปิดการใช้งาน' : 'เปิดการใช้งาน'}
-                                                    >
-                                                        {promo.isActive ? <ToggleRight size={20} /> : <ToggleLeft size={20} />}
-                                                    </button>
-                                                    <div className="w-px h-6 bg-stone-200 mx-1"></div>
-                                                    <button
-                                                        onClick={() => deletePromotion(promo.id)}
-                                                        className="p-2 text-stone-400 hover:text-red-500 hover:bg-white rounded-lg transition-all"
-                                                        title="ลบ"
-                                                    >
-                                                        <Trash2 size={16} />
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
+                            <SnackBoxManager />
                         </div>
                     )}
 
-                    {/* Bundles Tab */}
-                    {activeTab === 'bundles' && (
+                    {/* Promotion Orders Tab */}
+                    {activeTab === 'promoOrders' && (
                         <div className="animate-in fade-in duration-300">
-                            <div className="flex justify-between items-center mb-6">
-                                <h3 className="text-lg font-bold text-cafe-900 flex items-center gap-2">
-                                    <Package className="text-purple-600" size={20} />
-                                    รายการ Snack Box
-                                </h3>
-                                <button
-                                    onClick={() => setShowAddBundleModal(true)}
-                                    className="bg-cafe-900 text-white px-4 py-2.5 rounded-xl flex items-center gap-2 hover:bg-cafe-800 transition-all shadow-sm active:scale-95"
-                                >
-                                    <Plus size={18} />
-                                    สร้าง Snack Box
-                                </button>
-                            </div>
-
-                            {bundles.length === 0 ? (
-                                <div className="text-center py-16 text-stone-400 bg-white rounded-2xl border-2 border-dashed border-stone-200">
-                                    <Package size={48} className="mx-auto mb-4 opacity-50 text-stone-300" />
-                                    <p className="text-lg font-medium text-stone-500">ยังไม่มี Snack Box</p>
-                                    <p className="text-sm mt-1">สร้างชุดสินค้าเพื่อเพิ่มมูลค่าการขาย</p>
-                                </div>
-                            ) : (
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    {bundles.map(bundle => (
-                                        <div
-                                            key={bundle.id}
-                                            className={`p-5 rounded-2xl border transition-all duration-300 hover:shadow-md ${bundle.isActive
-                                                ? 'border-purple-200 bg-white hover:border-purple-300'
-                                                : 'border-stone-200 bg-stone-50 opacity-70 grayscale'}`}
-                                        >
-                                            <div className="flex justify-between items-start mb-4">
-                                                <div>
-                                                    <h4 className="font-bold text-lg text-cafe-900">{bundle.name}</h4>
-                                                    <p className="text-sm text-cafe-500">{bundle.description}</p>
-                                                </div>
-                                                <div className="flex gap-1">
-                                                    <button
-                                                        onClick={() => updateBundle(bundle.id, { isActive: !bundle.isActive })}
-                                                        className={`p-1.5 rounded-lg transition-colors ${bundle.isActive ? 'text-green-600 hover:bg-green-50' : 'text-stone-400 hover:bg-stone-200'}`}
-                                                    >
-                                                        {bundle.isActive ? <ToggleRight size={20} /> : <ToggleLeft size={20} />}
-                                                    </button>
-                                                    <button
-                                                        onClick={() => deleteBundle(bundle.id)}
-                                                        className="p-1.5 text-stone-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                                                    >
-                                                        <Trash2 size={18} />
-                                                    </button>
-                                                </div>
-                                            </div>
-
-                                            <div className="bg-stone-50 p-3 rounded-xl mb-4 border border-stone-100">
-                                                <p className="text-xs text-stone-500 font-semibold mb-2 uppercase tracking-wider">สินค้าในชุด</p>
-                                                <ul className="space-y-1">
-                                                    {bundle.items.map((item, idx) => {
-                                                        const product = products.find(p => p.id === item.productId);
-                                                        const variant = product?.variants?.find(v => v.id === item.variantId);
-                                                        return (
-                                                            <li key={idx} className="text-sm flex justify-between items-center text-cafe-700">
-                                                                <span className="flex items-center gap-2">
-                                                                    <span className="w-1 h-1 bg-stone-300 rounded-full"></span>
-                                                                    {product?.name} {variant && `(${variant.name})`}
-                                                                </span>
-                                                                <span className="font-medium bg-white px-2 py-0.5 rounded text-xs border border-stone-200">x{item.quantity}</span>
-                                                            </li>
-                                                        );
-                                                    })}
-                                                </ul>
-                                            </div>
-
-                                            <div className="flex items-center justify-between mt-auto">
-                                                <div className="text-sm text-stone-400 line-through">
-                                                    {/* Calculate total original price logic roughly if needed, otherwise skip */}
-                                                </div>
-                                                <div className="text-xl font-black text-purple-600 bg-purple-50 px-3 py-1 rounded-lg border border-purple-100">
-                                                    {formatCurrency(bundle.bundlePrice)}
-                                                </div>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
+                            <PromotionOrderList />
                         </div>
                     )}
 
-                    {/* Orders Tab */}
-                    {activeTab === 'orders' && (
+                    {/* Quotations Tab */}
+                    {activeTab === 'quotations' && (
                         <div className="animate-in fade-in duration-300">
-                            <div className="flex justify-between items-center mb-6">
-                                <h3 className="text-lg font-bold text-cafe-900 flex items-center gap-2">
-                                    <ShoppingBag className="text-sky-500" size={20} />
-                                    ออเดอร์พิเศษ
-                                </h3>
-                                <button
-                                    onClick={() => setShowAddOrderModal(true)}
-                                    className="bg-cafe-900 text-white px-4 py-2.5 rounded-xl flex items-center gap-2 hover:bg-cafe-800 transition-all shadow-sm active:scale-95"
-                                >
-                                    <Plus size={18} />
-                                    รับออเดอร์
-                                </button>
-                            </div>
+                            <QuotationList />
+                        </div>
+                    )}
 
-                            {specialOrders.length === 0 ? (
-                                <div className="text-center py-16 text-stone-400 bg-white rounded-2xl border-2 border-dashed border-stone-200">
-                                    <ShoppingBag size={48} className="mx-auto mb-4 opacity-50 text-stone-300" />
-                                    <p className="text-lg font-medium text-stone-500">ไม่มีออเดอร์พิเศษ</p>
-                                    <p className="text-sm mt-1">รับงานจัดเบรค งานเลี้ยง งานบุญ ฯลฯ</p>
-                                </div>
-                            ) : (
-                                <div className="space-y-4">
-                                    {specialOrders.map(order => (
-                                        <div
-                                            key={order.id}
-                                            className="bg-white p-5 rounded-2xl border border-stone-200 shadow-sm hover:shadow-md transition-all"
-                                        >
-                                            <div className="flex flex-col md:flex-row justify-between gap-4">
-                                                <div className="flex-1">
-                                                    <div className="flex items-center gap-3 mb-2">
-                                                        <h4 className="font-bold text-lg text-cafe-900">{order.customerName}</h4>
-                                                        <span className={`text-xs px-2.5 py-1 rounded-full font-bold uppercase tracking-wider ${statusColors[order.status]}`}>
-                                                            {statusLabels[order.status]}
-                                                        </span>
-                                                        <span className="text-xs text-stone-400 flex items-center gap-1">
-                                                            <Calendar size={12} /> ส่ง {new Date(order.deliveryDate).toLocaleDateString('th-TH')}
-                                                        </span>
-                                                    </div>
+                    {/* Invoices Tab */}
+                    {activeTab === 'invoices' && (
+                        <div className="animate-in fade-in duration-300">
+                            <InvoiceList />
+                        </div>
+                    )}
 
-                                                    <div className="flex items-center gap-2 text-sm text-cafe-600 mb-4">
-                                                        <Users size={14} /> {order.customerName} {order.customerPhone && `(${order.customerPhone})`}
-                                                    </div>
-
-                                                    <div className="bg-stone-50 p-3 rounded-xl border border-stone-100">
-                                                        <ul className="space-y-1">
-                                                            {order.items.map((item, idx) => {
-                                                                const product = products.find(p => p.id === item.productId);
-                                                                const variant = product?.variants?.find(v => v.id === item.variantId);
-                                                                return (
-                                                                    <li key={idx} className="text-sm flex justify-between text-cafe-700">
-                                                                        <span>• {product?.name} {variant && `(${variant.name})`}</span>
-                                                                        <span className="font-mono text-stone-500">x{item.quantity}</span>
-                                                                    </li>
-                                                                );
-                                                            })}
-                                                        </ul>
-                                                    </div>
-                                                </div>
-
-                                                <div className="flex flex-col items-end justify-between min-w-[200px]">
-                                                    <div className="text-right mb-4">
-                                                        <p className="text-xs text-stone-400 mb-1">ยอดรวมสุทธิ</p>
-                                                        <p className="text-2xl font-black text-cafe-900">{formatCurrency(order.totalRevenue)}</p>
-
-                                                    </div>
-
-                                                    <div className="flex gap-2 w-full justify-end">
-                                                        {order.status === 'pending' && (
-                                                            <button
-                                                                onClick={() => updateSpecialOrderStatus(order.id, 'confirmed')}
-                                                                className="flex-1 bg-amber-500 hover:bg-amber-600 text-white py-2 px-4 rounded-xl text-sm font-bold transition-colors shadow-sm shadow-amber-200"
-                                                            >
-                                                                ยืนยัน
-                                                            </button>
-                                                        )}
-                                                        {order.status === 'confirmed' && (
-                                                            <button
-                                                                onClick={() => updateSpecialOrderStatus(order.id, 'producing')}
-                                                                className="flex-1 bg-blue-500 hover:bg-blue-600 text-white py-2 px-4 rounded-xl text-sm font-bold transition-colors shadow-sm shadow-blue-200"
-                                                            >
-                                                                ผลิต
-                                                            </button>
-                                                        )}
-                                                        {order.status === 'producing' && (
-                                                            <button
-                                                                onClick={() => updateSpecialOrderStatus(order.id, 'delivered')}
-                                                                className="flex-1 bg-green-500 hover:bg-green-600 text-white py-2 px-4 rounded-xl text-sm font-bold transition-colors shadow-sm shadow-green-200"
-                                                            >
-                                                                ส่งแล้ว
-                                                            </button>
-                                                        )}
-                                                        {(order.status === 'confirmed' || order.status === 'producing') && !order.stockDeducted && (
-                                                            <button
-                                                                onClick={async () => {
-                                                                    if (confirm('ยืนยันตัดสต็อกวัตถุดิบสำหรับออเดอร์นี้?')) {
-                                                                        await deductStockForBundleOrder(order.id);
-                                                                        alert('✅ ตัดสต็อกเรียบร้อยแล้ว!');
-                                                                    }
-                                                                }}
-                                                                className="bg-orange-500 hover:bg-orange-600 text-white py-2 px-3 rounded-xl text-sm font-bold transition-colors shadow-sm shadow-orange-200 flex items-center gap-1"
-                                                                title="ตัดสต็อก"
-                                                            >
-                                                                <Scissors size={16} />
-                                                                ตัดสต็อก
-                                                            </button>
-                                                        )}
-                                                        {order.stockDeducted && (
-                                                            <span className="text-xs text-green-600 bg-green-50 px-2 py-1 rounded-lg flex items-center gap-1">
-                                                                <Check size={14} /> ตัดสต็อกแล้ว
-                                                            </span>
-                                                        )}
-                                                        {order.status !== 'cancelled' && order.status !== 'delivered' && (
-                                                            <button
-                                                                onClick={() => {
-                                                                    if (confirm('ยืนยันการยกเลิกออเดอร์?')) {
-                                                                        cancelSpecialOrder(order.id);
-                                                                    }
-                                                                }}
-                                                                className="bg-white border border-stone-200 text-stone-400 hover:text-red-500 hover:border-red-200 hover:bg-red-50 py-2 px-3 rounded-xl transition-all"
-                                                                title="ยกเลิก"
-                                                            >
-                                                                <X size={18} />
-                                                            </button>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
+                    {/* Receipts Tab */}
+                    {activeTab === 'receipts' && (
+                        <div className="animate-in fade-in duration-300">
+                            <ReceiptList />
                         </div>
                     )}
                 </div>
@@ -537,15 +260,6 @@ export const PromotionPage: React.FC = () => {
             {showAddPromoModal && (
                 <AddPromotionModal isOpen={true} onClose={() => setShowAddPromoModal(false)} />
             )}
-            {showAddBundleModal && (
-                <AddSpecialOrderModal isOpen={true} onClose={() => setShowAddBundleModal(false)} mode="bundle" />
-            )}
-            {showAddOrderModal && (
-                <AddSpecialOrderModal isOpen={true} onClose={() => setShowAddOrderModal(false)} mode="order" />
-            )}
-            {showBundleOrderModal && (
-                <CreateBundleOrderModal isOpen={true} onClose={() => setShowBundleOrderModal(false)} />
-            )}
             {editingPromotion && (
                 <AddPromotionModal
                     isOpen={true}
@@ -553,8 +267,9 @@ export const PromotionPage: React.FC = () => {
                     editingPromotion={editingPromotion}
                 />
             )}
-        </div >
+        </div>
     );
 };
 
 export default PromotionPage;
+

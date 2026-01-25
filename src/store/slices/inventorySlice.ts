@@ -317,7 +317,110 @@ export const createInventorySlice: StateCreator<AppState, [], [], InventorySlice
                         : o
                 )
             }));
-            console.log('[deductStockForBundleOrder] Stock deduction complete for:', order.orderNumber);
         }
+    },
+
+    // ============================================================
+    // 🔥 PHASE 2: Bulk Stock Adjustment
+    // Rule #4: Batch Operations - NO loop API calls
+    // ============================================================
+    /**
+     * Adjust multiple ingredients' stock in a single batch operation
+     * @param adjustments - Array of { ingredientId, quantity, reason?, note? }
+     * @returns Promise<{ success: boolean, errors: string[] }>
+     */
+    bulkAdjustStock: async (adjustments: Array<{
+        ingredientId: string;
+        quantity: number;
+        reason?: 'PO' | 'USAGE' | 'WASTE' | 'SPILLAGE' | 'CORRECTION';
+        note?: string;
+    }>) => {
+        const { ingredients, addStockLog, generateAlerts } = get();
+        const errors: string[] = [];
+        const updates: Array<{ id: string; newStock: number }> = [];
+        const logs: Array<{
+            id: string;
+            date: string;
+            ingredientId: string;
+            amount: number;
+            reason: 'PO' | 'USAGE' | 'WASTE' | 'SPILLAGE' | 'CORRECTION';
+            note: string;
+        }> = [];
+
+        // Validate and prepare updates
+        for (const adj of adjustments) {
+            const ingredient = ingredients.find(i => i.id === adj.ingredientId);
+            if (!ingredient) {
+                errors.push(`ไม่พบวัตถุดิบ ID: ${adj.ingredientId}`);
+                continue;
+            }
+
+            const newStock = Number(ingredient.currentStock) + Number(adj.quantity);
+            if (newStock < 0) {
+                errors.push(`${ingredient.name}: สต็อกไม่เพียงพอ (เหลือ ${ingredient.currentStock})`);
+                continue;
+            }
+
+            updates.push({ id: adj.ingredientId, newStock });
+            logs.push({
+                id: crypto.randomUUID(),
+                date: new Date().toISOString(),
+                ingredientId: adj.ingredientId,
+                amount: adj.quantity,
+                reason: adj.reason || 'CORRECTION',
+                note: adj.note || 'Bulk adjustment'
+            });
+        }
+
+        if (updates.length === 0) {
+            return { success: false, errors, updatedCount: 0 };
+        }
+
+        // Execute batch update
+        // Note: Supabase doesn't support true batch UPDATE, so we use Promise.all
+        // but with proper error handling per item
+        const results = await Promise.all(
+            updates.map(async (upd) => {
+                const { error } = await supabase
+                    .from('ingredients')
+                    .update({ current_stock: upd.newStock })
+                    .eq('id', upd.id);
+                return { id: upd.id, error };
+            })
+        );
+
+        // Check for DB errors
+        const dbErrors = results.filter(r => r.error);
+        if (dbErrors.length > 0) {
+            errors.push(...dbErrors.map(e => `DB Error: ${e.error?.message || 'Unknown'}`));
+        }
+
+        // Update local state for successful ones
+        const successIds = results.filter(r => !r.error).map(r => r.id);
+        const successUpdates = updates.filter(u => successIds.includes(u.id));
+
+        if (successUpdates.length > 0) {
+            set(state => ({
+                ingredients: state.ingredients.map(ing => {
+                    const upd = successUpdates.find(u => u.id === ing.id);
+                    return upd ? { ...ing, currentStock: upd.newStock } : ing;
+                })
+            }));
+
+            // Add stock logs for successful updates
+            const successLogs = logs.filter(l => successIds.includes(l.ingredientId));
+            for (const log of successLogs) {
+                await addStockLog(log);
+            }
+
+            // Regenerate alerts
+            generateAlerts();
+        }
+
+        return {
+            success: errors.length === 0,
+            errors,
+            updatedCount: successUpdates.length
+        };
     }
 });

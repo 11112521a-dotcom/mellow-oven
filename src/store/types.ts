@@ -84,6 +84,12 @@ export interface InventorySlice {
     getYesterdayStock: (productId: string, todayDate: string, variantId?: string) => number;
     deductStockByRecipe: (productId: string, quantity: number, variantId?: string) => void;
     deductStockForBundleOrder: (orderId: string) => Promise<void>; // NEW: Deduct stock for Bundle orders
+    bulkAdjustStock: (adjustments: Array<{
+        ingredientId: string;
+        quantity: number;
+        reason?: 'PO' | 'USAGE' | 'WASTE' | 'SPILLAGE' | 'CORRECTION';
+        note?: string;
+    }>) => Promise<{ success: boolean; errors: string[]; updatedCount: number }>;
 }
 
 export interface ProductsSlice {
@@ -116,7 +122,9 @@ export interface SalesSlice {
     markets: Market[];
 
     addProductSaleLog: (log: ProductSaleLog) => Promise<void>;
+    fetchProductSales: () => Promise<void>;
     getProductSalesByDate: (date: string) => ProductSaleLog[];
+    getProductSalesByDateRange: (fromDate: string, toDate: string) => ProductSaleLog[];
     getProductSalesByProduct: (productId: string) => ProductSaleLog[];
     updateProductSaleLog: (id: string, updates: Partial<ProductSaleLog>) => Promise<void>;
 
@@ -159,9 +167,21 @@ export interface SharedActions {
     unsubscribeFromRealtime: () => void;
 }
 
+// ==================== NEW SLICES (Snack Box & Promotion System) ====================
+
+// Import from slice files for actual implementation
+import { ShopInfoSlice } from './slices/shopInfoSlice';
+import { SnackBoxSlice } from './slices/snackBoxSlice';
+import { PromotionOrderSlice } from './slices/promotionOrderSlice';
+import { QuotationSlice } from './slices/quotationSlice';
+import { InvoiceSlice } from './slices/invoiceSlice';
+import { ReceiptSlice } from './slices/receiptSlice';
+
+export type { ShopInfoSlice, SnackBoxSlice, PromotionOrderSlice, QuotationSlice, InvoiceSlice, ReceiptSlice };
+
 // ==================== COMBINED APP STATE ====================
 
-export type AppState = AuthSlice & FinanceSlice & InventorySlice & ProductsSlice & SalesSlice & PromotionSlice & SharedActions;
+export type AppState = AuthSlice & FinanceSlice & InventorySlice & ProductsSlice & SalesSlice & PromotionSlice & SharedActions & ShopInfoSlice & SnackBoxSlice & PromotionOrderSlice & QuotationSlice & InvoiceSlice & ReceiptSlice;
 
 // Re-export types for convenience
 export type {
@@ -171,3 +191,12 @@ export type {
     DailyInventory, Promotion, Bundle, BundleItem, SpecialOrder,
     SpecialOrderItem, SpecialOrderStatus, ForecastOutput, ProductionForecast
 };
+
+// Re-export new types
+export type {
+    ShopInfo, PackagingOption, SnackBoxSet, SnackBoxSetItem,
+    PromotionOrder, PromotionOrderItem, PromotionOrderStatus,
+    Quotation, QuotationItem, QuotationStatus,
+    Invoice, InvoiceStatus,
+    Receipt, PaymentMethod
+} from '../../types';

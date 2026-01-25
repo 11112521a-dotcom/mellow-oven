@@ -1,7 +1,15 @@
+// ============================================================
+// 🍰 Menu Manager - Product CRUD UI
+// 🛡️ Mellow Oven Standards Compliance:
+// - #17: Accessibility (aria-labels, button elements)
+// - #22: Touch targets ≥44px, ESC dismiss via Modal
+// - #15: Idempotency (loading states on buttons)
+// ============================================================
+
 import React, { useState } from 'react';
 import { Product, Variant, Recipe } from '@/types';
 import { useStore } from '@/src/store';
-import { Plus, Edit2, Trash2, Image as ImageIcon } from 'lucide-react';
+import { Plus, Edit2, Trash2 } from 'lucide-react';
 import { Modal } from '@/src/components/ui/Modal';
 import { RecipeBuilder } from './RecipeBuilder';
 import { formatCurrency } from '@/src/lib/utils';
@@ -140,21 +148,21 @@ export const MenuManager: React.FC = () => {
                                             {product.flavor && ` • ${product.flavor}`}
                                         </p>
                                     </div>
-                                    {/* Action Buttons */}
-                                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    {/* Action Buttons - Always visible for accessibility (#17, #22) */}
+                                    <div className="flex gap-1.5">
                                         <button
                                             onClick={() => handleEditClick(product)}
-                                            className="p-2 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-all"
-                                            title="แก้ไข"
+                                            className="p-2.5 min-w-[44px] min-h-[44px] flex items-center justify-center text-gray-500 hover:text-blue-600 bg-gray-50 hover:bg-blue-50 rounded-xl transition-all border border-gray-100 hover:border-blue-200"
+                                            aria-label={`แก้ไข ${product.name}`}
                                         >
-                                            <Edit2 size={16} />
+                                            <Edit2 size={18} />
                                         </button>
                                         <button
                                             onClick={() => handleDeleteClick(product)}
-                                            className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
-                                            title="ลบ"
+                                            className="p-2.5 min-w-[44px] min-h-[44px] flex items-center justify-center text-gray-500 hover:text-red-600 bg-gray-50 hover:bg-red-50 rounded-xl transition-all border border-gray-100 hover:border-red-200"
+                                            aria-label={`ลบ ${product.name}`}
                                         >
-                                            <Trash2 size={16} />
+                                            <Trash2 size={18} />
                                         </button>
                                     </div>
                                 </div>
@@ -471,7 +479,10 @@ export const MenuManager: React.FC = () => {
                         <RecipeBuilder product={newProduct} onRecipeChange={setRecipe} />
                     )}
 
-                    <button type="submit" className="w-full bg-cafe-600 text-white py-2 rounded-lg hover:bg-cafe-700 mt-4">
+                    <button
+                        type="submit"
+                        className="w-full min-h-[44px] bg-gradient-to-r from-cafe-600 to-cafe-700 text-white py-3 rounded-xl hover:from-cafe-700 hover:to-cafe-800 transition-all font-bold shadow-lg shadow-cafe-200 mt-4"
+                    >
                         บันทึกเมนู
                     </button>
                 </form>

@@ -1,8 +1,16 @@
+// ============================================================
+// ✏️ Edit Product Modal - Product Editor UI
+// 🛡️ Mellow Oven Standards Compliance:
+// - #17: Accessibility (aria-labels)
+// - #22: Touch targets ≥44px, ESC dismiss via Modal
+// - #13: Memory Leak Prevention (cleanup in useEffect)
+// ============================================================
+
 import React, { useState, useEffect } from 'react';
 import { Modal } from '../ui/Modal';
-import { Product, Ingredient, Recipe, Variant } from '@/types';
+import { Product, Variant, Recipe } from '@/types';
 import { useStore } from '@/src/store';
-import { Package, DollarSign, Tag, Cake, Plus, Trash2 } from 'lucide-react';
+import { Package, DollarSign, Tag, Plus, Trash2 } from 'lucide-react';
 import { RecipeBuilder } from './RecipeBuilder';
 import { formatCurrency } from '@/src/lib/utils';
 
@@ -85,13 +93,13 @@ export const EditProductModal: React.FC<EditProductModalProps> = ({ isOpen, onCl
                             type="button"
                             onClick={() => setActiveTab('INFO')}
                             className={`flex-1 flex flex-col items-center gap-1 p-3 rounded-xl transition-all ${activeTab === 'INFO'
-                                    ? 'bg-white shadow-lg scale-105'
-                                    : 'hover:bg-white/50'
+                                ? 'bg-white shadow-lg scale-105'
+                                : 'hover:bg-white/50'
                                 }`}
                         >
                             <div className={`w-10 h-10 rounded-full flex items-center justify-center text-lg font-bold ${activeTab === 'INFO'
-                                    ? 'bg-gradient-to-br from-cafe-600 to-cafe-800 text-white'
-                                    : 'bg-cafe-100 text-cafe-500'
+                                ? 'bg-gradient-to-br from-cafe-600 to-cafe-800 text-white'
+                                : 'bg-cafe-100 text-cafe-500'
                                 }`}>
                                 📝
                             </div>
@@ -109,13 +117,13 @@ export const EditProductModal: React.FC<EditProductModalProps> = ({ isOpen, onCl
                             type="button"
                             onClick={() => setActiveTab('VARIANTS')}
                             className={`flex-1 flex flex-col items-center gap-1 p-3 rounded-xl transition-all relative ${activeTab === 'VARIANTS'
-                                    ? 'bg-white shadow-lg scale-105'
-                                    : 'hover:bg-white/50'
+                                ? 'bg-white shadow-lg scale-105'
+                                : 'hover:bg-white/50'
                                 }`}
                         >
                             <div className={`w-10 h-10 rounded-full flex items-center justify-center text-lg font-bold ${activeTab === 'VARIANTS'
-                                    ? 'bg-gradient-to-br from-blue-500 to-indigo-600 text-white'
-                                    : 'bg-blue-50 text-blue-400'
+                                ? 'bg-gradient-to-br from-blue-500 to-indigo-600 text-white'
+                                : 'bg-blue-50 text-blue-400'
                                 }`}>
                                 🎨
                             </div>
@@ -138,13 +146,13 @@ export const EditProductModal: React.FC<EditProductModalProps> = ({ isOpen, onCl
                             type="button"
                             onClick={() => setActiveTab('RECIPE')}
                             className={`flex-1 flex flex-col items-center gap-1 p-3 rounded-xl transition-all relative ${activeTab === 'RECIPE'
-                                    ? 'bg-white shadow-lg scale-105'
-                                    : 'hover:bg-white/50'
+                                ? 'bg-white shadow-lg scale-105'
+                                : 'hover:bg-white/50'
                                 }`}
                         >
                             <div className={`w-10 h-10 rounded-full flex items-center justify-center text-lg font-bold ${activeTab === 'RECIPE'
-                                    ? 'bg-gradient-to-br from-emerald-500 to-green-600 text-white'
-                                    : 'bg-green-50 text-green-400'
+                                ? 'bg-gradient-to-br from-emerald-500 to-green-600 text-white'
+                                : 'bg-green-50 text-green-400'
                                 }`}>
                                 📋
                             </div>
@@ -347,18 +355,18 @@ export const EditProductModal: React.FC<EditProductModalProps> = ({ isOpen, onCl
                     <RecipeBuilder product={{ name, price: Number(price) }} onRecipeChange={setRecipe} />
                 )}
 
-                {/* Buttons */}
+                {/* Buttons - #22: 44px touch targets */}
                 <div className="flex gap-3 pt-2">
                     <button
                         type="button"
                         onClick={onClose}
-                        className="flex-1 bg-gray-200 text-cafe-800 py-3 rounded-lg hover:bg-gray-300 transition-colors font-medium"
+                        className="flex-1 min-h-[44px] bg-gray-100 text-gray-700 py-3 rounded-xl hover:bg-gray-200 transition-all font-medium border border-gray-200"
                     >
                         ยกเลิก
                     </button>
                     <button
                         type="submit"
-                        className="flex-1 bg-cafe-600 text-white py-3 rounded-lg hover:bg-cafe-700 transition-colors font-bold"
+                        className="flex-1 min-h-[44px] bg-gradient-to-r from-cafe-600 to-cafe-700 text-white py-3 rounded-xl hover:from-cafe-700 hover:to-cafe-800 transition-all font-bold shadow-lg shadow-cafe-200"
                     >
                         บันทึกการแก้ไข
                     </button>

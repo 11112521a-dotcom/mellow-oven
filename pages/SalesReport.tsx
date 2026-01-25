@@ -22,7 +22,8 @@ import {
     Zap,
     Target,
     Activity,
-    Trash2
+    Trash2,
+    FileText
 } from 'lucide-react';
 import { RevenueTrendChart } from '@/src/components/SalesReport/RevenueTrendChart';
 import { TopProductsChart } from '@/src/components/SalesReport/TopProductsChart';
@@ -31,6 +32,7 @@ import { DayOfWeekChart } from '@/src/components/SalesReport/DayOfWeekChart';
 import { WasteSummaryCard } from '@/src/components/SalesReport/WasteSummaryCard';
 import { WeatherAnalysisCard, getWeatherIcon } from '@/src/components/SalesReport/WeatherAnalysisCard';
 import { ExportPDFButton } from '@/src/components/SalesReport/ExportPDFButton';
+import { DetailedSalesReportModal } from '@/src/components/Reports/DetailedSalesReportModal';
 import { Modal } from '@/src/components/ui/Modal';
 import { NumberInput } from '@/src/components/ui/NumberInput';
 
@@ -134,6 +136,7 @@ export const SalesReport: React.FC = () => {
     const [expandedProduct, setExpandedProduct] = useState<string | null>(null);
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [editingSale, setEditingSale] = useState<any>(null);
+    const [showDetailedReport, setShowDetailedReport] = useState(false);
 
     const handleEditClick = (sale: any) => {
         setEditingSale(sale);
@@ -501,6 +504,16 @@ export const SalesReport: React.FC = () => {
                             dateRange={{ start: startDate, end: endDate }}
                             marketName={selectedMarket === 'all' ? 'ทุกตลาด' : markets.find(m => m.id === selectedMarket)?.name || 'ตลาด'}
                         />
+
+                        {/* Detailed Report Button */}
+                        <button
+                            onClick={() => setShowDetailedReport(true)}
+                            className="bg-white/10 backdrop-blur-lg rounded-xl p-3 flex items-center gap-2 border border-white/10 text-white hover:bg-white/20 transition-all"
+                            title="รายงานละเอียด"
+                        >
+                            <FileText size={18} className="text-cafe-200" />
+                            <span className="font-medium">รายงานละเอียด</span>
+                        </button>
                     </div>
                 </div>
             </div>
@@ -859,6 +872,12 @@ export const SalesReport: React.FC = () => {
             )}
 
             <EditSalesModal isOpen={isEditModalOpen} onClose={() => setIsEditModalOpen(false)} saleData={editingSale} onSave={handleSaveEdit} />
+
+            {/* Detailed Sales Report Modal */}
+            <DetailedSalesReportModal
+                isOpen={showDetailedReport}
+                onClose={() => setShowDetailedReport(false)}
+            />
         </div>
     );
 };
