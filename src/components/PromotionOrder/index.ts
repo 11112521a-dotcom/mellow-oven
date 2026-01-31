@@ -2,3 +2,4 @@
 export { ProductVariantPicker } from './ProductVariantPicker';
 export { CreatePromotionOrderModal } from './CreatePromotionOrderModal';
 export { PromotionOrderList } from './PromotionOrderList';
+export { OrderDetailsModal } from './OrderDetailsModal';

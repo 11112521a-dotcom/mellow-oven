@@ -1,6 +1,8 @@
 // ============================================================
-// 📊 Dashboard Library Index
-// Re-exports all dashboard utilities
-// ============================================================
+// Dashboard Utilities Index
+// Re-exports all dashboard-related utilities
 
 export * from './dashboardUtils';
+export * from './comparisonUtils';
+export * from './marketAnalysisUtils';
+

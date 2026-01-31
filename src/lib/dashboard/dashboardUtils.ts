@@ -40,6 +40,7 @@ export interface MarketMetrics {
     topProducts: Array<{
         productId: string;
         productName: string;
+        variantName?: string;
         revenue: number;
         profit: number;
         soldQty: number;
@@ -216,12 +217,18 @@ export function calculateMarketMetrics(
     const transactionCount = marketSales.length;
 
     // Group by product for top products
-    const productMap: Record<string, { productId: string; productName: string; revenue: number; profit: number; soldQty: number }> = {};
+    const productMap: Record<string, { productId: string; productName: string; variantName?: string; revenue: number; profit: number; soldQty: number }> = {};
     marketSales.forEach(s => {
         const key = s.variantId || s.productId;
-        const name = s.variantName ? `${s.productName} - ${s.variantName}` : s.productName;
         if (!productMap[key]) {
-            productMap[key] = { productId: key, productName: name, revenue: 0, profit: 0, soldQty: 0 };
+            productMap[key] = {
+                productId: key,
+                productName: s.productName,
+                variantName: s.variantName,
+                revenue: 0,
+                profit: 0,
+                soldQty: 0
+            };
         }
         productMap[key].revenue += s.totalRevenue;
         productMap[key].profit += s.grossProfit;

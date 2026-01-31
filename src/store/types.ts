@@ -4,7 +4,7 @@ import {
     JarType, Market, Goal, Alert, JarHistory, JarCustomization,
     UnallocatedProfit, ProductSaleLog, AllocationProfile, StockLog,
     DailyInventory, Promotion, Bundle, BundleItem, SpecialOrder,
-    SpecialOrderItem, SpecialOrderStatus
+    SpecialOrderItem, SpecialOrderStatus, DebtAllocationConfig
 } from '../../types';
 import type { ForecastOutput } from '../lib/forecasting';
 import { ProductionForecast } from '../lib/forecasting/types';
@@ -30,6 +30,11 @@ export interface FinanceSlice {
     jarCustomizations: JarCustomization[];
     allocationProfiles: AllocationProfile[];
     defaultProfileId: string | null;
+
+    // Debt-First Allocation (v2.0)
+    debtConfig: DebtAllocationConfig;
+    updateDebtConfig: (config: Partial<DebtAllocationConfig>) => Promise<void>;
+    addToDebtAccumulated: (amount: number) => Promise<void>;
 
     addTransaction: (transaction: Transaction) => void;
     updateTransaction: (id: string, updates: Partial<Transaction>) => void;
@@ -80,6 +85,7 @@ export interface InventorySlice {
     addStockLog: (log: StockLog) => Promise<void>;
 
     fetchDailyInventory: (date: string) => Promise<void>;
+    fetchInventoryByDateRange: (startDate: string, endDate: string) => Promise<void>; // NEW
     upsertDailyInventory: (record: Partial<DailyInventory> & { businessDate: string; productId: string; variantId?: string }) => Promise<void>;
     getYesterdayStock: (productId: string, todayDate: string, variantId?: string) => number;
     deductStockByRecipe: (productId: string, quantity: number, variantId?: string) => void;
@@ -115,6 +121,7 @@ export interface ProductsSlice {
     ) => Promise<void>;
     getForecastsByDate: (date: string) => ProductionForecast[];
     getLatestForecast: (productId: string, marketId: string, date: string) => ProductionForecast | null;
+    deleteForecastsForMarket: (marketId: string) => Promise<void>;
 }
 
 export interface SalesSlice {

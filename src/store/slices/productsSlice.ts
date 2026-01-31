@@ -122,5 +122,27 @@ export const createProductsSlice: StateCreator<AppState, [], [], ProductsSlice> 
         const forecasts = get().productionForecasts.filter(f => f.productId === productId && f.marketId === marketId && f.forecastForDate === date);
         if (forecasts.length === 0) return null;
         return forecasts.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
+    },
+
+    deleteForecastsForMarket: async (marketId) => {
+        try {
+            // Delete from Supabase
+            const { error } = await supabase.from('production_forecasts').delete().eq('market_id', marketId);
+
+            if (error) {
+                console.error('Failed to delete forecasts for market:', error);
+                throw error;
+            }
+
+            // Update local state by filtering out deleted forecasts
+            set((state) => ({
+                productionForecasts: state.productionForecasts.filter(f => f.marketId !== marketId)
+            }));
+
+            console.log('Successfully deleted forecasts for market:', marketId);
+        } catch (error) {
+            console.error('Error in deleteForecastsForMarket:', error);
+            throw error;
+        }
     }
 });

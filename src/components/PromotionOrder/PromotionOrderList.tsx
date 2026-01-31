@@ -6,10 +6,11 @@
 import React, { useEffect, useState } from 'react';
 import { useStore } from '../../store';
 import { CreatePromotionOrderModal } from './CreatePromotionOrderModal';
+import { OrderDetailsModal } from './OrderDetailsModal';
 import {
     Plus, Search, Loader2, Filter,
     Calendar, Phone, MapPin, Package,
-    Check, X, Truck, Clock, AlertCircle
+    Check, X, Truck, Clock, AlertCircle, Trash2, Eye
 } from 'lucide-react';
 import { PromotionOrder, PromotionOrderStatus } from '../../../types';
 
@@ -26,12 +27,14 @@ export const PromotionOrderList: React.FC = () => {
         promotionOrders,
         isLoadingPromotionOrders,
         fetchPromotionOrders,
-        updatePromotionOrderStatus
+        updatePromotionOrderStatus,
+        deletePromotionOrder
     } = useStore();
 
     const [searchTerm, setSearchTerm] = useState('');
     const [statusFilter, setStatusFilter] = useState<PromotionOrderStatus | 'all'>('all');
     const [showCreateModal, setShowCreateModal] = useState(false);
+    const [viewingOrder, setViewingOrder] = useState<PromotionOrder | null>(null);
 
     useEffect(() => {
         fetchPromotionOrders();
@@ -51,6 +54,19 @@ export const PromotionOrderList: React.FC = () => {
         } catch (error) {
             console.error('Status update error:', error);
             alert('เกิดข้อผิดพลาดในการอัพเดทสถานะ');
+        }
+    };
+
+    // 🗑️ Delete handler with confirmation
+    const handleDelete = async (orderId: string, orderNumber: string) => {
+        if (!window.confirm(`ต้องการลบออเดอร์ ${orderNumber} หรือไม่?\n\n⚠️ การดำเนินการนี้ไม่สามารถย้อนกลับได้`)) {
+            return;
+        }
+        try {
+            await deletePromotionOrder(orderId);
+        } catch (error) {
+            console.error('Delete error:', error);
+            alert('เกิดข้อผิดพลาดในการลบออเดอร์');
         }
     };
 
@@ -124,6 +140,8 @@ export const PromotionOrderList: React.FC = () => {
                             key={order.id}
                             order={order}
                             onStatusChange={handleStatusChange}
+                            onDelete={handleDelete}
+                            onView={() => setViewingOrder(order)}
                         />
                     ))}
                 </div>
@@ -136,6 +154,14 @@ export const PromotionOrderList: React.FC = () => {
                     onSuccess={() => fetchPromotionOrders()}
                 />
             )}
+
+            {/* View Order Details Modal */}
+            {viewingOrder && (
+                <OrderDetailsModal
+                    order={viewingOrder}
+                    onClose={() => setViewingOrder(null)}
+                />
+            )}
         </div>
     );
 };
@@ -144,11 +170,16 @@ export const PromotionOrderList: React.FC = () => {
 const OrderCard: React.FC<{
     order: PromotionOrder;
     onStatusChange: (orderId: string, status: PromotionOrderStatus) => void;
-}> = ({ order, onStatusChange }) => {
+    onDelete: (orderId: string, orderNumber: string) => void;
+    onView: () => void;
+}> = ({ order, onStatusChange, onDelete, onView }) => {
     const status = statusConfig[order.status];
 
     return (
-        <div className="bg-white rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-all overflow-hidden">
+        <div
+            className="bg-white rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-all overflow-hidden cursor-pointer"
+            onClick={onView}
+        >
             <div className="p-5">
                 <div className="flex flex-col sm:flex-row justify-between gap-4">
                     {/* Left: Order Info */}
@@ -200,13 +231,13 @@ const OrderCard: React.FC<{
                                 {order.status === 'pending' && (
                                     <>
                                         <button
-                                            onClick={() => onStatusChange(order.id, 'confirmed')}
+                                            onClick={(e) => { e.stopPropagation(); onStatusChange(order.id, 'confirmed'); }}
                                             className="px-3 py-1 text-sm bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200"
                                         >
                                             ยืนยัน
                                         </button>
                                         <button
-                                            onClick={() => onStatusChange(order.id, 'cancelled')}
+                                            onClick={(e) => { e.stopPropagation(); onStatusChange(order.id, 'cancelled'); }}
                                             className="px-3 py-1 text-sm bg-red-50 text-red-600 rounded-lg hover:bg-red-100"
                                         >
                                             ยกเลิก
@@ -215,7 +246,7 @@ const OrderCard: React.FC<{
                                 )}
                                 {order.status === 'confirmed' && (
                                     <button
-                                        onClick={() => onStatusChange(order.id, 'preparing')}
+                                        onClick={(e) => { e.stopPropagation(); onStatusChange(order.id, 'preparing'); }}
                                         className="px-3 py-1 text-sm bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200"
                                     >
                                         เริ่มเตรียม
@@ -223,7 +254,7 @@ const OrderCard: React.FC<{
                                 )}
                                 {order.status === 'preparing' && (
                                     <button
-                                        onClick={() => onStatusChange(order.id, 'delivered')}
+                                        onClick={(e) => { e.stopPropagation(); onStatusChange(order.id, 'delivered'); }}
                                         className="px-3 py-1 text-sm bg-green-100 text-green-700 rounded-lg hover:bg-green-200"
                                     >
                                         ส่งแล้ว
@@ -231,6 +262,15 @@ const OrderCard: React.FC<{
                                 )}
                             </div>
                         )}
+                        {/* Delete Button - always visible */}
+                        <button
+                            onClick={(e) => { e.stopPropagation(); onDelete(order.id, order.orderNumber); }}
+                            className="mt-2 px-3 py-1.5 text-sm bg-red-50 text-red-600 rounded-lg hover:bg-red-100 flex items-center gap-1"
+                            title="ลบออเดอร์"
+                        >
+                            <Trash2 className="w-3.5 h-3.5" />
+                            ลบ
+                        </button>
                     </div>
                 </div>
             </div>

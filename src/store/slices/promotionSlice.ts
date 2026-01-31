@@ -194,7 +194,60 @@ export const createPromotionSlice: StateCreator<AppState, [], [], PromotionSlice
     },
 
     syncDeliveredOrderProfits: async () => {
-        // Simplified - in production, copy full logic from original store.ts
-        return 0;
+        const state = get();
+        const deliveredOrders = state.specialOrders.filter(o => o.status === 'delivered');
+        const existingSources = state.unallocatedProfits.map(p => p.source);
+
+        let syncedCount = 0;
+        for (const order of deliveredOrders) {
+            const expectedSource = `special_order:${order.orderNumber}`;
+
+            // Skip if profit already exists
+            if (existingSources.includes(expectedSource)) continue;
+
+            const profitEntry = {
+                date: order.deliveryDate,
+                amount: order.grossProfit,
+                source: expectedSource,
+            };
+
+            const { data, error } = await supabase
+                .from('unallocated_profits')
+                .insert(profitEntry)
+                .select()
+                .single();
+
+            if (!error && data) {
+                // Update finance slice state via global get/set if possible, 
+                // but since slices are independent, we might need a way to dispatch to finance slice.
+                // However, since AppState is combined, we can try to access the setter from get() if we cast it,
+                // OR simpler: we reload data or let realtime handle it.
+                // For now, let's just log and rely on Realtime subscription of FinanceSlice to pick it up,
+                // OR manually update if we have access to the lists.
+                // Wait, UnallocatedProfit is in FinanceSlice. 
+                // This slice (PromotionSlice) shares the same Store (set/get) as FinanceSlice?
+                // Yes, createPromotionSlice is part of AppState.
+
+                // We should be able to update unallocatedProfits state directly if it's in the same store.
+                // Check types: unallocatedProfits is in FinanceSlice.
+                // Since `set` here operates on AppState, we can update it!
+
+                set(s => ({
+                    unallocatedProfits: [...s.unallocatedProfits, {
+                        id: data.id,
+                        date: data.date,
+                        amount: data.amount,
+                        source: data.source,
+                        createdAt: data.created_at
+                    }]
+                }));
+                syncedCount++;
+                console.log(`[Sync] Added missing profit ${order.grossProfit} from ${order.orderNumber}`);
+            } else if (error) {
+                console.error(`[Sync] Insert failed for ${order.orderNumber}:`, error.message);
+            }
+        }
+
+        return syncedCount;
     }
 });

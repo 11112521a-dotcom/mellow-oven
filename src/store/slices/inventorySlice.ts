@@ -161,6 +161,27 @@ export const createInventorySlice: StateCreator<AppState, [], [], InventorySlice
         }
     },
 
+    // NEW: Fetch specific range for reports
+    fetchInventoryByDateRange: async (startDate: string, endDate: string) => {
+        const { data, error } = await supabase
+            .from('daily_inventory')
+            .select('*')
+            .gte('business_date', startDate)
+            .lte('business_date', endDate)
+            .order('business_date', { ascending: true }); // Ensure ordered by date
+
+        if (!error && data) {
+            const mapped = data.map(mapDailyInventory);
+            set(state => {
+                // Remove existing records in this range to avoid duplicates before merging
+                const existingOutsideRange = state.dailyInventory.filter(d =>
+                    d.businessDate < startDate || d.businessDate > endDate
+                );
+                return { dailyInventory: [...existingOutsideRange, ...mapped] };
+            });
+        }
+    },
+
     // 🔥 HOTFIXED: Upsert with Waste Preservation & Immutable History
     upsertDailyInventory: async (record) => {
         const stockYesterday = record.stockYesterday ?? 0;

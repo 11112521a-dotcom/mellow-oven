@@ -4,8 +4,20 @@ import { calculateBaselineForecast } from './baselineForecast';
 import { calculateWeatherImpact, applyWeatherAdjustment, WeatherCondition } from './weatherAdjustment';
 import { calculateOptimalQuantity, NewsvendorParams, DistributionParams } from './newsvendorModel';
 import { poissonCDF, calculateMean, calculateVariance, negativeBinomialCDF } from './statisticalUtils';
+import { calculateSeasonalityFactors, applySeasonalityFactors, SeasonalityFactors } from './autoSeasonality';
 export { calculateDailyProduction, runBatchCalculatorTests, calculateStockTransfer, runStockTransferTests, runAllProductionTests } from './batchCalculator';
 export type { BatchCalculationInput, BatchCalculationResult, StockTransferInput, StockTransferResult } from './batchCalculator';
+
+// ============================================================
+// 🚀 Smart Production Planner v2.0 Exports
+// ============================================================
+export * from './selfLearning';
+export * from './weatherAPI';
+export * from './thaiCalendar';
+export * from './marketProfile';
+export * from './autoSeasonality';
+export { calculateSmartForecast, calculateBatchSmartForecasts } from './smartForecaster';
+export type { SmartForecastInput, SmartForecastOutput, SmartForecastSummary } from './smartForecaster';
 
 export interface ForecastInput {
     marketId: string;
@@ -63,6 +75,9 @@ export interface ForecastOutput {
 
     // Raw data
     cleaningStats?: DataCleaningResult['stats'];
+
+    // 🆕 Auto-Seasonality Factors (Self-Learned)
+    seasonalityFactors?: SeasonalityFactors;
 }
 
 // Thai Holidays
@@ -146,16 +161,29 @@ export async function calculateOptimalProduction(
             ? applyWeatherAdjustment(baselineForecast, input.weatherForecast, weatherImpact)
             : baselineForecast * (input.weatherForecast === 'rain' ? 0.7 : input.weatherForecast === 'storm' ? 0.4 : 1.0);
 
-        // STEP 4: Payday Multiplier
+        // 🆕 STEP 4: Auto-Seasonality (Self-Learning Multipliers)
+        // Calculate dynamic factors from historical data
         const targetDateStr = input.targetDate || new Date().toISOString().split('T')[0];
-        const isPayday = (d: string) => {
-            const day = new Date(d).getDate();
-            return (day >= 25 && day <= 31) || (day >= 1 && day <= 5);
-        };
-        const paydayMultiplier = isPayday(targetDateStr) ? 1.2 : 1.0;
+        const seasonalityFactors = calculateSeasonalityFactors(
+            input.productSales,
+            input.productId,
+            input.marketId
+        );
 
-        // Final Mean (Lambda)
-        const finalForecastMean = Math.max(1, weatherAdjustedForecast * paydayMultiplier);
+        // Apply self-learned factors
+        const seasonalityResult = applySeasonalityFactors(
+            seasonalityFactors,
+            new Date(targetDateStr),
+            input.weatherForecast
+        );
+
+        // Use self-learned baseline if available, else use calculated baseline
+        const smartBaseline = seasonalityFactors.confidence > 0.5
+            ? seasonalityResult.adjustedForecast
+            : weatherAdjustedForecast;
+
+        // Final Mean (Lambda) - Combining old logic with new self-learning
+        const finalForecastMean = Math.max(1, smartBaseline);
 
         // STEP 5: Distribution & Newsvendor
         const quantities = cleanedData.map(d => d.qtyCleaned);

@@ -59,6 +59,7 @@ export const useStore = create<AppState>()(
                 const { data: productionForecasts } = await supabase.from('production_forecasts').select('*').order('forecast_for_date', { ascending: false });
                 const { data: unallocatedProfitsData } = await supabase.from('unallocated_profits').select('*').order('date', { ascending: false });
                 const { data: allocationProfilesData } = await supabase.from('allocation_profiles').select('*').order('created_at', { ascending: true });
+                const { data: debtConfigData } = await supabase.from('debt_config').select('*').single();
 
                 // Promotion & Snack Box System
                 const { data: promotionsData } = await supabase.from('promotions').select('*').order('created_at', { ascending: false });
@@ -297,7 +298,15 @@ export const useStore = create<AppState>()(
                         jars: state.jars.map(jar => ({
                             ...jar,
                             balance: calculatedBalances[jar.id] || 0
-                        }))
+                        })),
+                        debtConfig: debtConfigData ? {
+                            isEnabled: debtConfigData.is_enabled,
+                            fixedAmount: Number(debtConfigData.fixed_amount),
+                            safetyThreshold: Number(debtConfigData.safety_threshold),
+                            safetyRatio: Number(debtConfigData.safety_ratio),
+                            targetAmount: Number(debtConfigData.target_amount),
+                            accumulatedAmount: Number(debtConfigData.accumulated_amount)
+                        } : state.debtConfig
                     };
                 });
                 get().generateAlerts();
@@ -430,7 +439,8 @@ export const useStore = create<AppState>()(
                 storeName: state.storeName,
                 jars: state.jars,
                 jarCustomizations: state.jarCustomizations,
-                defaultProfileId: state.defaultProfileId
+                defaultProfileId: state.defaultProfileId,
+                debtConfig: state.debtConfig  // Persist debt configuration
                 // products: state.products,      // REMOVED - Zombie Data Risk
                 // productSales: state.productSales  // REMOVED - Zombie Data Risk
             })

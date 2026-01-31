@@ -6,11 +6,12 @@ import {
     PieChart, Save, Trash2, ArrowRight, Percent, DollarSign, Zap,
     Calendar, TrendingUp, Sparkles, Check, Plus, Eye, Wallet,
     ArrowUpRight, ChevronDown, ChevronUp, Coins, BadgeDollarSign,
-    Boxes, Shield, Briefcase, PiggyBank, Lock, Unlock, Star, Edit2, X
+    Boxes, Shield, Briefcase, PiggyBank, Lock, Unlock, Star, Edit2, X,
+    Target, Gauge, Settings2, ArrowDown
 } from 'lucide-react';
 
 interface AllocationStationProps {
-    onAllocate: (amount: number, allocations: Record<JarType, number>, fromProfit: boolean, specificProfits?: { id: string, amount: number }[]) => void;
+    onAllocate: (amount: number, allocations: Record<JarType, number>, fromProfit: boolean, specificProfits?: { id: string, amount: number }[], manualDebtAmount?: number) => void;
 }
 
 type InputMode = 'percentage' | 'amount';
@@ -68,7 +69,14 @@ const jarStyles: Record<string, { gradient: string, bg: string, text: string, ac
 };
 
 export const AllocationStation: React.FC<AllocationStationProps> = ({ onAllocate }) => {
-    const { allocationProfiles, saveAllocationProfile, deleteAllocationProfile, setDefaultProfile, renameAllocationProfile, defaultProfileId, jars, getUnallocatedBalance, unallocatedProfits, getUnallocatedByDate, dailyInventory, products, fetchDailyInventory } = useStore();
+    const {
+        allocationProfiles, saveAllocationProfile, deleteAllocationProfile,
+        setDefaultProfile, renameAllocationProfile, defaultProfileId, jars,
+        getUnallocatedBalance, unallocatedProfits, getUnallocatedByDate,
+        dailyInventory, products, fetchDailyInventory,
+        // Debt-First Allocation v2.0
+        debtConfig, updateDebtConfig, addToDebtAccumulated
+    } = useStore();
 
     const [amount, setAmount] = useState<string>('');
     const [selectedProfileId, setSelectedProfileId] = useState<string>(defaultProfileId || 'default');
@@ -98,6 +106,47 @@ export const AllocationStation: React.FC<AllocationStationProps> = ({ onAllocate
         const saved = localStorage.getItem('allocationStationLocked');
         return saved ? JSON.parse(saved) : false;
     });
+
+    // Debt-First Allocation v2.0 - Local Editing State
+    const [showDebtSettings, setShowDebtSettings] = useState(false);
+    const [localDebtConfig, setLocalDebtConfig] = useState({
+        fixedAmount: debtConfig.fixedAmount,
+        safetyThreshold: debtConfig.safetyThreshold,
+        safetyRatio: debtConfig.safetyRatio * 100, // Convert to percentage for display
+        targetAmount: debtConfig.targetAmount,
+        accumulatedAmount: debtConfig.accumulatedAmount
+    });
+
+    // Sync local state when debtConfig changes
+    useEffect(() => {
+        setLocalDebtConfig({
+            fixedAmount: debtConfig.fixedAmount,
+            safetyThreshold: debtConfig.safetyThreshold,
+            safetyRatio: debtConfig.safetyRatio * 100,
+            targetAmount: debtConfig.targetAmount,
+            accumulatedAmount: debtConfig.accumulatedAmount
+        });
+    }, [debtConfig]);
+
+    // Calculate debt deduction based on current amount
+    const calculateDebtDeduction = (grossProfit: number) => {
+        if (!debtConfig.isEnabled || grossProfit <= 0) return 0;
+        if (grossProfit >= debtConfig.safetyThreshold) {
+            return debtConfig.fixedAmount;
+        } else {
+            return grossProfit * debtConfig.safetyRatio;
+        }
+    };
+
+    // Manual Debt Override State
+    const effectiveDebtAmount = useMemo(() => {
+        const numAmount = parseFloat(amount) || 0;
+        return calculateDebtDeduction(numAmount);
+    }, [amount, debtConfig]);
+
+    const debtProgress = debtConfig.targetAmount > 0
+        ? (debtConfig.accumulatedAmount / debtConfig.targetAmount) * 100
+        : 0;
 
     useEffect(() => {
         localStorage.setItem('allocationStationLocked', JSON.stringify(isLocked));
@@ -138,17 +187,25 @@ export const AllocationStation: React.FC<AllocationStationProps> = ({ onAllocate
 
     const previewAmounts = useMemo(() => {
         const numAmount = parseFloat(amount) || 0;
-        const preview: Record<JarType, number> = {} as Record<JarType, number>;
+        const preview: Record<JarType, number> & { debtDeduction?: number; remainingAfterDebt?: number } = {} as Record<JarType, number>;
+
+        // Step 1: Use effective debt deduction
+        const debtDeduction = effectiveDebtAmount;
+        const workingAmount = Math.max(0, numAmount - debtDeduction);
+
+        // Store for display in preview
+        preview.debtDeduction = debtDeduction;
+        preview.remainingAfterDebt = workingAmount;
 
         // Helper: Round down to nearest 5 (e.g., 208.05 → 205)
         const roundToFive = (n: number) => Math.floor(n / 5) * 5;
 
         let totalRounded = 0;
 
-        // Round all jars EXCEPT Owner
+        // Round all jars EXCEPT Owner (using remaining amount after debt)
         jars.forEach(jar => {
             if (jar.id !== 'Owner') {
-                const rawAmount = (numAmount * (currentAllocations[jar.id] || 0)) / 100;
+                const rawAmount = (workingAmount * (currentAllocations[jar.id] || 0)) / 100;
                 const rounded = roundToFive(rawAmount);
                 preview[jar.id] = rounded;
                 totalRounded += rounded;
@@ -156,10 +213,10 @@ export const AllocationStation: React.FC<AllocationStationProps> = ({ onAllocate
         });
 
         // Owner gets the remainder
-        preview['Owner'] = numAmount - totalRounded;
+        preview['Owner'] = workingAmount - totalRounded;
 
         return preview;
-    }, [amount, currentAllocations, jars]);
+    }, [amount, currentAllocations, jars, debtConfig.isEnabled, debtConfig.fixedAmount, debtConfig.safetyThreshold, debtConfig.safetyRatio]);
 
     useEffect(() => {
         const profile = allocationProfiles.find(p => p.id === selectedProfileId);
@@ -298,7 +355,7 @@ export const AllocationStation: React.FC<AllocationStationProps> = ({ onAllocate
             specificProfits = profits.map(p => ({ id: p.id, amount: p.amount }));
         }
 
-        onAllocate(numAmount, currentAllocations, allocationSource === 'profit', specificProfits);
+        onAllocate(numAmount, currentAllocations, allocationSource === 'profit', specificProfits, effectiveDebtAmount);
 
         if (allocationSource === 'manual') {
             setAmount('');
@@ -375,6 +432,219 @@ export const AllocationStation: React.FC<AllocationStationProps> = ({ onAllocate
                     >
                         {isLocked ? <Lock size={18} /> : <Unlock size={18} />}
                     </button>
+                </div>
+            </div>
+
+            {/* ═══════════════════════════════════════════════════════════════
+                🔒 DEBT-FIRST ALLOCATION SECTION (v2.0)
+               ═══════════════════════════════════════════════════════════════ */}
+            <div className="mx-6 mb-4">
+                <div className={`rounded-2xl border transition-all duration-300 overflow-hidden ${debtConfig.isEnabled
+                    ? 'bg-gradient-to-br from-slate-50 via-gray-50 to-stone-50 border-slate-200 shadow-md shadow-slate-100'
+                    : 'bg-stone-50/50 border-stone-100'}`}>
+
+                    {/* Header Row */}
+                    <div className="px-5 py-4 flex items-center justify-between">
+                        <div className="flex items-center gap-4">
+                            <div className={`p-3 rounded-xl transition-all ${debtConfig.isEnabled
+                                ? 'bg-gradient-to-br from-slate-500 to-gray-600 shadow-lg shadow-slate-300/40'
+                                : 'bg-stone-200'}`}>
+                                <Lock size={20} className={debtConfig.isEnabled ? 'text-white' : 'text-stone-400'} />
+                            </div>
+                            <div>
+                                <h3 className="font-bold text-stone-800 flex items-center gap-2">
+                                    Priority Deduction (Debt-First)
+                                    {debtConfig.isEnabled && (
+                                        <span className="text-xs px-2 py-0.5 bg-slate-500 text-white rounded-full font-medium">
+                                            Active
+                                        </span>
+                                    )}
+                                </h3>
+                                <p className="text-xs text-stone-500">หักหนี้ก่อนจัดสรร - ความปลอดภัยทางการเงิน</p>
+                            </div>
+                        </div>
+
+                        <div className="flex items-center gap-3">
+                            {/* Settings Toggle */}
+                            {debtConfig.isEnabled && (
+                                <button
+                                    onClick={() => setShowDebtSettings(!showDebtSettings)}
+                                    className={`p-2.5 rounded-xl border transition-all ${showDebtSettings
+                                        ? 'bg-slate-100 border-slate-300 text-slate-600'
+                                        : 'bg-white border-stone-200 text-stone-400 hover:text-stone-600 hover:border-stone-300'}`}
+                                >
+                                    <Settings2 size={18} />
+                                </button>
+                            )}
+
+                            {/* Enable/Disable Toggle */}
+                            <button
+                                onClick={() => updateDebtConfig({ isEnabled: !debtConfig.isEnabled })}
+                                className={`relative w-14 h-8 rounded-full transition-all duration-300 ${debtConfig.isEnabled
+                                    ? 'bg-gradient-to-r from-slate-500 to-gray-600 shadow-inner'
+                                    : 'bg-stone-300'}`}
+                            >
+                                <div className={`absolute top-1 w-6 h-6 bg-white rounded-full shadow-md transition-all duration-300 ${debtConfig.isEnabled
+                                    ? 'left-7'
+                                    : 'left-1'}`} />
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Progress Bar (Always visible when enabled) */}
+                    {debtConfig.isEnabled && (
+                        <div className="px-5 pb-4">
+                            <div className="bg-white rounded-xl p-4 border border-slate-100">
+                                <div className="flex items-center justify-between mb-2">
+                                    <div className="flex items-center gap-2">
+                                        <Target size={16} className="text-slate-500" />
+                                        <span className="text-sm font-medium text-stone-600">เป้าหมายปลดหนี้</span>
+                                    </div>
+                                    <div className="text-right">
+                                        <span className="text-lg font-black text-slate-700">
+                                            {formatCurrency(debtConfig.accumulatedAmount)}
+                                        </span>
+                                        <span className="text-stone-400 text-sm"> / {formatCurrency(debtConfig.targetAmount)}</span>
+                                        <span className="ml-2 text-xs font-bold text-slate-500">
+                                            ({debtProgress.toFixed(1)}%)
+                                        </span>
+                                    </div>
+                                </div>
+                                <div className="h-3 bg-stone-100 rounded-full overflow-hidden">
+                                    <div
+                                        className="h-full bg-gradient-to-r from-slate-500 to-gray-600 rounded-full transition-all duration-500 relative"
+                                        style={{ width: `${Math.min(debtProgress, 100)}%` }}
+                                    >
+                                        {debtProgress >= 100 && (
+                                            <div className="absolute inset-0 bg-gradient-to-r from-emerald-400 to-teal-500 animate-pulse" />
+                                        )}
+                                    </div>
+                                </div>
+                                {/* Milestones */}
+                                <div className="flex justify-between mt-1 text-[10px] text-stone-400 font-medium">
+                                    <span>0%</span>
+                                    <span className={debtProgress >= 25 ? 'text-slate-500' : ''}>25%</span>
+                                    <span className={debtProgress >= 50 ? 'text-slate-500' : ''}>50%</span>
+                                    <span className={debtProgress >= 75 ? 'text-slate-500' : ''}>75%</span>
+                                    <span className={debtProgress >= 100 ? 'text-emerald-500 font-bold' : ''}>🏆</span>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Settings Panel (Expandable) */}
+                    {debtConfig.isEnabled && showDebtSettings && (
+                        <div className="px-5 pb-4">
+                            <div className="bg-white rounded-xl p-4 border border-slate-100 space-y-4">
+                                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+                                    {/* Fixed Amount */}
+                                    <div>
+                                        <label className="text-xs font-medium text-stone-500 mb-1 block">
+                                            ยอดหักคงที่
+                                        </label>
+                                        <div className="relative">
+                                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 text-sm">฿</span>
+                                            <input
+                                                type="number"
+                                                value={localDebtConfig.fixedAmount}
+                                                onChange={(e) => setLocalDebtConfig(prev => ({ ...prev, fixedAmount: Number(e.target.value) }))}
+                                                className="w-full pl-8 pr-3 py-2.5 bg-stone-50 border border-stone-200 rounded-xl text-stone-700 font-bold focus:ring-2 focus:ring-slate-300 focus:border-slate-400 transition-all"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    {/* Safety Threshold */}
+                                    <div>
+                                        <label className="text-xs font-medium text-stone-500 mb-1 block">
+                                            จุดปลอดภัย
+                                        </label>
+                                        <div className="relative">
+                                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 text-sm">฿</span>
+                                            <input
+                                                type="number"
+                                                value={localDebtConfig.safetyThreshold}
+                                                onChange={(e) => setLocalDebtConfig(prev => ({ ...prev, safetyThreshold: Number(e.target.value) }))}
+                                                className="w-full pl-8 pr-3 py-2.5 bg-stone-50 border border-stone-200 rounded-xl text-stone-700 font-bold focus:ring-2 focus:ring-slate-300 focus:border-slate-400 transition-all"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    {/* Safety Ratio */}
+                                    <div>
+                                        <label className="text-xs font-medium text-stone-500 mb-1 block">
+                                            สัดส่วน Safety
+                                        </label>
+                                        <div className="relative">
+                                            <input
+                                                type="number"
+                                                value={localDebtConfig.safetyRatio}
+                                                onChange={(e) => setLocalDebtConfig(prev => ({ ...prev, safetyRatio: Number(e.target.value) }))}
+                                                className="w-full pl-3 pr-8 py-2.5 bg-stone-50 border border-stone-200 rounded-xl text-stone-700 font-bold focus:ring-2 focus:ring-slate-300 focus:border-slate-400 transition-all"
+                                            />
+                                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 text-sm">%</span>
+                                        </div>
+                                    </div>
+
+                                    {/* Target Amount */}
+                                    <div>
+                                        <label className="text-xs font-medium text-stone-500 mb-1 block">
+                                            เป้าหมาย
+                                        </label>
+                                        <div className="relative">
+                                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 text-sm">฿</span>
+                                            <input
+                                                type="number"
+                                                value={localDebtConfig.targetAmount}
+                                                onChange={(e) => setLocalDebtConfig(prev => ({ ...prev, targetAmount: Number(e.target.value) }))}
+                                                className="w-full pl-8 pr-3 py-2.5 bg-stone-50 border border-stone-200 rounded-xl text-stone-700 font-bold focus:ring-2 focus:ring-slate-300 focus:border-slate-400 transition-all"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    {/* Accumulated Amount (New) */}
+                                    <div>
+                                        <label className="text-xs font-medium text-stone-500 mb-1 block">
+                                            ยอดสะสมปัจจุบัน
+                                        </label>
+                                        <div className="relative">
+                                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 text-sm">฿</span>
+                                            <input
+                                                type="number"
+                                                value={localDebtConfig.accumulatedAmount}
+                                                onChange={(e) => setLocalDebtConfig(prev => ({ ...prev, accumulatedAmount: Number(e.target.value) }))}
+                                                className="w-full pl-8 pr-3 py-2.5 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-700 font-bold focus:ring-2 focus:ring-emerald-300 focus:border-emerald-400 transition-all"
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Save Button */}
+                                <div className="flex justify-end">
+                                    <button
+                                        onClick={() => {
+                                            updateDebtConfig({
+                                                fixedAmount: localDebtConfig.fixedAmount,
+                                                safetyThreshold: localDebtConfig.safetyThreshold,
+                                                safetyRatio: localDebtConfig.safetyRatio / 100, // Convert back to decimal
+                                                targetAmount: localDebtConfig.targetAmount,
+                                                accumulatedAmount: localDebtConfig.accumulatedAmount
+                                            });
+                                            setShowDebtSettings(false);
+                                        }}
+                                        className="px-4 py-2 bg-gradient-to-r from-slate-500 to-gray-600 text-white rounded-xl font-bold text-sm hover:shadow-lg transition-all flex items-center gap-2"
+                                    >
+                                        <Check size={16} />
+                                        บันทึกการตั้งค่า
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Help Text */}
+                            <div className="text-xs text-stone-400 bg-stone-50 rounded-lg p-3 mt-4">
+                                <p><span className="font-semibold text-stone-500">กฎการหัก:</span> ถ้ากำไร ≥ จุดปลอดภัย → หักยอดคงที่ | ถ้ากำไร &lt; จุดปลอดภัย → หักตามสัดส่วน</p>
+                            </div>
+                        </div>
+                    )}
                 </div>
             </div>
 
@@ -467,6 +737,44 @@ export const AllocationStation: React.FC<AllocationStationProps> = ({ onAllocate
                                 />
                             </div>
                         </div>
+
+                        {/* Debt Deduction Input (Editable) */}
+                        {debtConfig.isEnabled && numAmount > 0 && effectiveDebtAmount > 0 && (
+                            <div className="mt-4 animate-in slide-in-from-top-2">
+                                <div className="bg-rose-50 rounded-xl p-3 border border-rose-100 flex items-center justify-between">
+                                    <div className="flex items-center gap-2">
+                                        <div className="p-1.5 bg-rose-100 rounded-lg text-rose-500">
+                                            <Target size={16} />
+                                        </div>
+                                        <div>
+                                            <p className="text-xs font-bold text-rose-700">หักเข้ากองทุนหนี้</p>
+                                            <p className="text-[10px] text-rose-400">Fixed Priority (อัตโนมัติ)</p>
+                                        </div>
+                                    </div>
+                                    <div className="text-right">
+                                        <span className="text-lg font-black text-rose-600">-{formatCurrency(effectiveDebtAmount)}</span>
+                                    </div>
+                                </div>
+
+                                {/* Connector Arrow */}
+                                <div className="flex justify-center -my-2.5 relative z-10">
+                                    <div className="bg-white rounded-full p-1 border border-stone-100 shadow-sm text-stone-300">
+                                        <ChevronDown size={14} />
+                                    </div>
+                                </div>
+
+                                {/* Net Allocation Amount */}
+                                <div className="bg-stone-50 rounded-xl p-3 border border-stone-200 flex items-center justify-between pt-4">
+                                    <div className="flex items-center gap-2">
+                                        <div className="p-1.5 bg-emerald-100 rounded-lg text-emerald-500">
+                                            <PieChart size={16} />
+                                        </div>
+                                        <span className="text-xs font-bold text-stone-600">ยอดเหลือจัดสรร</span>
+                                    </div>
+                                    <span className="text-xl font-black text-emerald-600">{formatCurrency(Math.max(0, numAmount - effectiveDebtAmount))}</span>
+                                </div>
+                            </div>
+                        )}
 
                         {numAmount > 0 && (
                             <button

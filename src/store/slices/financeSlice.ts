@@ -20,6 +20,54 @@ export const createFinanceSlice: StateCreator<AppState, [], [], FinanceSlice> = 
     allocationProfiles: [],
     defaultProfileId: 'default',
 
+    // Debt-First Allocation Config (v2.0)
+    debtConfig: {
+        isEnabled: false,
+        fixedAmount: 200,
+        safetyThreshold: 400,
+        safetyRatio: 0.5,
+        targetAmount: 40000,
+        accumulatedAmount: 0
+    },
+
+    updateDebtConfig: async (config) => {
+        set((state) => ({ debtConfig: { ...state.debtConfig, ...config } }));
+        const newConfig = { ...get().debtConfig, ...config };
+
+        // Persist to Supabase
+        const { data } = await supabase.from('debt_config').select('id').single();
+        const dbData = {
+            is_enabled: newConfig.isEnabled,
+            fixed_amount: newConfig.fixedAmount,
+            safety_threshold: newConfig.safetyThreshold,
+            safety_ratio: newConfig.safetyRatio,
+            target_amount: newConfig.targetAmount,
+            accumulated_amount: newConfig.accumulatedAmount,
+            updated_at: new Date().toISOString()
+        };
+
+        if (data?.id) {
+            await supabase.from('debt_config').update(dbData).eq('id', data.id);
+        } else {
+            await supabase.from('debt_config').insert(dbData);
+        }
+    },
+
+    addToDebtAccumulated: async (amount) => {
+        set((state) => ({
+            debtConfig: {
+                ...state.debtConfig,
+                accumulatedAmount: state.debtConfig.accumulatedAmount + amount
+            }
+        }));
+        const newAccumulated = get().debtConfig.accumulatedAmount;
+
+        const { data } = await supabase.from('debt_config').select('id').single();
+        if (data?.id) {
+            await supabase.from('debt_config').update({ accumulated_amount: newAccumulated }).eq('id', data.id);
+        }
+    },
+
     addTransaction: async (transaction) => {
         set((state) => ({ transactions: [transaction, ...state.transactions] }));
         const dbTransaction: Record<string, unknown> = {

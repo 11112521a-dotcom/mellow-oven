@@ -212,8 +212,12 @@ export const MarketComparisonTable: React.FC<MarketComparisonTableProps> = ({
                                         </span>
                                     </td>
                                     <td className="px-4 py-4 text-right text-stone-500 text-sm">
-                                        {market.topProducts[0]?.productName || '-'}
-                                    </td>
+                                        <div className="flex flex-col items-end">
+                                            <span>{market.topProducts[0]?.productName || '-'}</span>
+                                            {market.topProducts[0]?.variantName && (
+                                                <span className="text-xs text-stone-500 font-medium">({market.topProducts[0].variantName})</span>
+                                            )}
+                                        </div>                                    </td>
                                     <td className="px-4 py-4 text-right">
                                         <span className="opacity-0 group-hover:opacity-100 transition-opacity text-indigo-600">
                                             <ChevronRight size={18} />

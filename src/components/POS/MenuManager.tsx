@@ -458,7 +458,7 @@ export const MenuManager: React.FC = () => {
                                                 const priceInput = document.getElementById('variant-price') as HTMLInputElement;
                                                 if (nameInput.value && priceInput.value) {
                                                     setVariants([...variants, {
-                                                        id: Date.now().toString(36) + Math.random().toString(36).substr(2),
+                                                        id: crypto.randomUUID(),
                                                         name: nameInput.value,
                                                         price: Number(priceInput.value),
                                                         cost: 0 // Default, can be updated via recipe later

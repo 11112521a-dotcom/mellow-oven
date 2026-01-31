@@ -109,6 +109,23 @@ export const ProductVariantPicker: React.FC<ProductVariantPickerProps> = ({
         }).filter(i => i.quantity > 0));
     };
 
+    // 📝 Set quantity directly (for input field)
+    const setQuantity = (productId: string, variantId: string | null, newQty: number) => {
+        if (newQty <= 0) {
+            // Remove item if qty is 0 or less
+            onItemsChange(selectedItems.filter(i =>
+                !(i.productId === productId && i.variantId === variantId)
+            ));
+        } else {
+            onItemsChange(selectedItems.map(i => {
+                if (i.productId === productId && i.variantId === variantId) {
+                    return { ...i, quantity: newQty };
+                }
+                return i;
+            }));
+        }
+    };
+
     const getItemQuantity = (productId: string, variantId: string | null): number => {
         const item = selectedItems.find(i =>
             i.productId === productId && i.variantId === variantId
@@ -184,7 +201,16 @@ export const ProductVariantPicker: React.FC<ProductVariantPickerProps> = ({
                                                                         </button>
                                                                     )}
                                                                     {qty > 0 && (
-                                                                        <span className="w-8 text-center text-sm font-semibold">{qty}</span>
+                                                                        <input
+                                                                            type="number"
+                                                                            value={qty}
+                                                                            onChange={(e) => {
+                                                                                const val = parseInt(e.target.value) || 0;
+                                                                                setQuantity(product.id, variant.id, val);
+                                                                            }}
+                                                                            className="w-12 text-center text-sm font-semibold border border-gray-200 rounded py-0.5"
+                                                                            min={0}
+                                                                        />
                                                                     )}
                                                                     <button
                                                                         onClick={() => addItem(product, variant.id, variant.name)}
@@ -215,9 +241,16 @@ export const ProductVariantPicker: React.FC<ProductVariantPickerProps> = ({
                                                             >
                                                                 <Minus className="w-3 h-3" />
                                                             </button>
-                                                            <span className="w-8 text-center text-sm font-semibold">
-                                                                {getItemQuantity(product.id, null)}
-                                                            </span>
+                                                            <input
+                                                                type="number"
+                                                                value={getItemQuantity(product.id, null)}
+                                                                onChange={(e) => {
+                                                                    const val = parseInt(e.target.value) || 0;
+                                                                    setQuantity(product.id, null, val);
+                                                                }}
+                                                                className="w-12 text-center text-sm font-semibold border border-gray-200 rounded py-0.5"
+                                                                min={0}
+                                                            />
                                                         </>
                                                     )}
                                                     <button

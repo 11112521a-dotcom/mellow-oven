@@ -3,10 +3,10 @@ import { useStore } from '@/src/store';
 import { Product, DailyProductionLog, Variant } from '@/types';
 import { formatCurrency } from '@/src/lib/utils';
 import { NumberInput } from '@/src/components/ui/NumberInput';
-import { Calendar, Store, Save, ShoppingCart, Package, TrendingUp, AlertCircle, Check, X, Sparkles, ArrowRight, Sun, Cloud, CloudRain, CloudLightning, ChevronDown, ChevronUp } from 'lucide-react';
+import { Calendar, Store, Save, ShoppingCart, Package, TrendingUp, AlertCircle, Check, X, Sparkles, ArrowRight, Sun, Cloud, CloudRain, CloudLightning, ChevronDown, ChevronUp, Wind, ThermometerSnowflake } from 'lucide-react';
 
 // Weather type
-type WeatherCondition = 'sunny' | 'cloudy' | 'rain' | 'storm' | null;
+type WeatherCondition = 'sunny' | 'cloudy' | 'rain' | 'storm' | 'wind' | 'cold' | null;
 
 // Confirmation Modal (Same pattern as Stock Log)
 const ConfirmModal: React.FC<{
@@ -493,6 +493,8 @@ export const DailySalesForm: React.FC = () => {
                                 { id: 'cloudy', icon: <Cloud size={20} />, label: 'เมฆ', color: 'text-gray-300 bg-gray-500/30' },
                                 { id: 'rain', icon: <CloudRain size={20} />, label: 'ฝน', color: 'text-blue-300 bg-blue-500/30' },
                                 { id: 'storm', icon: <CloudLightning size={20} />, label: 'พายุ', color: 'text-purple-300 bg-purple-500/30' },
+                                { id: 'wind', icon: <Wind size={20} />, label: 'ลมแรง', color: 'text-teal-300 bg-teal-500/30' },
+                                { id: 'cold', icon: <ThermometerSnowflake size={20} />, label: 'หนาว', color: 'text-cyan-300 bg-cyan-500/30' },
                             ].map(w => (
                                 <button
                                     key={w.id}

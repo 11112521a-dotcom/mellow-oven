@@ -64,6 +64,16 @@ export interface UnallocatedProfit {
   createdAt: string;
 }
 
+// Debt-First Allocation Configuration (v2.0)
+export interface DebtAllocationConfig {
+  isEnabled: boolean;           // Toggle debt-first mode
+  fixedAmount: number;          // Fixed deduction amount (e.g., 200)
+  safetyThreshold: number;      // Safety threshold (e.g., 400)
+  safetyRatio: number;          // Ratio when below threshold (e.g., 0.5 = 50%)
+  targetAmount: number;         // Goal amount (e.g., 40,000)
+  accumulatedAmount: number;    // Current progress
+}
+
 export interface ProductSaleLog {
   id: string;
   recordedAt: string;       // ISO timestamp when logged
@@ -83,7 +93,7 @@ export interface ProductSaleLog {
   grossProfit: number;          // revenue - cost
 
   // NEW: Weather tracking
-  weatherCondition?: string; // 'sunny' | 'cloudy' | 'rain' | 'storm'
+  weatherCondition?: string; // 'sunny' | 'cloudy' | 'rain' | 'storm' | 'wind' | 'cold'
   wasteQty?: number;         // Quantity wasted/thrown away
 
   // NEW: Variant Tracking
@@ -239,6 +249,7 @@ export interface DailyInventory {
   id: string;
   createdAt: string;
   businessDate: string; // YYYY-MM-DD
+  marketId?: string;     // NEW: Optional for multi-market support
   productId: string;
   variantId?: string;    // NEW: Optional for variant-level tracking
   variantName?: string;  // NEW: Snapshot for historical accuracy

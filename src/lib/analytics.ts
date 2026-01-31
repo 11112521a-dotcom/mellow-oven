@@ -174,16 +174,25 @@ export const calculateMenuMatrix = (logs: any[], products: Product[]) => {
  * Weather Impact Multiplier
  * คำนวณผลกระทบสภาพอากาศต่อยอดขาย
  */
+/**
+ * Weather Impact Multiplier
+ * คำนวณผลกระทบสภาพอากาศต่อยอดขาย
+ * @param weather Weather condition string (case-insensitive)
+ * @returns Multiplier for sales forecast (default 1.0)
+ */
 export const getWeatherImpact = (weather: string): number => {
+    const normalizedWeather = weather?.toLowerCase() || '';
     const impacts: Record<string, number> = {
-        'Sunny': 1.15,      // แดดจ้า +15%
-        'Cloudy': 1.0,      // เมฆมาก ปกติ
-        'Rainy': 0.65,      // ฝนตก -35%
-        'Storm': 0.40,      // พายุ -60%
-        'Windy': 0.85,      // ลมแรง -15%
-        'Cold': 1.10        // หนาว +10% (เครื่องดื่มร้อนขายดี)
+        'sunny': 1.15,      // แดดจ้า +15%
+        'cloudy': 1.0,      // เมฆมาก ปกติ
+        'rain': 0.65,       // ฝนตก -35%
+        'rainy': 0.65,      // ฝนตก -35% (legacy)
+        'storm': 0.40,      // พายุ -60%
+        'wind': 0.85,       // ลมแรง -15%
+        'windy': 0.85,      // ลมแรง -15% (legacy)
+        'cold': 1.10        // หนาว +10% (เครื่องดื่มร้อนขายดี)
     };
-    return impacts[weather] || 1.0;
+    return impacts[normalizedWeather] || 1.0;
 };
 
 /**

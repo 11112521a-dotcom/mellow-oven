@@ -1,4 +1,14 @@
-import React, { useState, useMemo, useCallback } from 'react';
+// ============================================================
+// 📊 Dashboard Overview - REDESIGNED
+// Business Command Center with enhanced insights
+// 🛡️ Mellow Oven Standards Compliance:
+// - #17: Accessibility (aria-labels, semantic HTML)
+// - #22: 44px min button size
+// - #16: Memoization for performance
+// - #19: All constants named
+// ============================================================
+
+import React, { useState, useMemo } from 'react';
 import { useStore } from '@/src/store';
 import { formatCurrency } from '@/src/lib/utils';
 import {
@@ -6,17 +16,30 @@ import {
   ShoppingBag, Calendar as CalendarIcon, ArrowRight, Store, ChevronDown,
   ChevronUp, Sparkles, Zap, Award, PieChart, BarChart3, Flame, Percent,
   ArrowUpRight, ArrowDownRight, Wallet, Sun, Moon, CloudSun, Lightbulb,
-  AlertCircle, CheckCircle, Info, Trash2, Clock, LayoutGrid, RefreshCw
+  AlertCircle, CheckCircle, Info, Trash2, Clock, LayoutGrid, RefreshCw,
+  TrendingUp as TrendUp, Minus, ExternalLink
 } from 'lucide-react';
-import { startOfMonth, endOfMonth, differenceInDays, startOfWeek, startOfDay, endOfDay } from 'date-fns';
+import { startOfMonth, endOfMonth, differenceInDays, startOfWeek, startOfDay, endOfDay, format, subDays } from 'date-fns';
+import { th } from 'date-fns/locale';
 import { GoalCard } from '@/src/components/Finance/GoalCard';
 import { GoalModal } from '@/src/components/Finance/GoalModal';
-import { MarketDetailView, ComparisonView, MarketComparisonTable } from '@/src/components/Dashboard';
+import { DebtProgressWidget } from '@/src/components/Finance/DebtProgressWidget'; // Enhanced import
+import { MarketDetailView, ComparisonView, MarketComparisonTable, EnhancedComparisonView, EnhancedMarketDetailView } from '@/src/components/Dashboard';
 import { calculateDetailedMarketData, DateRange } from '@/src/lib/dashboard/dashboardUtils';
 
 interface DashboardProps { onNavigate?: (page: string) => void; }
 
-// Get greeting based on time
+// ============================================================
+// Constants (Rule #19)
+// ============================================================
+const MAX_INSIGHTS = 4;
+const MAX_LOW_STOCK_DISPLAY = 12;
+const TOP_PRODUCTS_COUNT = 5;
+const TREND_DAYS = 7;
+
+// ============================================================
+// Helper Functions
+// ============================================================
 const getGreeting = () => {
   const hour = new Date().getHours();
   if (hour < 12) return { text: 'Good Morning', icon: <Sun className="text-amber-400" size={24} />, emoji: '☀️' };
@@ -24,12 +47,125 @@ const getGreeting = () => {
   return { text: 'Good Evening', icon: <Moon className="text-indigo-400" size={24} />, emoji: '🌙' };
 };
 
-// Clean Stat Card - Minimal design
+// ============================================================
+// Enhanced Components
+// ============================================================
+
+// Quick Summary Banner - Shows daily performance at a glance
+const QuickSummaryBanner: React.FC<{
+  todayRevenue: number;
+  yesterdayRevenue: number;
+  todayProfit: number;
+  yesterdayProfit: number;
+  sellThrough: number;
+}> = ({ todayRevenue, yesterdayRevenue, todayProfit, yesterdayProfit, sellThrough }) => {
+  const revenueChange = yesterdayRevenue > 0 ? ((todayRevenue - yesterdayRevenue) / yesterdayRevenue) * 100 : 0;
+
+  const isPositive = revenueChange >= 0;
+  const emoji = isPositive ? '📈' : '📉';
+  const message = todayRevenue === 0
+    ? 'ยังไม่มียอดขายวันนี้'
+    : isPositive
+      ? `วันนี้ดีกว่าเมื่อวาน ${Math.abs(revenueChange).toFixed(0)}%`
+      : `วันนี้ต่ำกว่าเมื่อวาน ${Math.abs(revenueChange).toFixed(0)}%`;
+
+  return (
+    <div className={`rounded-2xl p-4 border ${isPositive
+      ? 'bg-gradient-to-r from-emerald-50 to-teal-50 border-emerald-200'
+      : 'bg-gradient-to-r from-amber-50 to-orange-50 border-amber-200'
+      }`}>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-2xl ${isPositive ? 'bg-emerald-100' : 'bg-amber-100'}`}>
+            {emoji}
+          </div>
+          <div>
+            <p className={`text-lg font-bold ${isPositive ? 'text-emerald-800' : 'text-amber-800'}`}>
+              {message}
+            </p>
+            <p className="text-sm text-stone-500">
+              รายรับ {formatCurrency(todayRevenue)} • กำไร {formatCurrency(todayProfit)}
+            </p>
+          </div>
+        </div>
+
+        {sellThrough > 0 && (
+          <div className="flex items-center gap-2 bg-white/60 rounded-xl px-4 py-2">
+            <span className="text-sm text-stone-500">Sell-Through</span>
+            <span className={`text-lg font-bold ${sellThrough >= 80 ? 'text-emerald-600' : sellThrough >= 50 ? 'text-amber-600' : 'text-rose-600'}`}>
+              {sellThrough.toFixed(0)}%
+            </span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// 7-Day Mini Trend Chart
+const MiniTrendChart: React.FC<{
+  data: { date: string; revenue: number; profit: number }[];
+  height?: number;
+}> = ({ data, height = 60 }) => {
+  if (data.length === 0) return null;
+
+  const maxRevenue = Math.max(...data.map(d => d.revenue), 1);
+  const barWidth = 100 / data.length;
+
+  return (
+    <div className="bg-white rounded-2xl p-4 border border-stone-200">
+      <div className="flex items-center justify-between mb-3">
+        <h4 className="text-sm font-bold text-stone-700 flex items-center gap-2">
+          <BarChart3 size={16} className="text-indigo-500" />
+          แนวโน้ม 7 วัน
+        </h4>
+        <span className="text-xs text-stone-400">รายรับ</span>
+      </div>
+
+      <div className="flex items-end gap-1" style={{ height }}>
+        {data.map((day, idx) => {
+          const barHeight = (day.revenue / maxRevenue) * 100;
+          const isToday = idx === data.length - 1;
+          return (
+            <div
+              key={day.date}
+              className="flex-1 flex flex-col items-center"
+              title={`${day.date}: ${formatCurrency(day.revenue)}`}
+            >
+              <div
+                className={`w-full rounded-t-sm transition-all ${isToday
+                  ? 'bg-gradient-to-t from-indigo-500 to-violet-500'
+                  : 'bg-indigo-200 hover:bg-indigo-300'
+                  }`}
+                style={{ height: `${Math.max(barHeight, 5)}%` }}
+              />
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="flex justify-between mt-2 text-xs text-stone-400">
+        {data.length > 0 && (
+          <>
+            <span>{format(new Date(data[0].date), 'd MMM', { locale: th })}</span>
+            <span>{format(new Date(data[data.length - 1].date), 'd MMM', { locale: th })}</span>
+          </>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// Enhanced Stat Card with spark indicator
 const StatCard: React.FC<{
   label: string; value: string; subValue?: string; icon: React.ReactNode;
   color: string; trend?: { value: number; label: string };
-}> = ({ label, value, subValue, icon, color, trend }) => (
-  <div className="bg-white rounded-2xl p-5 border border-stone-100 shadow-sm hover:shadow-md transition-all duration-300">
+  highlight?: boolean;
+}> = ({ label, value, subValue, icon, color, trend, highlight }) => (
+  <div className={`rounded-2xl p-5 border shadow-sm hover:shadow-md transition-all duration-300 ${highlight
+    ? 'bg-gradient-to-br from-emerald-50 to-teal-50 border-emerald-200'
+    : 'bg-white border-stone-100'
+    }`}>
     <div className="flex items-start justify-between mb-3">
       <div className={`p-2.5 rounded-xl ${color}`}>
         {icon}
@@ -94,20 +230,82 @@ const SectionHeader: React.FC<{ title: string; icon: React.ReactNode; action?: {
       {icon} {title}
     </h3>
     {action && (
-      <button onClick={action.onClick} className="text-sm text-amber-600 hover:text-amber-700 font-medium flex items-center gap-1 hover:underline">
+      <button onClick={action.onClick} className="text-sm text-amber-600 hover:text-amber-700 font-medium flex items-center gap-1 hover:underline min-h-[44px] px-2">
         {action.label} <ArrowRight size={14} />
       </button>
     )}
   </div>
 );
 
-// ============================================================
-// Constants (Rule #19)
-// ============================================================
-const MAX_INSIGHTS = 4;
-const MAX_LOW_STOCK_DISPLAY = 12;
-const TOP_PRODUCTS_COUNT = 5;
+// Market Performance Bar
+const MarketBar: React.FC<{
+  marketId: string;
+  name: string;
+  revenue: number;
+  profit: number;
+  maxRevenue: number;
+  rank: number;
+  onClick?: (id: string) => void;
+}> = ({ marketId, name, revenue, profit, maxRevenue, rank, onClick }) => {
+  const width = maxRevenue > 0 ? (revenue / maxRevenue) * 100 : 0;
+  const rankColors = ['bg-amber-400', 'bg-stone-300', 'bg-amber-600'];
 
+  return (
+    <div
+      className="group cursor-pointer p-1 -mx-1 rounded-xl hover:bg-stone-50 transition-all duration-200"
+      onClick={() => onClick?.(marketId)}
+      role="button"
+      tabIndex={0}
+      aria-label={`ดูรายละเอียดตลาด ${name}`}
+    >
+      <div className="flex items-center justify-between mb-1.5">
+        <div className="flex items-center gap-2">
+          {rank <= 3 && (
+            <span className={`w-5 h-5 rounded-full text-[10px] font-bold text-white flex items-center justify-center ${rankColors[rank - 1] || 'bg-stone-400'}`}>
+              {rank}
+            </span>
+          )}
+          <span className="font-semibold text-stone-700 text-sm group-hover:text-amber-600 transition-colors">{name}</span>
+        </div>
+        <div className="text-right">
+          <span className="font-bold text-stone-800">{formatCurrency(revenue)}</span>
+          <span className="text-[10px] text-emerald-600 ml-2 font-medium">+{formatCurrency(profit)}</span>
+        </div>
+      </div>
+      <div className="h-2 bg-stone-100 rounded-full overflow-hidden">
+        <div
+          className="h-full bg-gradient-to-r from-sky-400 to-indigo-500 rounded-full transition-all duration-500 group-hover:from-amber-400 group-hover:to-orange-500 shadow-sm"
+          style={{ width: `${width}%` }}
+        />
+      </div>
+    </div>
+  );
+};
+
+// Financial Health Jar Card
+const JarCard: React.FC<{
+  name: string;
+  balance: number;
+  totalBalance: number;
+  color: string;
+}> = ({ name, balance, totalBalance, color }) => {
+  const percentage = totalBalance > 0 ? (balance / totalBalance) * 100 : 0;
+
+  return (
+    <div className="bg-white rounded-xl p-4 text-center border border-amber-100 hover:shadow-md transition-all group">
+      <p className="text-xs text-stone-500 mb-1">{name}</p>
+      <p className="text-lg font-bold text-stone-800">{formatCurrency(balance)}</p>
+      <div className="mt-2 h-1.5 bg-stone-100 rounded-full overflow-hidden">
+        <div className={`h-full ${color} transition-all`} style={{ width: `${percentage}%` }} />
+      </div>
+      <p className="text-xs text-stone-400 mt-1">{percentage.toFixed(0)}%</p>
+    </div>
+  );
+};
+
+// ============================================================
+// Main Dashboard Component
+// ============================================================
 const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
   // 🛡️ Rule #4: Selective Zustand subscriptions
   const products = useStore((state) => state.products);
@@ -120,19 +318,17 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
   const unallocatedProfits = useStore((state) => state.unallocatedProfits);
   const purchaseOrders = useStore((state) => state.purchaseOrders);
   const stockLogs = useStore((state) => state.stockLogs);
+  const debtConfig = useStore((state) => state.debtConfig); // New Debt Config
 
   const [isGoalModalOpen, setIsGoalModalOpen] = useState(false);
   const [editingGoal, setEditingGoal] = useState<any>(null);
   const [showLowStock, setShowLowStock] = useState(false);
-  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const [dateRange, setDateRange] = useState<{ from: Date; to: Date; label: string }>({ from: startOfDay(new Date()), to: endOfDay(new Date()), label: 'วันนี้' });
   const [selectedMarket, setSelectedMarket] = useState<string>('all');
 
-  // NEW: Tab navigation for Dashboard views
+  // Tab navigation
   const [activeTab, setActiveTab] = useState<'overview' | 'markets' | 'comparison'>('overview');
-  // NEW: Market detail view state
   const [selectedMarketForDetail, setSelectedMarketForDetail] = useState<string | null>(null);
-  // NEW: Comparison market filter
   const [comparisonMarketId, setComparisonMarketId] = useState<string | undefined>(undefined);
 
   const greeting = getGreeting();
@@ -191,6 +387,22 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
 
     return { metrics: currentMetrics, yesterdayMetrics: yesterdayData, trends: trendData };
   }, [filteredSales, dateRange, productSales]);
+
+  // 7-DAY TREND DATA
+  const sevenDayTrend = useMemo(() => {
+    const data: { date: string; revenue: number; profit: number }[] = [];
+    for (let i = 6; i >= 0; i--) {
+      const date = subDays(new Date(), i);
+      const dateStr = format(date, 'yyyy-MM-dd');
+      const daySales = productSales.filter(s => s.saleDate === dateStr);
+      data.push({
+        date: dateStr,
+        revenue: daySales.reduce((sum, s) => sum + s.totalRevenue, 0),
+        profit: daySales.reduce((sum, s) => sum + s.grossProfit, 0)
+      });
+    }
+    return data;
+  }, [productSales]);
 
   // JARS SUMMARY
   const totalBalance = useMemo(() => jars.reduce((sum, j) => sum + j.balance, 0), [jars]);
@@ -261,16 +473,20 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
 
   // MARKET PERFORMANCE
   const marketPerformance = useMemo(() => {
-    const map: Record<string, { name: string; revenue: number; profit: number }> = {};
+    const map: Record<string, { id: string; name: string; revenue: number; profit: number }> = {};
     filteredSales.forEach(s => {
-      if (!map[s.marketId]) map[s.marketId] = { name: s.marketName, revenue: 0, profit: 0 };
+      if (!map[s.marketId]) map[s.marketId] = { id: s.marketId, name: s.marketName, revenue: 0, profit: 0 };
       map[s.marketId].revenue += s.totalRevenue;
       map[s.marketId].profit += s.grossProfit;
     });
     return Object.values(map).sort((a, b) => b.revenue - a.revenue);
   }, [filteredSales]);
 
-  // SMART INSIGHTS (Simple alerts)
+  const maxMarketRevenue = useMemo(() =>
+    Math.max(...marketPerformance.map(m => m.revenue), 1)
+    , [marketPerformance]);
+
+  // SMART INSIGHTS
   const insights = useMemo(() => {
     const alerts: { type: 'success' | 'warning' | 'info'; message: string }[] = [];
 
@@ -303,6 +519,9 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
 
     return alerts.slice(0, MAX_INSIGHTS);
   }, [productionStats, metrics, unallocatedTotal, lowStockItems]);
+
+  // Jar colors
+  const jarColors = ['bg-emerald-400', 'bg-sky-400', 'bg-violet-400', 'bg-amber-400', 'bg-rose-400'];
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500 pb-20 md:pb-12">
@@ -352,7 +571,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
               <button
                 key={key}
                 onClick={() => applyQuickDate(key)}
-                className={`px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200 ${dateRange.label === check
+                className={`px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200 min-h-[44px] ${dateRange.label === check
                   ? 'bg-amber-500 text-white shadow-md shadow-amber-200'
                   : 'bg-white/80 text-stone-600 hover:bg-white hover:shadow-sm border border-amber-100'
                   }`}
@@ -366,7 +585,8 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
               <select
                 value={selectedMarket}
                 onChange={e => setSelectedMarket(e.target.value)}
-                className="px-4 py-2 rounded-xl text-sm font-medium bg-white/80 text-stone-600 border border-amber-100 outline-none focus:ring-2 focus:ring-amber-200"
+                className="px-4 py-2 rounded-xl text-sm font-medium bg-white/80 text-stone-600 border border-amber-100 outline-none focus:ring-2 focus:ring-amber-200 min-h-[44px]"
+                aria-label="เลือกตลาด"
               >
                 <option value="all">🏪 ทุกตลาด</option>
                 {markets.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
@@ -376,129 +596,73 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
         </div>
       </div>
 
-      {/* ═══════════════════════════════════════════════════════════════
-          📑 TAB NAVIGATION - Switch between Dashboard views
-         ═══════════════════════════════════════════════════════════════ */}
-      <div className="flex gap-2 overflow-x-auto pb-2">
-        <button
-          onClick={() => setActiveTab('overview')}
-          className={`flex items-center gap-2 px-5 py-3 rounded-xl font-medium text-sm transition-all min-h-[44px] whitespace-nowrap ${activeTab === 'overview'
-              ? 'bg-amber-100 text-amber-800 border-2 border-amber-300 shadow-sm'
-              : 'bg-white/80 text-stone-600 hover:bg-amber-50 border border-stone-200 hover:border-amber-200'
-            }`}
-          aria-pressed={activeTab === 'overview'}
-        >
-          <LayoutGrid size={18} className={activeTab === 'overview' ? 'text-amber-600' : ''} />
-          📊 ภาพรวม
-        </button>
-        <button
-          onClick={() => setActiveTab('markets')}
-          className={`flex items-center gap-2 px-5 py-3 rounded-xl font-medium text-sm transition-all min-h-[44px] whitespace-nowrap ${activeTab === 'markets'
-              ? 'bg-orange-100 text-orange-800 border-2 border-orange-300 shadow-sm'
-              : 'bg-white/80 text-stone-600 hover:bg-orange-50 border border-stone-200 hover:border-orange-200'
-            }`}
-          aria-pressed={activeTab === 'markets'}
-        >
-          <Store size={18} className={activeTab === 'markets' ? 'text-orange-600' : ''} />
-          🏪 ตามตลาด
-        </button>
-        <button
-          onClick={() => setActiveTab('comparison')}
-          className={`flex items-center gap-2 px-5 py-3 rounded-xl font-medium text-sm transition-all min-h-[44px] whitespace-nowrap ${activeTab === 'comparison'
-              ? 'bg-yellow-100 text-yellow-800 border-2 border-yellow-300 shadow-sm'
-              : 'bg-white/80 text-stone-600 hover:bg-yellow-50 border border-stone-200 hover:border-yellow-200'
-            }`}
-          aria-pressed={activeTab === 'comparison'}
-        >
-          <RefreshCw size={18} className={activeTab === 'comparison' ? 'text-yellow-600' : ''} />
-          📈 เปรียบเทียบ
-        </button>
-      </div>
-
-      {/* ═══════════════════════════════════════════════════════════════
-          🏪 MARKET DETAIL MODAL - Comprehensive market analytics
-         ═══════════════════════════════════════════════════════════════ */}
-      {selectedMarketForDetail && (() => {
-        const marketData = calculateDetailedMarketData(
-          productSales,
-          selectedMarketForDetail,
-          markets.find(m => m.id === selectedMarketForDetail)?.name || '',
-          dateRange as DateRange
-        );
-        return (
-          <MarketDetailView
-            data={marketData}
-            onClose={() => setSelectedMarketForDetail(null)}
+      {/* 🏪 MARKET DETAIL PAGE MODE (FULL SCREEN OVERLAY) */}
+      {selectedMarketForDetail ? (
+        <EnhancedMarketDetailView
+          marketId={selectedMarketForDetail}
+          marketName={markets.find(m => m.id === selectedMarketForDetail)?.name || ''}
+          sales={productSales}
+          totalRevenue={productSales.filter(s => s.saleDate >= format(dateRange.from, 'yyyy-MM-dd') && s.saleDate <= format(dateRange.to, 'yyyy-MM-dd')).reduce((sum, s) => sum + s.totalRevenue, 0)}
+          fromDate={format(dateRange.from, 'yyyy-MM-dd')}
+          toDate={format(dateRange.to, 'yyyy-MM-dd')}
+          onClose={() => setSelectedMarketForDetail(null)}
+          isModal={false}
+        />
+      ) : (
+        <div className="space-y-6">
+          {/* 🚀 QUICK SUMMARY BANNER - At a glance performance */}
+          <QuickSummaryBanner
+            todayRevenue={metrics.revenue}
+            yesterdayRevenue={yesterdayMetrics.revenue}
+            todayProfit={metrics.profit}
+            yesterdayProfit={yesterdayMetrics.profit}
+            sellThrough={productionStats.sellThrough}
           />
-        );
-      })()}
 
-      {/* ═══════════════════════════════════════════════════════════════
-          📑 TAB CONTENT - Conditional rendering based on active tab
-         ═══════════════════════════════════════════════════════════════ */}
+          {/* 📊 KEY METRICS + 7-DAY TREND */}
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
+            {/* Metrics - 3 columns on large screens */}
+            <div className="lg:col-span-3 grid grid-cols-2 md:grid-cols-4 gap-4">
+              <StatCard
+                label="💰 รายรับรวม"
+                value={formatCurrency(metrics.revenue)}
+                subValue={`${formatCurrency(metrics.perDay)}/วัน`}
+                icon={<DollarSign size={20} className="text-sky-600" />}
+                color="bg-sky-100"
+                trend={trends.revenue !== 0 ? { value: trends.revenue, label: 'vs เมื่อวาน' } : undefined}
+              />
+              <StatCard
+                label="📈 กำไรสุทธิ"
+                value={formatCurrency(metrics.profit)}
+                subValue={`Margin ${metrics.margin.toFixed(0)}%`}
+                icon={<TrendingUp size={20} className="text-emerald-600" />}
+                color="bg-emerald-100"
+                trend={trends.profit !== 0 ? { value: trends.profit, label: 'vs เมื่อวาน' } : undefined}
+                highlight={metrics.margin > 30}
+              />
+              <StatCard
+                label="📦 ขายได้"
+                value={`${metrics.sold} ชิ้น`}
+                icon={<ShoppingBag size={20} className="text-violet-600" />}
+                color="bg-violet-100"
+                trend={trends.sold !== 0 ? { value: trends.sold, label: 'vs เมื่อวาน' } : undefined}
+              />
+              <StatCard
+                label="🏦 ยอดเงินรวม"
+                value={formatCurrency(totalBalance)}
+                subValue={unallocatedTotal > 0 ? `รอจัดสรร ${formatCurrency(unallocatedTotal)}` : undefined}
+                icon={<Wallet size={20} className="text-amber-600" />}
+                color="bg-amber-100"
+              />
+            </div>
 
-      {/* TAB: MARKETS - Market Comparison Table */}
-      {activeTab === 'markets' && (
-        <MarketComparisonTable
-          sales={productSales}
-          markets={markets}
-          dateRange={dateRange as DateRange}
-          onViewMarketDetail={(marketId) => setSelectedMarketForDetail(marketId)}
-        />
-      )}
-
-      {/* TAB: COMPARISON - Period Comparison View */}
-      {activeTab === 'comparison' && (
-        <ComparisonView
-          sales={productSales}
-          markets={markets}
-          selectedMarketId={comparisonMarketId}
-          onMarketChange={setComparisonMarketId}
-        />
-      )}
-
-      {/* TAB: OVERVIEW - Original Dashboard Content */}
-      {activeTab === 'overview' && (
-        <>
-          {/* ═══════════════════════════════════════════════════════════════
-          📊 KEY METRICS - 4 Column Grid with Trends
-         ═══════════════════════════════════════════════════════════════ */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <StatCard
-              label="💰 รายรับรวม"
-              value={formatCurrency(metrics.revenue)}
-              subValue={`${formatCurrency(metrics.perDay)}/วัน`}
-              icon={<DollarSign size={20} className="text-sky-600" />}
-              color="bg-sky-100"
-              trend={trends.revenue !== 0 ? { value: trends.revenue, label: 'vs เมื่อวาน' } : undefined}
-            />
-            <StatCard
-              label="📈 กำไรสุทธิ"
-              value={formatCurrency(metrics.profit)}
-              subValue={`Margin ${metrics.margin.toFixed(0)}%`}
-              icon={<TrendingUp size={20} className="text-emerald-600" />}
-              color="bg-emerald-100"
-              trend={trends.profit !== 0 ? { value: trends.profit, label: 'vs เมื่อวาน' } : undefined}
-            />
-            <StatCard
-              label="📦 ขายได้"
-              value={`${metrics.sold} ชิ้น`}
-              icon={<ShoppingBag size={20} className="text-violet-600" />}
-              color="bg-violet-100"
-              trend={trends.sold !== 0 ? { value: trends.sold, label: 'vs เมื่อวาน' } : undefined}
-            />
-            <StatCard
-              label="🏦 ยอดเงินรวม"
-              value={formatCurrency(totalBalance)}
-              subValue={unallocatedTotal > 0 ? `รอจัดสรร ${formatCurrency(unallocatedTotal)}` : undefined}
-              icon={<Wallet size={20} className="text-amber-600" />}
-              color="bg-amber-100"
-            />
+            {/* 7-Day Trend Chart */}
+            <div className="lg:col-span-1">
+              <MiniTrendChart data={sevenDayTrend} height={80} />
+            </div>
           </div>
 
-          {/* ═══════════════════════════════════════════════════════════════
-          🧠 SMART INSIGHTS - Clean Alerts
-         ═══════════════════════════════════════════════════════════════ */}
+          {/* 🧠 SMART INSIGHTS - Clean Alerts */}
           {insights.length > 0 && (
             <div className="space-y-2">
               <SectionHeader title="Smart Insights" icon={<Lightbulb className="text-amber-500" size={20} />} />
@@ -510,9 +674,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
             </div>
           )}
 
-          {/* ═══════════════════════════════════════════════════════════════
-          📊 BUSINESS HEALTH - Sell-Through & Waste
-         ═══════════════════════════════════════════════════════════════ */}
+          {/* 📊 BUSINESS HEALTH - Sell-Through & Waste */}
           {productionStats.toShop > 0 && (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               {/* Sell-Through Rate */}
@@ -545,8 +707,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
                 <SectionHeader title="Waste Analysis" icon={<Trash2 className="text-rose-500" size={20} />} />
                 <div className="flex items-center gap-6">
                   <div className="relative w-20 h-20">
-                    <div className={`w-full h-full rounded-full flex items-center justify-center ${productionStats.wasteRate > 10 ? 'bg-rose-100' : 'bg-stone-100'
-                      }`}>
+                    <div className={`w-full h-full rounded-full flex items-center justify-center ${productionStats.wasteRate > 10 ? 'bg-rose-100' : 'bg-stone-100'}`}>
                       <span className={`text-2xl font-bold ${productionStats.wasteRate > 10 ? 'text-rose-600' : 'text-stone-600'}`}>
                         {productionStats.waste}
                       </span>
@@ -575,9 +736,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
             </div>
           )}
 
-          {/* ═══════════════════════════════════════════════════════════════
-          ⚠️ LOW STOCK ALERT - Collapsible
-         ═══════════════════════════════════════════════════════════════ */}
+          {/* ⚠️ LOW STOCK ALERT */}
           {lowStockItems.length > 0 && (
             <div className="bg-rose-50 rounded-2xl p-5 border border-rose-200">
               <div className="flex items-center justify-between mb-3">
@@ -588,11 +747,11 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => setShowLowStock(!showLowStock)}
-                    className="px-3 py-1.5 bg-rose-100 hover:bg-rose-200 text-rose-700 rounded-lg text-sm font-medium transition-colors"
+                    className="px-3 py-1.5 bg-rose-100 hover:bg-rose-200 text-rose-700 rounded-lg text-sm font-medium transition-colors min-h-[44px]"
                   >
                     {showLowStock ? 'ซ่อน' : 'ดูทั้งหมด'}
                   </button>
-                  <button onClick={() => onNavigate?.('inventory')} className="text-sm text-rose-600 hover:underline font-medium">
+                  <button onClick={() => onNavigate?.('inventory')} className="text-sm text-rose-600 hover:underline font-medium min-h-[44px] px-2">
                     ไปเติมของ →
                   </button>
                 </div>
@@ -618,67 +777,10 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
             </div>
           )}
 
-          {/* ═══════════════════════════════════════════════════════════════
-          📦 STOCK ACTIVITY - Pending POs & Recent Movements
-         ═══════════════════════════════════════════════════════════════ */}
-          {(pendingPOs > 0 || recentStockMovements.length > 0) && (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              {/* Pending Purchase Orders */}
-              <div className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-2xl p-5 border border-indigo-100">
-                <SectionHeader
-                  title="สถานะใบสั่งซื้อ"
-                  icon={<Package className="text-indigo-600" size={20} />}
-                  action={{ label: 'ดูทั้งหมด', onClick: () => onNavigate?.('inventory') }}
-                />
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-3xl font-bold text-indigo-700">{pendingPOs}</p>
-                    <p className="text-sm text-indigo-500">รายการรอดำเนินการ</p>
-                  </div>
-                  {pendingPOs > 0 && (
-                    <div className="p-3 bg-indigo-100 rounded-xl">
-                      <Clock className="text-indigo-600" size={28} />
-                    </div>
-                  )}
-                </div>
-              </div>
+          {/* 🛡️ DEBT PROGRESS WIDGET */}
+          <DebtProgressWidget config={debtConfig} />
 
-              {/* Recent Stock Movements */}
-              <div className="bg-white rounded-2xl p-5 border border-stone-100 shadow-sm">
-                <SectionHeader
-                  title="ความเคลื่อนไหวสต็อกล่าสุด"
-                  icon={<Activity className="text-emerald-500" size={20} />}
-                />
-                {recentStockMovements.length > 0 ? (
-                  <div className="space-y-2">
-                    {recentStockMovements.map((log) => (
-                      <div key={log.id} className="flex items-center justify-between p-2 bg-stone-50 rounded-lg">
-                        <div className="flex items-center gap-2">
-                          <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${log.amount > 0 ? 'bg-emerald-100 text-emerald-600' : 'bg-rose-100 text-rose-600'
-                            }`}>
-                            {log.amount > 0 ? '+' : '-'}
-                          </span>
-                          <span className="text-sm font-medium text-stone-700 truncate max-w-[120px]">{log.ingredientName}</span>
-                        </div>
-                        <div className="text-right">
-                          <p className={`text-sm font-bold ${log.amount > 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
-                            {log.amount > 0 ? '+' : ''}{log.amount} {log.unit}
-                          </p>
-                          <p className="text-xs text-stone-400">{log.reason}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-center py-4 text-stone-400">ไม่มีความเคลื่อนไหว</p>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* ═══════════════════════════════════════════════════════════════
-          🏦 FINANCIAL JARS - Clean Overview
-         ═══════════════════════════════════════════════════════════════ */}
+          {/* 🏦 FINANCIAL JARS */}
           <div className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-2xl p-5 border border-amber-100">
             <SectionHeader
               title="สุขภาพการเงิน"
@@ -686,33 +788,33 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
               action={{ label: 'จัดการโถ', onClick: () => onNavigate?.('jars') }}
             />
             <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-              {jars.map(jar => (
-                <div key={jar.id} className="bg-white rounded-xl p-4 text-center border border-amber-100 hover:shadow-md transition-shadow">
-                  <p className="text-xs text-stone-500 mb-1">{jar.name}</p>
-                  <p className="text-lg font-bold text-stone-800">{formatCurrency(jar.balance)}</p>
-                </div>
+              {jars.map((jar, idx) => (
+                <JarCard
+                  key={jar.id}
+                  name={jar.name}
+                  balance={jar.balance}
+                  totalBalance={totalBalance}
+                  color={jarColors[idx % jarColors.length]}
+                />
               ))}
             </div>
           </div>
 
-          {/* ═══════════════════════════════════════════════════════════════
-          📈 INSIGHTS GRID - 2 Columns
-         ═══════════════════════════════════════════════════════════════ */}
+          {/* 📈 INSIGHTS GRID - 2 Columns */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {/* TOP PRODUCTS */}
             <div className="bg-white rounded-2xl p-5 border border-stone-100 shadow-sm">
               <SectionHeader
                 title="Top 5 สินค้าทำกำไร"
                 icon={<Award className="text-amber-500" size={20} />}
-                action={{ label: 'ดูทั้งหมด', onClick: () => onNavigate?.('salesreport') }}
+                action={{ label: 'ดูท้ังหมด', onClick: () => onNavigate?.('salesreport') }}
               />
               {topProducts.length > 0 ? (
                 <div className="space-y-3">
                   {topProducts.map((p, i) => (
                     <div key={i} className="flex items-center justify-between p-3 bg-stone-50 rounded-xl hover:bg-stone-100 transition-colors">
                       <div className="flex items-center gap-3">
-                        <span className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${i === 0 ? 'bg-amber-100 text-amber-700' : i === 1 ? 'bg-stone-200 text-stone-600' : i === 2 ? 'bg-orange-100 text-orange-700' : 'bg-stone-100 text-stone-500'
-                          }`}>
+                        <span className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${i === 0 ? 'bg-amber-100 text-amber-700' : i === 1 ? 'bg-stone-200 text-stone-600' : i === 2 ? 'bg-orange-100 text-orange-700' : 'bg-stone-100 text-stone-500'}`}>
                           {i + 1}
                         </span>
                         <div>
@@ -731,25 +833,26 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
               )}
             </div>
 
-            {/* MARKET PERFORMANCE */}
+            {/* MARKET PERFORMANCE - Bar Chart Style */}
             <div className="bg-white rounded-2xl p-5 border border-stone-100 shadow-sm">
               <SectionHeader
                 title="เปรียบเทียบตลาด"
                 icon={<Store className="text-sky-500" size={20} />}
+                action={{ label: 'ดูละเอียด', onClick: () => onNavigate?.('salesreport') }}
               />
               {marketPerformance.length > 0 ? (
-                <div className="space-y-3">
+                <div className="space-y-4">
                   {marketPerformance.map((m, i) => (
-                    <div key={i} className="flex items-center justify-between p-3 bg-sky-50 rounded-xl">
-                      <div className="flex items-center gap-3">
-                        <Store className="text-sky-500" size={20} />
-                        <span className="font-medium text-stone-700">{m.name}</span>
-                      </div>
-                      <div className="text-right">
-                        <p className="font-bold text-stone-800">{formatCurrency(m.revenue)}</p>
-                        <p className="text-xs text-emerald-600">+{formatCurrency(m.profit)} กำไร</p>
-                      </div>
-                    </div>
+                    <MarketBar
+                      key={i}
+                      marketId={m.id}
+                      name={m.name}
+                      revenue={m.revenue}
+                      profit={m.profit}
+                      maxRevenue={maxMarketRevenue}
+                      rank={i + 1}
+                      onClick={(id) => setSelectedMarketForDetail(id)}
+                    />
                   ))}
                 </div>
               ) : (
@@ -758,9 +861,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
             </div>
           </div>
 
-          {/* ═══════════════════════════════════════════════════════════════
-          🎯 GOALS SECTION
-         ═══════════════════════════════════════════════════════════════ */}
+          {/* 🎯 GOALS SECTION */}
           {goals.length > 0 && (
             <div>
               <SectionHeader title="เป้าหมายทางการเงิน" icon={<Target className="text-amber-600" size={20} />} />
@@ -778,7 +879,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
             jarId={editingGoal?.jarId || 'SAVINGS'}
             editGoal={editingGoal}
           />
-        </>
+        </div>
       )}
     </div>
   );

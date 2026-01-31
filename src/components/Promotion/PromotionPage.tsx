@@ -20,7 +20,8 @@ import {
     Scissors,
     FileText,
     ClipboardList,
-    Receipt
+    Receipt,
+    RefreshCw
 } from 'lucide-react';
 import { Promotion, Bundle, SpecialOrder, SpecialOrderStatus } from '../../../types';
 import { AddPromotionModal } from './AddPromotionModal';
@@ -83,6 +84,11 @@ export const PromotionPage: React.FC = () => {
         return o.deliveryDate === today && o.status !== 'cancelled';
     });
     const deliveredOrders = specialOrders.filter(o => o.status === 'delivered');
+    const unsyncedOrders = deliveredOrders.filter(o => {
+        const expectedSource = `special_order:${o.orderNumber}`;
+        const hasProfit = useStore.getState().unallocatedProfits.some(p => p.source === expectedSource);
+        return !hasProfit;
+    });
 
     const handleSyncProfits = async () => {
         setIsSyncing(true);
@@ -126,15 +132,38 @@ export const PromotionPage: React.FC = () => {
                             <p className="text-stone-500 text-sm font-medium mt-1">จัดการโปรโมชั่นและสินค้าชุดพิเศษ</p>
                         </div>
                     </div>
-                    {deliveredOrders.length > 0 && (
+                    {unsyncedOrders.length > 0 && (
                         <button
                             onClick={handleSyncProfits}
                             disabled={isSyncing}
-                            className="bg-cafe-900 hover:bg-cafe-800 text-white px-5 py-2.5 rounded-xl flex items-center gap-2 transition-all shadow-lg hover:shadow-xl active:scale-95 border border-cafe-800"
-                            title="Sync กำไร"
+                            className={`
+                                group relative px-5 py-2.5 rounded-2xl font-bold text-sm transition-all duration-300 shadow-lg hover:shadow-xl active:scale-95 flex items-center gap-2.5 overflow-hidden
+                                ${isSyncing
+                                    ? 'bg-stone-100 text-stone-400 cursor-not-allowed border border-stone-200'
+                                    : 'bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 text-white hover:from-emerald-400 hover:via-teal-400 hover:to-emerald-500 ring-4 ring-emerald-100 border border-emerald-400/20'
+                                }
+                            `}
+                            title="ดึงยอดเงินจากออเดอร์ที่ส่งมอบแล้วเข้าสู่ระบบจัดสรร"
                         >
-                            {isSyncing ? <div className="animate-spin">⏳</div> : <div className="p-1 bg-green-400 rounded-full animate-pulse shadow-[0_0_10px_rgba(74,222,128,0.5)]" />}
-                            <span className="font-bold tracking-wide">{isSyncing ? 'กำลัง Sync...' : 'Sync กำไร'}</span>
+                            <div className={`relative p-1.5 rounded-full ${isSyncing ? 'bg-stone-200' : 'bg-white/20 group-hover:bg-white/30'} transition-colors`}>
+                                <RefreshCw size={18} className={isSyncing ? 'animate-spin' : 'group-hover:rotate-180 transition-transform duration-700'} />
+                                {!isSyncing && (
+                                    <span className="absolute top-0.5 right-0.5 w-2 h-2 bg-yellow-300 rounded-full animate-pulse shadow-[0_0_8px_rgba(253,224,71,0.8)]" />
+                                )}
+                            </div>
+                            <div className="flex flex-col items-start leading-tight">
+                                <span className="text-[10px] opacity-90 font-medium uppercase tracking-wider">
+                                    {isSyncing ? 'Processing...' : 'Ready to Sync'}
+                                </span>
+                                <span className="text-sm font-black tracking-wide">
+                                    {isSyncing ? 'กำลังซิงค์...' : `ดึงกำไร ${unsyncedOrders.length} รายการ`}
+                                </span>
+                            </div>
+
+                            {/* Decorative Sheen */}
+                            {!isSyncing && (
+                                <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 bg-gradient-to-r from-transparent via-white/20 to-transparent skew-x-12" />
+                            )}
                         </button>
                     )}
                 </div>
