@@ -17,7 +17,7 @@ import { Product, Variant } from '@/types';
 
 import {
     XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-    BarChart, Bar, Legend
+    BarChart, Bar, Legend, Area, ComposedChart, Line
 } from 'recharts';
 import { Save, Loader2, Calendar, CloudSun, Store, AlertTriangle, TrendingUp, Package, Target, ArrowUpRight, ArrowDownRight, Sparkles, ChevronDown, Brain, Zap, Info, Rocket, ShieldCheck, Eye, ChevronLeft, Trash2 } from 'lucide-react';
 import { analyzeAccuracy } from '@/src/lib/forecasting/accuracyAnalytics';
@@ -31,7 +31,7 @@ interface ForecastResult {
 }
 
 export const ProductionPlanner: React.FC = () => {
-    const { products, markets, saveForecast, productSales, dailyReports, productionForecasts } = useStore();
+    const { products, markets, saveForecast, productSales, dailyReports, productionForecasts, dailyInventory } = useStore();
     const [activeTab, setActiveTab] = useState<'plan' | 'accuracy'>('plan');
 
     // State for Production Planner
@@ -105,15 +105,15 @@ export const ProductionPlanner: React.FC = () => {
     // Accuracy Calculations - ULTRA VERSION
     const accuracyAnalysis = useMemo(() => {
         if (activeTab !== 'accuracy') return null;
-        return analyzeAccuracy(productionForecasts as any, productSales, products);
-    }, [activeTab, productionForecasts, productSales, products]);
+        return analyzeAccuracy(productionForecasts as any, productSales, products, dailyInventory);
+    }, [activeTab, productionForecasts, productSales, products, dailyInventory]);
 
     const viewingMarketAnalysis = useMemo(() => {
         if (!viewingMarketId || !accuracyAnalysis) return null;
         // Filter forecasts for the selected market
         const filteredForecasts = productionForecasts.filter(f => f.marketId === viewingMarketId);
-        return analyzeAccuracy(filteredForecasts as any, productSales, products);
-    }, [viewingMarketId, accuracyAnalysis, productionForecasts, productSales, products]);
+        return analyzeAccuracy(filteredForecasts as any, productSales, products, dailyInventory);
+    }, [viewingMarketId, accuracyAnalysis, productionForecasts, productSales, products, dailyInventory]);
 
     // Auto-Calculate Logic
     const calculateForecasts = useCallback(async () => {
@@ -702,17 +702,125 @@ export const ProductionPlanner: React.FC = () => {
                             )}
                         </div>
                     ) : (
-                        // Market Grid View (Command Center)
+                        /* Market Grid View (Command Center) */
                         <div className="space-y-6">
+
+                            {/* 🎯 Global Accuracy Scoreboard (Overall Trend) - Moved to Top */}
+                            {accuracyAnalysis && accuracyAnalysis.dailyTrend.length > 0 && (
+                                <div className="bg-white border border-cafe-200 rounded-3xl p-8 shadow-sm">
+                                    <div className="flex items-center justify-between mb-8">
+                                        <div>
+                                            <h2 className="text-2xl font-bold text-cafe-900 flex items-center gap-3">
+                                                <div className="p-3 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl text-white shadow-lg shadow-purple-200">
+                                                    <Target size={28} />
+                                                </div>
+                                                ภาพรวมความแม่นยำ (Overall Accuracy Trend)
+                                            </h2>
+                                            <p className="text-gray-500 mt-2 ml-[60px] text-base">
+                                                วัดผลรวมทุกตลาด: เส้น <span className="text-purple-600 font-bold">สีม่วง</span> คือความแม่นยำ (%) | แท่ง <span className="text-red-400 font-bold">สีแดง</span> คือมูลค่าความเสียหาย (฿)
+                                            </p>
+                                        </div>
+                                        <div className="flex items-center gap-8">
+                                            <div className="text-right">
+                                                <p className="text-sm text-gray-400 mb-1">ความแม่นยำเฉลี่ย (30 วัน)</p>
+                                                <p className="text-4xl font-black text-cafe-900">
+                                                    {accuracyAnalysis.summary.overallAccuracy.toFixed(1)}<span className="text-2xl text-gray-400">%</span>
+                                                </p>
+                                            </div>
+                                            <div className="text-right">
+                                                <p className="text-sm text-gray-400 mb-1">เงินจมรวม</p>
+                                                <p className="text-4xl font-black text-red-500">
+                                                    ฿{accuracyAnalysis.summary.totalWasteCost.toLocaleString()}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="h-[400px] w-full">
+                                        <ResponsiveContainer width="100%" height="100%">
+                                            <ComposedChart data={accuracyAnalysis.dailyTrend.slice(-30)} margin={{ top: 20, right: 0, bottom: 20, left: 0 }}>
+                                                <defs>
+                                                    <linearGradient id="accuracyGradient" x1="0" y1="0" x2="0" y2="1">
+                                                        <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.3} />
+                                                        <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0} />
+                                                    </linearGradient>
+                                                </defs>
+                                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                                                <XAxis
+                                                    dataKey="date"
+                                                    tickFormatter={(date) => new Date(date).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })}
+                                                    tick={{ fill: '#94a3b8', fontSize: 12 }}
+                                                    tickLine={false}
+                                                    axisLine={false}
+                                                    dy={15}
+                                                />
+                                                <YAxis
+                                                    yAxisId="left"
+                                                    domain={[0, 100]}
+                                                    tick={{ fill: '#8b5cf6', fontSize: 12, fontWeight: 600 }}
+                                                    tickLine={false}
+                                                    axisLine={false}
+                                                    unit="%"
+                                                />
+                                                <YAxis
+                                                    yAxisId="right"
+                                                    orientation="right"
+                                                    tick={{ fill: '#f87171', fontSize: 12 }}
+                                                    tickLine={false}
+                                                    axisLine={false}
+                                                    tickFormatter={(val) => `฿${val}`}
+                                                />
+                                                <Tooltip
+                                                    contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)' }}
+                                                    formatter={(value: any, name: string) => {
+                                                        if (name === 'Accuracy') return [`${parseFloat(value).toFixed(1)}%`, '🎯 ความแม่นยำ'];
+                                                        if (name === 'Money Lost') return [`฿${value.toLocaleString()}`, '💸 มูลค่าความเสียหาย'];
+                                                        return [value, name];
+                                                    }}
+                                                    labelFormatter={(label) => new Date(label).toLocaleDateString('th-TH', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+                                                />
+                                                <Legend iconType="circle" wrapperStyle={{ paddingTop: '20px' }} />
+
+                                                {/* Candlestick-like Bars for Money Lost */}
+                                                <Bar
+                                                    yAxisId="right"
+                                                    dataKey="totalWasteCost"
+                                                    name="Money Lost"
+                                                    fill="#f87171"
+                                                    barSize={12}
+                                                    radius={[4, 4, 4, 4]}
+                                                    fillOpacity={0.6}
+                                                />
+
+                                                {/* Smooth Line for Accuracy */}
+                                                <Area
+                                                    yAxisId="left"
+                                                    type="monotone"
+                                                    dataKey="accuracy"
+                                                    name="Accuracy"
+                                                    stroke="#8b5cf6"
+                                                    strokeWidth={4}
+                                                    fill="url(#accuracyGradient)"
+                                                    dot={{ r: 4, strokeWidth: 2, fill: '#fff', stroke: '#8b5cf6' }}
+                                                    activeDot={{ r: 8, strokeWidth: 0, fill: '#8b5cf6' }}
+                                                />
+                                            </ComposedChart>
+                                        </ResponsiveContainer>
+                                    </div>
+                                </div>
+                            )}
+
                             <div className="flex items-center justify-between">
-                                <h2 className="text-2xl font-bold text-cafe-900 flex items-center gap-2">
-                                    <Target className="text-purple-600" />
-                                    Business Command Center
+                                <h2 className="text-xl font-bold text-cafe-900 flex items-center gap-2">
+                                    <Store className="text-gray-400" />
+                                    แยกตามตลาด (Market Breakdown)
                                 </h2>
                                 <div className="text-sm text-cafe-500">
-                                    เลือกตลาดเพื่อดูผลวิเคราะห์ละเอียด
+                                    เลือกตลาดเพื่อดูรายละเอียด
                                 </div>
                             </div>
+
+                            {/* Market Cards Grid */}
 
                             {/* Market Cards Grid */}
                             {accuracyAnalysis && accuracyAnalysis.marketAccuracy.length > 0 ? (

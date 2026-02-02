@@ -351,8 +351,15 @@ export const useStore = create<AppState>()(
                     .on('postgres_changes', { event: '*', schema: 'public', table: 'production_forecasts' }, (payload) => {
                         if (payload.eventType === 'INSERT') {
                             set(state => {
-                                if (state.productionForecasts.some(f => f.id === payload.new.id)) return state;
-                                return { productionForecasts: [mapProductionForecast(payload.new as any), ...state.productionForecasts] };
+                                const newForecast = mapProductionForecast(payload.new as any);
+                                // Filter out any existing forecast with the same unique key (Product + Market + Date)
+                                // This handles replacing the optimistic update (which has a temporary ID) with the real DB record
+                                const filtered = state.productionForecasts.filter(f =>
+                                    !(f.productId === newForecast.productId &&
+                                        f.marketId === newForecast.marketId &&
+                                        f.forecastForDate === newForecast.forecastForDate)
+                                );
+                                return { productionForecasts: [newForecast, ...filtered] };
                             });
                         } else if (payload.eventType === 'UPDATE') {
                             set(state => ({ productionForecasts: state.productionForecasts.map(f => f.id === payload.new.id ? mapProductionForecast(payload.new as any) : f) }));

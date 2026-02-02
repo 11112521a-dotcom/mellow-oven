@@ -49,6 +49,9 @@ import { NumberInput } from '@/src/components/ui/NumberInput';
 import { MarketComparisonTable, EnhancedComparisonView, EnhancedMarketDetailView } from '@/src/components/Dashboard';
 import { DateRange } from '@/src/lib/dashboard/dashboardUtils';
 import { calculateEnhancedMarketData, generateMarketPDFReport } from '@/src/lib/dashboard/marketAnalysisUtils'; // Import new utils
+import { DetailedSalesReportModal } from '@/src/components/Reports/DetailedSalesReportModal';
+import { runOracle, OraclePattern, runComboAnalysis, runCannibalismCheck } from '@/src/lib/oracle/oracleEngine';
+import { OracleInsightCard } from '@/src/components/SalesReport/OracleInsightCard';
 import { FileDown } from 'lucide-react'; // Ensure FileDown is imported
 
 interface EditSalesModalProps {
@@ -138,14 +141,20 @@ const StatCard: React.FC<{
     </div>
 );
 
+// Helper to format date as YYYY-MM-DD in Local Timezone
+const formatDateLocal = (date: Date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+};
+
 export const SalesReport: React.FC = () => {
     const { productSales, markets, products, updateProductSaleLog, specialOrders, dailyInventory, fetchInventoryByDateRange } = useStore();
 
     const [datePreset, setDatePreset] = useState<'today' | 'yesterday' | 'thisWeek' | 'lastWeek' | 'thisMonth' | 'lastMonth' | '3months' | '6months' | 'thisYear' | 'custom'>('today');
-    const [startDate, setStartDate] = useState(() => {
-        return new Date().toISOString().split('T')[0];
-    });
-    const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]);
+    const [startDate, setStartDate] = useState(() => formatDateLocal(new Date()));
+    const [endDate, setEndDate] = useState(() => formatDateLocal(new Date()));
 
     // NEW: Fetch inventory when date range changes
     useEffect(() => {
@@ -159,11 +168,78 @@ export const SalesReport: React.FC = () => {
     const [marketComparisonMode, setMarketComparisonMode] = useState<'revenue' | 'profit' | 'quantity'>('revenue');
     const [expandedProduct, setExpandedProduct] = useState<string | null>(null);
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+    const [isDetailedReportOpen, setIsDetailedReportOpen] = useState(false); // NEW
     const [editingSale, setEditingSale] = useState<any>(null);
 
+    // Oracle Core State
+    const [oraclePatterns, setOraclePatterns] = useState<OraclePattern[]>([]);
+    const [isOracleLoading, setIsOracleLoading] = useState(false);
 
-    // Tab navigation for different views
-    const [activeTab, setActiveTab] = useState<'sales' | 'markets' | 'comparison'>('sales');
+    // Run Oracle on Top Products (Effect)
+    useEffect(() => {
+        if (productSales.length === 0 || products.length === 0) return;
+
+        const runAnalysis = async () => {
+            setIsOracleLoading(true);
+            try {
+                // Filter by market if selected
+                const relevantSales = selectedMarket === 'all'
+                    ? productSales
+                    : productSales.filter(s => s.marketId === selectedMarket);
+
+                // 1. Identify Top Products (Limit to Top 5 for performance)
+                const productRevenueMap = new Map<string, number>();
+                relevantSales.forEach(s => {
+                    const rev = productRevenueMap.get(s.productId) || 0;
+                    productRevenueMap.set(s.productId, rev + s.totalRevenue);
+                });
+                const topProductIds = Array.from(productRevenueMap.entries())
+                    .sort((a, b) => b[1] - a[1])
+                    .slice(0, 5)
+                    .map(e => e[0]);
+
+                // 2. Run Oracle for each top product
+                const allPatterns: OraclePattern[] = [];
+
+                for (const pid of topProductIds) {
+                    const productHistory = relevantSales.filter(s => s.productId === pid);
+                    const product = products.find(p => p.id === pid);
+
+                    if (product && productHistory.length > 5) { // Min data check
+                        const patterns = await runOracle(
+                            product.name,
+                            pid,
+                            productHistory,
+                            relevantSales // Context
+                        );
+                        allPatterns.push(...patterns);
+                    }
+                }
+
+                // 3. Run Combo & Cannibalism Analysis (New Features)
+                const comboPatterns = await runComboAnalysis(relevantSales);
+                const cannibalPatterns = await runCannibalismCheck(relevantSales);
+
+                allPatterns.push(...comboPatterns);
+                allPatterns.push(...cannibalPatterns);
+
+                // 4. Set Results (Sort by Lift Impact)
+                setOraclePatterns(allPatterns.sort((a, b) => Math.abs(b.metrics.lift) - Math.abs(a.metrics.lift)));
+            } catch (error) {
+                console.error("Oracle Analysis Failed:", error);
+            } finally {
+                setIsOracleLoading(false);
+            }
+        };
+
+        // Debounce
+        const timer = setTimeout(runAnalysis, 800);
+        return () => clearTimeout(timer);
+    }, [productSales, products, selectedMarket]);
+
+    // ... (rest of component) ...
+
+    const [activeTab, setActiveTab] = useState<'sales' | 'markets' | 'comparison' | 'patterns'>('sales');
     const [selectedMarketForDetail, setSelectedMarketForDetail] = useState<string | null>(null);
     const [comparisonMarketId, setComparisonMarketId] = useState<string | undefined>(undefined);
 
@@ -199,6 +275,10 @@ export const SalesReport: React.FC = () => {
         setIsEditModalOpen(false);
         setEditingSale(null);
     };
+
+    // Helper to format date as YYYY-MM-DD in Local Timezone
+    // Fixes bug where toISOString() returns yesterday's date due to UTC shift
+    // moved outside component
 
     const applyDatePreset = (preset: typeof datePreset) => {
         const now = new Date();
@@ -252,8 +332,8 @@ export const SalesReport: React.FC = () => {
         }
 
         if (preset !== 'custom') {
-            setStartDate(start.toISOString().split('T')[0]);
-            setEndDate(end.toISOString().split('T')[0]);
+            setStartDate(formatDateLocal(start));
+            setEndDate(formatDateLocal(end));
         }
         setDatePreset(preset);
     };
@@ -265,6 +345,8 @@ export const SalesReport: React.FC = () => {
             return matchDate && matchMarket;
         });
     }, [productSales, startDate, endDate, selectedMarket]);
+
+    // Titan Analytics Removed (Replaced by Oracle Core in Detailed Report)
 
     const summary = useMemo(() => {
         const totalRevenue = filteredSales.reduce((sum, s) => sum + s.totalRevenue, 0);
@@ -604,6 +686,17 @@ export const SalesReport: React.FC = () => {
                     <RefreshCw size={18} className={activeTab === 'comparison' ? 'text-yellow-600' : ''} />
                     📈 เปรียบเทียบ
                 </button>
+                <button
+                    onClick={() => setActiveTab('patterns')}
+                    className={`flex items-center gap-2 px-5 py-3 rounded-xl font-medium text-sm transition-all min-h-[44px] whitespace-nowrap ${activeTab === 'patterns'
+                        ? 'bg-purple-100 text-purple-800 border-2 border-purple-300 shadow-sm'
+                        : 'bg-white/80 text-stone-600 hover:bg-purple-50 border border-stone-200 hover:border-purple-200'
+                        }`}
+                    aria-pressed={activeTab === 'patterns'}
+                >
+                    <Sparkles size={18} className={activeTab === 'patterns' ? 'text-purple-600' : ''} />
+                    🧠 วิเคราะห์
+                </button>
             </div>
 
             {/* ═══════════════════════════════════════════════════════════════
@@ -644,6 +737,27 @@ export const SalesReport: React.FC = () => {
                         />
                     )}
 
+                    {/* TAB: PATTERNS (New Oracle Core) */}
+                    {activeTab === 'patterns' && (
+                        <div className="animate-in fade-in zoom-in duration-300">
+                            <div className="bg-gradient-to-r from-violet-600 to-indigo-600 rounded-2xl p-6 text-white mb-6 shadow-xl relative overflow-hidden">
+                                <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2"></div>
+                                <div className="relative z-10">
+                                    <h2 className="text-2xl font-bold flex items-center gap-3 mb-2">
+                                        <Sparkles className="text-yellow-300" />
+                                        The Oracle Core
+                                    </h2>
+                                    <p className="text-indigo-100 max-w-2xl">
+                                        ระบบวิเคราะห์รูปแบบการขายอัจฉริยะ 7 มิติ (Chrono, Weather, Market, etc.)
+                                        ช่วยค้นหา "The Perfect Storm" และ "Silent Killer" ที่ซ่อนอยู่ในข้อมูลของคุณ
+                                    </p>
+                                </div>
+                            </div>
+
+                            <OracleInsightCard patterns={oraclePatterns} isLoading={isOracleLoading} />
+                        </div>
+                    )}
+
                     {/* TAB: SALES - Original Sales Report Content */}
                     {activeTab === 'sales' && (
                         <>
@@ -664,6 +778,8 @@ export const SalesReport: React.FC = () => {
                                     </div>
                                 </div>
                             </div>
+
+                            {/* Oracle Card Removed from here */}
 
                             {/* NEW: Moneyball Insights Row */}
                             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -1000,6 +1116,7 @@ export const SalesReport: React.FC = () => {
                             )}
 
                             <EditSalesModal isOpen={isEditModalOpen} onClose={() => setIsEditModalOpen(false)} saleData={editingSale} onSave={handleSaveEdit} />
+                            <DetailedSalesReportModal isOpen={isDetailedReportOpen} onClose={() => setIsDetailedReportOpen(false)} />
 
 
                         </>

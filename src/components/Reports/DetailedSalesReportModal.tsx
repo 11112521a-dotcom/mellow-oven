@@ -12,6 +12,9 @@ import { useStore } from '@/src/store';
 import { X, FileText, Calendar, Download, TrendingUp, Store, Package, BarChart3, Printer } from 'lucide-react';
 import { formatCurrency } from '@/src/lib/utils';
 import { numberToBahtText } from '@/src/utils/bahtText';
+// Titan Analytics (Replaced by Oracle Core)
+import { runOracle, OraclePattern } from '@/src/lib/oracle/oracleEngine';
+import { OracleInsightCard } from '../SalesReport/OracleInsightCard';
 
 interface DetailedSalesReportModalProps {
     isOpen: boolean;
@@ -27,7 +30,7 @@ const weatherIcons: Record<string, string> = {
 };
 
 export const DetailedSalesReportModal: React.FC<DetailedSalesReportModalProps> = ({ isOpen, onClose }) => {
-    const { productSales, fetchProductSales, markets, shopInfo } = useStore();
+    const { productSales, fetchProductSales, markets, shopInfo, products } = useStore();
 
     // Date range - default to last 7 days
     const today = new Date().toISOString().split('T')[0];
@@ -36,6 +39,60 @@ export const DetailedSalesReportModal: React.FC<DetailedSalesReportModalProps> =
     const [fromDate, setFromDate] = useState(weekAgo);
     const [toDate, setToDate] = useState(today);
     const [isPrinting, setIsPrinting] = useState(false); // #15: Idempotency
+
+    // Oracle Core State
+    const [oraclePatterns, setOraclePatterns] = useState<OraclePattern[]>([]);
+    const [isOracleLoading, setIsOracleLoading] = useState(false);
+
+    // Run Oracle on Top Products
+    useEffect(() => {
+        if (!isOpen || productSales.length === 0) return;
+
+        const runAnalysis = async () => {
+            setIsOracleLoading(true);
+            try {
+                // 1. Identify Top Products (Limit to Top 5 for performance)
+                const productRevenueMap = new Map<string, number>();
+                productSales.forEach(s => {
+                    const rev = productRevenueMap.get(s.productId) || 0;
+                    productRevenueMap.set(s.productId, rev + s.totalRevenue);
+                });
+                const topProductIds = Array.from(productRevenueMap.entries())
+                    .sort((a, b) => b[1] - a[1])
+                    .slice(0, 5)
+                    .map(e => e[0]);
+
+                // 2. Run Oracle for each top product
+                const allPatterns: OraclePattern[] = [];
+
+                for (const pid of topProductIds) {
+                    const productHistory = productSales.filter(s => s.productId === pid);
+                    const product = products.find(p => p.id === pid);
+
+                    if (product && productHistory.length > 10) { // Min data check
+                        const patterns = await runOracle(
+                            product.name,
+                            pid,
+                            productHistory,
+                            productSales // Context
+                        );
+                        allPatterns.push(...patterns);
+                    }
+                }
+
+                // 3. Set Results (Sort by Lift Impact)
+                setOraclePatterns(allPatterns.sort((a, b) => Math.abs(b.metrics.lift) - Math.abs(a.metrics.lift)));
+            } catch (error) {
+                console.error("Oracle Analysis Failed:", error);
+            } finally {
+                setIsOracleLoading(false);
+            }
+        };
+
+        // Debounce slightly to allow UI to settle
+        const timer = setTimeout(runAnalysis, 500);
+        return () => clearTimeout(timer);
+    }, [isOpen, productSales, products]);
 
     // #22: ESC key to dismiss modal
     useEffect(() => {
@@ -501,6 +558,8 @@ export const DetailedSalesReportModal: React.FC<DetailedSalesReportModalProps> =
             <p>ช่วงวันที่: ${formatDate(fromDate)} - ${formatDate(toDate)} | ${shopInfo?.shopName || 'ร้านค้า'}</p>
         </div>
 
+
+
         <!-- Summary Cards -->
         <div class="summary-grid">
             <div class="summary-card blue">
@@ -686,6 +745,10 @@ export const DetailedSalesReportModal: React.FC<DetailedSalesReportModalProps> =
 
                 {/* Content */}
                 <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                    {/* Titan Analytics Insights */}
+                    {/* Titan Analytics Insights -> Replaced by Oracle Core */}
+                    <OracleInsightCard patterns={oraclePatterns} isLoading={isOracleLoading} />
+
                     {/* Summary Cards */}
                     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
                         <div className="bg-blue-50 p-4 rounded-xl text-center">

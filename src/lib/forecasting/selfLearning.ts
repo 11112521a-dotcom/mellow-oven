@@ -439,6 +439,19 @@ export function getSmartAdjustment(
         }
     }
 
+    // 3. 🛡️ Safety Cap (Architect Nont's Protocol)
+    // Prevent system from "Hallucinating" extreme demand (Max 3x of Raw Forecast)
+    const maxLimit = Math.max(10, rawForecast * 3); // Minimum floor of 10 to allow small items to grow
+    if (adjustedForecast > maxLimit) {
+        const reduction = adjustedForecast - maxLimit;
+        adjustments.push({
+            source: 'Safety Cap 🛡️ (Over-reaction Prevention)',
+            delta: -reduction,
+            confidence: 100
+        });
+        adjustedForecast = maxLimit;
+    }
+
     return {
         adjustedForecast: Math.max(0, Math.round(adjustedForecast)),
         adjustments,

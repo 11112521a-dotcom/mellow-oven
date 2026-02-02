@@ -89,7 +89,14 @@ export const createProductsSlice: StateCreator<AppState, [], [], ProductsSlice> 
             createdAt: new Date().toISOString(),
             ...forecastData
         };
-        set(state => ({ productionForecasts: [...state.productionForecasts, newForecast] }));
+        set(state => ({
+            productionForecasts: [
+                ...state.productionForecasts.filter(f =>
+                    !(f.productId === productId && f.marketId === marketId && f.forecastForDate === forecastForDate)
+                ),
+                newForecast
+            ]
+        }));
 
         await supabase.from('production_forecasts').upsert({
             product_id: newForecast.productId,
@@ -142,6 +149,28 @@ export const createProductsSlice: StateCreator<AppState, [], [], ProductsSlice> 
             console.log('Successfully deleted forecasts for market:', marketId);
         } catch (error) {
             console.error('Error in deleteForecastsForMarket:', error);
+            throw error;
+        }
+    },
+
+    deleteForecastsByDate: async (date) => {
+        try {
+            // Delete from Supabase
+            const { error } = await supabase.from('production_forecasts').delete().eq('forecast_for_date', date);
+
+            if (error) {
+                console.error('Failed to delete forecasts for date:', error);
+                throw error;
+            }
+
+            // Update local state
+            set((state) => ({
+                productionForecasts: state.productionForecasts.filter(f => f.forecastForDate !== date)
+            }));
+
+            console.log('Successfully deleted forecasts for date:', date);
+        } catch (error) {
+            console.error('Error in deleteForecastsByDate:', error);
             throw error;
         }
     }

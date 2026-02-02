@@ -1,13 +1,14 @@
 import React, { useState } from 'react';
 import {
     XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-    BarChart, Bar, Legend
+    BarChart, Bar, Legend, ComposedChart, Area, Line
 } from 'recharts';
 import {
     Target, ArrowUpRight, ArrowDownRight, Package, AlertTriangle,
     ChevronDown, Store, Info, Trash2
 } from 'lucide-react';
-import { AccuracyAnalysisResult } from '@/src/lib/forecasting/accuracyAnalytics';
+import { AccuracyAnalysisResult, ComparisonRecord } from '@/src/lib/forecasting/accuracyAnalytics';
+import { useStore } from '@/src/store';
 
 interface Props {
     data: AccuracyAnalysisResult;
@@ -16,6 +17,44 @@ interface Props {
 
 export const AccuracyDashboard: React.FC<Props> = ({ data, title }) => {
     if (!data) return null;
+
+    // Sort comparisons by date (newest first)
+    const sortedComparisons = [...data.comparisons].sort((a, b) =>
+        new Date(b.date).getTime() - new Date(a.date).getTime()
+    );
+
+    const [selectedDate, setSelectedDate] = useState<string>(
+        sortedComparisons.length > 0 ? sortedComparisons[0].date : ''
+    );
+
+    const deleteForecastsByDate = useStore(state => state.deleteForecastsByDate);
+    const [isDeleting, setIsDeleting] = useState(false);
+
+    const handleDelete = async () => {
+        if (!selectedDate) return;
+        if (!window.confirm(`คุณต้องการลบผลทำนายของวันที่ ${new Date(selectedDate).toLocaleDateString('th-TH')} ใช่หรือไม่?\n\nเมื่อลบแล้วจะไม่สามารถกู้คืนได้ และคุณต้องทำการทำนายใหม่`)) {
+            return;
+        }
+
+        try {
+            setIsDeleting(true);
+            await deleteForecastsByDate(selectedDate);
+            // Auto-select another date if available
+            const remaining = sortedComparisons.filter(c => c.date !== selectedDate);
+            if (remaining.length > 0) {
+                setSelectedDate(remaining[0].date);
+            } else {
+                setSelectedDate('');
+            }
+        } catch (error) {
+            console.error('Failed to delete forecast:', error);
+            alert('ลบไม่สำเร็จ กรุณาลองใหม่');
+        } finally {
+            setIsDeleting(false);
+        }
+    };
+
+    const currentComparison = sortedComparisons.find(c => c.date === selectedDate);
 
     return (
         <div className="space-y-6 animate-in fade-in">
@@ -85,6 +124,114 @@ export const AccuracyDashboard: React.FC<Props> = ({ data, title }) => {
                     )}
                 </div>
             )}
+
+            {/* Accuracy Scoreboard (Trend) */}
+            <div className="bg-white border border-cafe-100 rounded-2xl p-6 shadow-sm mb-6">
+                <div className="flex items-center justify-between mb-6">
+                    <div>
+                        <h4 className="text-lg font-bold text-cafe-800 flex items-center gap-2">
+                            <div className="p-2 bg-blue-100 rounded-lg text-blue-600">
+                                <Target size={20} />
+                            </div>
+                            ผลงานความแม่นยำย้อนหลัง (30 วันล่าสุด)
+                        </h4>
+                        <p className="text-sm text-gray-500 mt-1 ml-11">
+                            กราฟยิ่งสูง = ยิ่งแม่น (✅) | แท่งสีแดงยิ่งต่ำ = ยิ่งประหยัดเงิน (💰)
+                        </p>
+                    </div>
+                    {data.dailyTrend.length > 0 && (
+                        <div className="text-right">
+                            <p className="text-xs text-gray-400">แม่นยำล่าสุด</p>
+                            <p className={`text-2xl font-bold ${data.dailyTrend[data.dailyTrend.length - 1].accuracy >= 80 ? 'text-green-600' :
+                                data.dailyTrend[data.dailyTrend.length - 1].accuracy >= 60 ? 'text-yellow-600' : 'text-red-600'
+                                }`}>
+                                {data.dailyTrend[data.dailyTrend.length - 1].accuracy.toFixed(0)}%
+                            </p>
+                        </div>
+                    )}
+                </div>
+
+                <div className="h-[350px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                        <ComposedChart data={data.dailyTrend.slice(-30)} margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
+                            <defs>
+                                <linearGradient id="colorAccuracy" x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.2} />
+                                    <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+                                </linearGradient>
+                            </defs>
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                            <XAxis
+                                dataKey="date"
+                                tickFormatter={(date) => new Date(date).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })}
+                                tick={{ fill: '#94a3b8', fontSize: 12 }}
+                                tickLine={false}
+                                axisLine={false}
+                                dy={10}
+                            />
+                            {/* Left Axis: Accuracy % */}
+                            <YAxis
+                                yAxisId="left"
+                                domain={[0, 100]}
+                                tick={{ fill: '#10b981', fontSize: 12 }}
+                                tickLine={false}
+                                axisLine={false}
+                                unit="%"
+                            />
+                            {/* Right Axis: Money Lost */}
+                            <YAxis
+                                yAxisId="right"
+                                orientation="right"
+                                tick={{ fill: '#ef4444', fontSize: 12 }}
+                                tickLine={false}
+                                axisLine={false}
+                                tickFormatter={(val) => `฿${val}`}
+                            />
+                            <Tooltip
+                                contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)' }}
+                                formatter={(value: any, name: string) => {
+                                    if (name === 'Accuracy') return [`${parseFloat(value).toFixed(1)}%`, 'ความแม่นยำ'];
+                                    if (name === 'Money Lost') return [`฿${value.toLocaleString()}`, 'เงินจม+หาย'];
+                                    return [value, name];
+                                }}
+                                labelFormatter={(label) => new Date(label).toLocaleDateString('th-TH', { weekday: 'long', day: 'numeric', month: 'long' })}
+                            />
+                            <Legend />
+                            {/* Areas & Bars */}
+                            <Area
+                                yAxisId="left"
+                                type="monotone"
+                                dataKey="accuracy"
+                                name="Accuracy"
+                                stroke="#10b981"
+                                strokeWidth={3}
+                                fillOpacity={1}
+                                fill="url(#colorAccuracy)"
+                            />
+                            <Bar
+                                yAxisId="right"
+                                dataKey="totalWasteCost"
+                                stackId="a"
+                                name="Money Lost"
+                                fill="#fca5a5"
+                                radius={[4, 4, 0, 0]}
+                                barSize={20}
+                                opacity={0.8}
+                            />
+                            <Bar
+                                yAxisId="right"
+                                dataKey="totalStockoutRevenue"
+                                stackId="a"
+                                name="Money Lost"
+                                fill="#fecaca"
+                                radius={[4, 4, 0, 0]}
+                                barSize={20}
+                                opacity={0.8}
+                            />
+                        </ComposedChart>
+                    </ResponsiveContainer>
+                </div>
+            </div>
 
             {/* Day-of-Week Analysis */}
             {data.dayAccuracy && (
@@ -191,38 +338,80 @@ export const AccuracyDashboard: React.FC<Props> = ({ data, title }) => {
                 </div>
             )}
 
-            {/* Daily Comparisons */}
-            {data.comparisons.map((summary) => (
-                <div key={summary.date} className="bg-white border border-cafe-200 rounded-xl p-6 shadow-sm">
+            {/* Daily Comparisons with Date Selector */}
+            <div className="flex flex-col md:flex-row items-center justify-between gap-4 mb-4">
+                <h3 className="text-lg font-bold text-cafe-900 flex items-center gap-2">
+                    📅 ตรวจสอบความแม่นยำรายวัน
+                </h3>
+
+                {/* Date Selector */}
+                <div className="flex items-center gap-2 overflow-x-auto max-w-full pb-2 md:pb-0 no-scrollbar">
+                    {sortedComparisons.map(comp => (
+                        <button
+                            key={comp.date}
+                            onClick={() => setSelectedDate(comp.date)}
+                            className={`flex flex-col items-center px-4 py-2 rounded-xl border transition-all min-w-[100px] ${selectedDate === comp.date
+                                ? 'bg-cafe-900 text-white border-cafe-900 shadow-md transform scale-105'
+                                : 'bg-white text-cafe-600 border-cafe-200 hover:border-cafe-400 hover:bg-cafe-50'
+                                }`}
+                        >
+                            <span className="text-xs font-medium opacity-80">
+                                {new Date(comp.date).toLocaleDateString('th-TH', { weekday: 'short' })}
+                            </span>
+                            <span className="text-sm font-bold">
+                                {new Date(comp.date).getDate()} {new Date(comp.date).toLocaleDateString('th-TH', { month: 'short' })}
+                            </span>
+                            {/* Dot Indicator for Accuracy */}
+                            <div className={`w-1.5 h-1.5 rounded-full mt-1 ${comp.accuracy >= 80 ? 'bg-green-400' :
+                                comp.accuracy >= 50 ? 'bg-yellow-400' : 'bg-red-400'
+                                }`} />
+                        </button>
+                    ))}
+                </div>
+            </div>
+
+            {currentComparison && (
+                <div key={currentComparison.date} className="bg-white border border-cafe-200 rounded-xl p-6 shadow-sm animate-in fade-in slide-in-from-bottom-4 duration-500">
                     <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
                         <div>
                             <h3 className="text-lg font-bold text-cafe-900 flex items-center gap-2">
-                                {new Date(summary.date).toLocaleDateString('th-TH', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+                                {new Date(currentComparison.date).toLocaleDateString('th-TH', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+                                <button
+                                    onClick={handleDelete}
+                                    disabled={isDeleting}
+                                    className="ml-2 p-1.5 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors disabled:opacity-50"
+                                    title="ลบผลทำนายของวันนี้"
+                                >
+                                    <Trash2 size={18} />
+                                </button>
                                 <div className="group relative">
                                     <Info size={16} className="text-cafe-400 cursor-help" />
-                                    <div className="absolute left-0 bottom-full mb-2 w-64 bg-gray-800 text-white text-xs p-3 rounded-lg shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
-                                        <strong>📊 ข้อมูลนี้มาจากไหน?</strong><br />
-                                        • แผน (AI): ค่าที่ AI คำนวณให้ตอนเช้า<br />
-                                        • จริง (Actual): ยอดขายที่คุณบันทึกในหน้า "Daily Sales"
+                                    <div className="absolute left-0 bottom-full mb-2 w-72 bg-gray-800 text-white text-xs p-3 rounded-lg shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
+                                        <strong>📊 Financial Reality Check:</strong><br />
+                                        • <strong>เงินจม (Real Waste):</strong> คิดจากของที่ "เหลือทิ้งจริง" ในสต็อก (ถ้ามีข้อมูล) ไม่ใช่แค่การเดาของ AI<br />
+                                        • <strong>เงินหาย (Opportunity):</strong> คิดเฉพาะตอนที่ "ของหมดเกลี้ยง" จริงๆ เท่านั้น
                                     </div>
                                 </div>
                             </h3>
                             <p className="text-sm text-cafe-500">
-                                เปรียบเทียบสิ่งที่ AI คิด vs สิ่งที่คุณขายได้จริง
+                                เปรียบเทียบแผน AI vs ยอดขายจริง {data.summary.totalWasteCost > 0}
                             </p>
                         </div>
                         <div className="flex items-center gap-4">
                             <div className="text-right">
-                                <div className="text-xs text-cafe-500 mb-1">💸 เงินจม (ของเหลือ)</div>
-                                <div className="font-bold text-orange-600">฿{summary.records.reduce((s, r) => s + r.wasteCost, 0).toLocaleString()}</div>
+                                <div className="text-xs text-cafe-500 mb-1 flex items-center justify-end gap-1">
+                                    💸 เงินจม (Real Waste)
+                                    {/* Tooltip hint if needed */}
+                                </div>
+                                <div className="font-bold text-orange-600">฿{currentComparison.records.reduce((s, r) => s + r.wasteCost, 0).toLocaleString()}</div>
                             </div>
                             <div className="text-right">
                                 <div className="text-xs text-cafe-500 mb-1">📉 เงินหาย (ของขาด)</div>
-                                <div className="font-bold text-red-600">฿{summary.records.reduce((s, r) => s + r.stockoutRevenue, 0).toLocaleString()}</div>
+                                <div className="font-bold text-red-600">฿{currentComparison.records.reduce((s, r) => s + r.stockoutRevenue, 0).toLocaleString()}</div>
                             </div>
                             <div className="text-right pl-4 border-l border-cafe-200">
-                                <div className={`text-3xl font-black ${summary.accuracy >= 80 ? 'text-green-600' : summary.accuracy >= 50 ? 'text-yellow-600' : 'text-red-500'}`}>
-                                    {summary.accuracy.toFixed(1)}%
+                                <div className={`text-3xl font-black ${currentComparison.accuracy >= 80 ? 'text-green-600' : currentComparison.accuracy >= 50 ? 'text-yellow-600' : 'text-red-500'}`}>
+                                    {currentComparison.accuracy.toFixed(1)}%
                                 </div>
                                 <div className="text-xs text-cafe-500">ความแม่นยำรวม</div>
                             </div>
@@ -239,15 +428,15 @@ export const AccuracyDashboard: React.FC<Props> = ({ data, title }) => {
                         </h4>
                         <ResponsiveContainer width="100%" height="100%">
                             <BarChart
-                                data={Object.values(summary.records.reduce((acc, r) => {
-                                    if (!acc[r.productId]) acc[r.productId] = { ...r, forecastQty: 0, actualQty: 0, diff: 0 };
+                                data={(Object.values(currentComparison.records.reduce((acc, r) => {
+                                    if (!acc[r.productId]) acc[r.productId] = { ...r, forecastQty: 0, actualQty: 0, diff: 0, wasteCost: 0, stockoutRevenue: 0 };
                                     acc[r.productId].forecastQty += r.forecastQty;
                                     acc[r.productId].actualQty += r.actualQty;
                                     acc[r.productId].diff += r.diff;
                                     acc[r.productId].wasteCost += r.wasteCost;
                                     acc[r.productId].stockoutRevenue += r.stockoutRevenue;
                                     return acc;
-                                }, {} as Record<string, any>))
+                                }, {} as Record<string, ComparisonRecord>)) as ComparisonRecord[])
                                     .sort((a, b) => Math.abs(b.diff) - Math.abs(a.diff))
                                     .slice(0, 10)
                                 }
@@ -346,36 +535,52 @@ export const AccuracyDashboard: React.FC<Props> = ({ data, title }) => {
                                     <th className="px-4 py-3 text-left text-cafe-600 font-semibold">สินค้า</th>
                                     <th className="px-4 py-3 text-center text-purple-700 font-semibold bg-purple-50">🤖 AI แนะนำ</th>
                                     <th className="px-4 py-3 text-center text-green-700 font-semibold bg-green-50">💵 ขายจริง</th>
+                                    <th className="px-4 py-3 text-center text-amber-700 font-semibold bg-amber-50">🏠 เหลือ</th>
                                     <th className="px-4 py-3 text-right text-cafe-600 font-semibold">ผลต่าง (Diff)</th>
                                     <th className="px-4 py-3 text-right text-cafe-600 font-semibold">สถานะ</th>
                                     <th className="px-4 py-3 text-right text-cafe-600 font-semibold">มูลค่าเสียหาย</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-cafe-100">
-                                {Object.values(summary.records.reduce((acc, r) => {
+                                {(Object.values(currentComparison.records.reduce((acc, r) => {
                                     if (!acc[r.productId]) {
-                                        acc[r.productId] = { ...r, forecastQty: 0, actualQty: 0, diff: 0, wasteCost: 0, stockoutRevenue: 0 };
+                                        acc[r.productId] = { ...r, forecastQty: 0, actualQty: 0, diff: 0, wasteCost: 0, stockoutRevenue: 0, toShopQty: 0, leftoverQty: 0 };
                                     }
                                     acc[r.productId].forecastQty += r.forecastQty;
                                     acc[r.productId].actualQty += r.actualQty;
                                     acc[r.productId].diff += r.diff;
                                     acc[r.productId].wasteCost += r.wasteCost;
                                     acc[r.productId].stockoutRevenue += r.stockoutRevenue;
+                                    acc[r.productId].toShopQty += r.toShopQty; // NEW
+                                    acc[r.productId].leftoverQty += r.leftoverQty; // NEW
                                     return acc;
-                                }, {} as Record<string, typeof summary.records[0]>))
+                                }, {} as Record<string, ComparisonRecord>)) as ComparisonRecord[])
                                     .sort((a, b) => Math.abs(b.diff) - Math.abs(a.diff)) // Sort by biggest mistake
                                     .map(r => (
                                         <tr key={r.productId} className="hover:bg-cafe-50 transition-colors">
                                             <td className="px-4 py-3 font-medium text-cafe-900 border-r border-cafe-100">{r.productName}</td>
                                             <td className="px-4 py-3 text-center text-purple-700 font-bold bg-purple-50/50">{r.forecastQty}</td>
-                                            <td className="px-4 py-3 text-center text-green-700 font-bold bg-green-50/50">{r.actualQty}</td>
+                                            <td className={`px-4 py-3 text-center font-bold ${r.status === 'pending' ? 'text-gray-400 italic bg-gray-50/50' : 'text-green-700 bg-green-50/50'}`}>
+                                                {r.status === 'pending' ? '...' : r.actualQty}
+                                            </td>
+                                            <td className="px-4 py-3 text-center text-amber-700 font-bold bg-amber-50/50">
+                                                {r.leftoverQty > 0 ? r.leftoverQty : '-'}
+                                            </td>
                                             <td className="px-4 py-3 text-right font-mono">
-                                                <span className={`${r.diff > 0 ? 'text-orange-500' : r.diff < 0 ? 'text-red-500' : 'text-gray-400'}`}>
-                                                    {r.diff > 0 ? '+' : ''}{r.diff}
-                                                </span>
+                                                {r.status === 'pending' ? (
+                                                    <span className="text-gray-300">-</span>
+                                                ) : (
+                                                    <span className={`${r.diff > 0 ? 'text-orange-500' : r.diff < 0 ? 'text-red-500' : 'text-gray-400'}`}>
+                                                        {r.diff > 0 ? '+' : ''}{r.diff}
+                                                    </span>
+                                                )}
                                             </td>
                                             <td className="px-4 py-3 text-right">
-                                                {r.diff > 0 ? (
+                                                {r.status === 'pending' ? (
+                                                    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-500 border border-gray-200">
+                                                        ⏳ รอขายจริง
+                                                    </span>
+                                                ) : r.diff > 0 ? (
                                                     <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-orange-100 text-orange-800">
                                                         เหลือทิ้ง
                                                     </span>
@@ -390,14 +595,20 @@ export const AccuracyDashboard: React.FC<Props> = ({ data, title }) => {
                                                 )}
                                             </td>
                                             <td className="px-4 py-3 text-right font-medium">
-                                                {r.wasteCost > 0 && (
-                                                    <span className="text-orange-600 block">-{r.wasteCost.toLocaleString()} บ.</span>
-                                                )}
-                                                {r.stockoutRevenue > 0 && (
-                                                    <span className="text-red-600 block">-{r.stockoutRevenue.toLocaleString()} บ.</span>
-                                                )}
-                                                {r.wasteCost === 0 && r.stockoutRevenue === 0 && (
+                                                {r.status === 'pending' ? (
                                                     <span className="text-gray-300">-</span>
+                                                ) : (
+                                                    <>
+                                                        {r.wasteCost > 0 && (
+                                                            <span className="text-orange-600 block">-{r.wasteCost.toLocaleString()} บ.</span>
+                                                        )}
+                                                        {r.stockoutRevenue > 0 && (
+                                                            <span className="text-red-600 block">-{r.stockoutRevenue.toLocaleString()} บ.</span>
+                                                        )}
+                                                        {r.wasteCost === 0 && r.stockoutRevenue === 0 && (
+                                                            <span className="text-gray-300">-</span>
+                                                        )}
+                                                    </>
                                                 )}
                                             </td>
                                         </tr>
@@ -406,7 +617,7 @@ export const AccuracyDashboard: React.FC<Props> = ({ data, title }) => {
                         </table>
                     </div>
                 </div>
-            ))}
+            )}
 
             {/* Empty State */}
             {(!data.comparisons || data.comparisons.length === 0) && (

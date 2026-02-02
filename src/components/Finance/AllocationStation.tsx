@@ -152,7 +152,7 @@ export const AllocationStation: React.FC<AllocationStationProps> = ({ onAllocate
         localStorage.setItem('allocationStationLocked', JSON.stringify(isLocked));
     }, [isLocked]);
 
-    const availableDates = [...new Set(unallocatedProfits.map(p => p.date))].sort((a, b) => b.localeCompare(a));
+    const availableDates = [...new Set(unallocatedProfits.filter(p => p.amount > 0).map(p => p.date))].sort((a, b) => b.localeCompare(a));
     const unallocatedBalance = getUnallocatedBalance();
 
     const cogsData = useMemo(() => {

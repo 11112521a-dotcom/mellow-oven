@@ -155,8 +155,11 @@ export const createFinanceSlice: StateCreator<AppState, [], [], FinanceSlice> = 
 
         const newAmount = profit.amount - amount;
         if (newAmount <= 0) {
-            await supabase.from('unallocated_profits').delete().eq('id', id);
-            set((state) => ({ unallocatedProfits: state.unallocatedProfits.filter(p => p.id !== id) }));
+            // FIX: Don't delete, set to 0 to keep history and prevent re-sync
+            await supabase.from('unallocated_profits').update({ amount: 0 }).eq('id', id);
+            set((state) => ({
+                unallocatedProfits: state.unallocatedProfits.map(p => p.id === id ? { ...p, amount: 0 } : p)
+            }));
         } else {
             await supabase.from('unallocated_profits').update({ amount: newAmount }).eq('id', id);
             set((state) => ({

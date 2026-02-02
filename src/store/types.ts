@@ -122,6 +122,7 @@ export interface ProductsSlice {
     getForecastsByDate: (date: string) => ProductionForecast[];
     getLatestForecast: (productId: string, marketId: string, date: string) => ProductionForecast | null;
     deleteForecastsForMarket: (marketId: string) => Promise<void>;
+    deleteForecastsByDate: (date: string) => Promise<void>; // NEW
 }
 
 export interface SalesSlice {
