@@ -94,10 +94,7 @@ export const createPromotionOrderSlice: StateCreator<PromotionOrderSlice> = (set
             if (orderIds.length > 0) {
                 const { data, error: itemsError } = await supabase
                     .from('promotion_order_items')
-                    .select(`
-            *,
-            products(id, name)
-          `)
+                    .select('*')  // Removed products join - no longer have FK relationship
                     .in('order_id', orderIds);
 
                 if (itemsError) throw itemsError;

@@ -5,11 +5,11 @@ import { Alert } from '../../../types';
 
 export const createFinanceSlice: StateCreator<AppState, [], [], FinanceSlice> = (set, get) => ({
     jars: [
-        { id: 'Working', name: 'Working Capital', balance: 0, allocationPercent: 0.2, description: 'หมุนเวียน' },
-        { id: 'CapEx', name: 'CapEx', balance: 0, allocationPercent: 0.45, description: 'ลงทุน/ซ่อมแซม' },
-        { id: 'Opex', name: 'Opex', balance: 0, allocationPercent: 0.1, description: 'ค่าใช้จ่ายดำเนินงาน' },
-        { id: 'Emergency', name: 'Emergency', balance: 0, allocationPercent: 0.05, description: 'ฉุกเฉิน' },
-        { id: 'Owner', name: 'Owner', balance: 0, allocationPercent: 0.2, description: 'กำไรเจ้าของ' },
+        { id: 'Working', name: 'เติมทุนหมุน', balance: 0, allocationPercent: 0.2, description: 'เงินทุนหมุนเวียน' },
+        { id: 'CapEx', name: 'อุปกรณ์', balance: 0, allocationPercent: 0.45, description: 'ลงทุน/ซ่อมแซมอุปกรณ์' },
+        { id: 'Opex', name: 'น้ำไฟแก๊ส', balance: 0, allocationPercent: 0.1, description: 'ค่าน้ำ ไฟ แก๊ส' },
+        { id: 'Emergency', name: 'ฉุกเฉิน', balance: 0, allocationPercent: 0.05, description: 'สำรองฉุกเฉิน' },
+        { id: 'Owner', name: 'เจ้าของ', balance: 0, allocationPercent: 0.2, description: 'กำไรเจ้าของ' },
     ],
     transactions: [],
     unallocatedProfits: [],
