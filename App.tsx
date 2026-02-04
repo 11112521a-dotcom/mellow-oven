@@ -46,7 +46,7 @@ const App: React.FC = () => {
   useEffect(() => {
     const init = async () => {
       // FIX: One-time cache purge to clear stale product data (v2.0 cache reset)
-      const CACHE_VERSION = 'v2.0-zombie-fix';
+      const CACHE_VERSION = 'v3.0-thai-jars';
       const lastVersion = localStorage.getItem('cache-version');
       if (lastVersion !== CACHE_VERSION) {
         console.log('[App] Purging stale cache (Zombie Data Fix)');

@@ -29,6 +29,18 @@ const getJarIcon = (id: string) => {
     }
 };
 
+// Thai jar name mapping
+const getJarThaiName = (id: string): string => {
+    switch (id) {
+        case 'Working': return 'เติมทุนหมุน';
+        case 'CapEx': return 'อุปกรณ์';
+        case 'Opex': return 'น้ำไฟแก๊ส';
+        case 'Emergency': return 'ฉุกเฉิน';
+        case 'Owner': return 'เจ้าของ';
+        default: return id;
+    }
+};
+
 // Premium Jar Colors - Softer, more cafe-like with Warm undertones
 const jarStyles: Record<string, { gradient: string, bg: string, text: string, accent: string, ring: string }> = {
     'Working': {
@@ -96,7 +108,7 @@ export const AllocationStation: React.FC<AllocationStationProps> = ({ onAllocate
         'Owner': ''
     });
     const [inputMode, setInputMode] = useState<InputMode>('percentage');
-    const [allocationSource, setAllocationSource] = useState<AllocationSource>('manual');
+    const [allocationSource, setAllocationSource] = useState<AllocationSource>('profit');
     const [selectedProfitDate, setSelectedProfitDate] = useState<string>('all');
     const [showPreview, setShowPreview] = useState(false);
 
@@ -138,11 +150,29 @@ export const AllocationStation: React.FC<AllocationStationProps> = ({ onAllocate
         }
     };
 
+    // Declare availableDates first (needed for effectiveDebtAmount calculation)
+    const availableDates = [...new Set(unallocatedProfits.filter(p => p.amount > 0).map(p => p.date))].sort((a, b) => b.localeCompare(a));
+    const unallocatedBalance = getUnallocatedBalance();
+
     // Manual Debt Override State
+    // 🛡️ FIX: When allocating multiple days, multiply debt by number of days
     const effectiveDebtAmount = useMemo(() => {
         const numAmount = parseFloat(amount) || 0;
-        return calculateDebtDeduction(numAmount);
-    }, [amount, debtConfig]);
+        const dailyDebt = calculateDebtDeduction(numAmount);
+
+        // If allocating 'all' unallocated profits, multiply by number of unallocated days
+        if (allocationSource === 'profit' && selectedProfitDate === 'all') {
+            const unallocatedDays = availableDates.length;
+            if (unallocatedDays > 1) {
+                // Calculate average daily profit to get proper deduction per day
+                const avgDailyProfit = numAmount / unallocatedDays;
+                const perDayDebt = calculateDebtDeduction(avgDailyProfit);
+                return perDayDebt * unallocatedDays;
+            }
+        }
+
+        return dailyDebt;
+    }, [amount, debtConfig, allocationSource, selectedProfitDate, availableDates.length]);
 
     const debtProgress = debtConfig.targetAmount > 0
         ? (debtConfig.accumulatedAmount / debtConfig.targetAmount) * 100
@@ -152,8 +182,6 @@ export const AllocationStation: React.FC<AllocationStationProps> = ({ onAllocate
         localStorage.setItem('allocationStationLocked', JSON.stringify(isLocked));
     }, [isLocked]);
 
-    const availableDates = [...new Set(unallocatedProfits.filter(p => p.amount > 0).map(p => p.date))].sort((a, b) => b.localeCompare(a));
-    const unallocatedBalance = getUnallocatedBalance();
 
     const cogsData = useMemo(() => {
         const targetDate = selectedProfitDate === 'all'
@@ -422,9 +450,20 @@ export const AllocationStation: React.FC<AllocationStationProps> = ({ onAllocate
                         </button>
                     </div>
 
-                    {/* Lock Button */}
+                    {/* Lock Button - with confirmation popup */}
                     <button
-                        onClick={() => setIsLocked(!isLocked)}
+                        onClick={() => {
+                            if (isLocked) {
+                                // 🛡️ Confirmation popup to prevent accidental unlock
+                                if (window.confirm('⚠️ ต้องการปลดล็อกการปรับสัดส่วนหรือไม่?')) {
+                                    setIsLocked(false);
+                                    localStorage.setItem('allocationStationLocked', 'false');
+                                }
+                            } else {
+                                setIsLocked(true);
+                                localStorage.setItem('allocationStationLocked', 'true');
+                            }
+                        }}
                         className={`p-3.5 rounded-xl border transition-all duration-300 shadow-sm ${isLocked
                             ? 'bg-rose-50 border-rose-200 text-rose-500 hover:bg-rose-100'
                             : 'bg-white border-stone-200 text-stone-400 hover:text-stone-600 hover:border-stone-300 hover:bg-stone-50'}`}
@@ -659,23 +698,9 @@ export const AllocationStation: React.FC<AllocationStationProps> = ({ onAllocate
                         แหล่งเงิน
                     </h3>
 
-                    {/* Source Cards - Vibrant Style */}
+                    {/* Source Cards - Vibrant Style - จากกำไร first! */}
                     <div className="grid grid-cols-2 gap-4 mb-6">
-                        <button
-                            onClick={() => { setAllocationSource('manual'); setAmount(''); setShowPreview(false); }}
-                            className={`group relative p-5 rounded-2xl text-sm font-bold transition-all duration-300 flex flex-col items-center gap-4 ${allocationSource === 'manual'
-                                ? 'bg-gradient-to-br from-amber-50 to-orange-50 text-amber-900 shadow-xl shadow-amber-200/50 ring-2 ring-amber-300'
-                                : 'bg-stone-50 text-stone-500 hover:bg-amber-50 hover:shadow-lg hover:text-amber-700 border border-stone-200 hover:border-amber-200'
-                                }`}
-                        >
-                            <div className={`p-4 rounded-2xl transition-all duration-300 ${allocationSource === 'manual'
-                                ? 'bg-gradient-to-br from-amber-400 to-orange-500 shadow-lg shadow-amber-400/40'
-                                : 'bg-stone-200 group-hover:bg-gradient-to-br group-hover:from-amber-300 group-hover:to-orange-400 group-hover:shadow-lg'}`}>
-                                <DollarSign size={28} className={allocationSource === 'manual' ? 'text-white' : 'text-stone-500 group-hover:text-white'} />
-                            </div>
-                            <span className="font-bold">ระบุเอง</span>
-                        </button>
-
+                        {/* จากกำไร button - NOW FIRST */}
                         <button
                             onClick={() => setAllocationSource('profit')}
                             className={`group relative p-5 rounded-2xl text-sm font-bold transition-all duration-300 flex flex-col items-center gap-4 overflow-hidden ${allocationSource === 'profit'
@@ -697,6 +722,22 @@ export const AllocationStation: React.FC<AllocationStationProps> = ({ onAllocate
                                     {formatCurrency(unallocatedBalance)}
                                 </span>
                             )}
+                        </button>
+
+                        {/* ระบุเอง button - NOW SECOND */}
+                        <button
+                            onClick={() => { setAllocationSource('manual'); setAmount(''); setShowPreview(false); }}
+                            className={`group relative p-5 rounded-2xl text-sm font-bold transition-all duration-300 flex flex-col items-center gap-4 ${allocationSource === 'manual'
+                                ? 'bg-gradient-to-br from-amber-50 to-orange-50 text-amber-900 shadow-xl shadow-amber-200/50 ring-2 ring-amber-300'
+                                : 'bg-stone-50 text-stone-500 hover:bg-amber-50 hover:shadow-lg hover:text-amber-700 border border-stone-200 hover:border-amber-200'
+                                }`}
+                        >
+                            <div className={`p-4 rounded-2xl transition-all duration-300 ${allocationSource === 'manual'
+                                ? 'bg-gradient-to-br from-amber-400 to-orange-500 shadow-lg shadow-amber-400/40'
+                                : 'bg-stone-200 group-hover:bg-gradient-to-br group-hover:from-amber-300 group-hover:to-orange-400 group-hover:shadow-lg'}`}>
+                                <DollarSign size={28} className={allocationSource === 'manual' ? 'text-white' : 'text-stone-500 group-hover:text-white'} />
+                            </div>
+                            <span className="font-bold">ระบุเอง</span>
                         </button>
                     </div>
 
@@ -812,7 +853,7 @@ export const AllocationStation: React.FC<AllocationStationProps> = ({ onAllocate
                                                     <div className={`p-1.5 rounded-lg bg-gradient-to-r ${style.gradient}`}>
                                                         <JarIcon size={14} className="text-white" />
                                                     </div>
-                                                    <span className={`font-bold text-sm ${style.text}`}>{jar.name}</span>
+                                                    <span className={`font-bold text-sm ${style.text}`}>{getJarThaiName(jar.id)}</span>
                                                 </div>
                                                 <div className="text-right">
                                                     <div className="font-black text-stone-800">{formatCurrency(previewAmt)}</div>
@@ -996,7 +1037,7 @@ export const AllocationStation: React.FC<AllocationStationProps> = ({ onAllocate
                                                 <JarIcon size={22} className="text-white" />
                                             </div>
                                             <div>
-                                                <p className={`font-black text-lg ${style.text}`}>{jar.name}</p>
+                                                <p className={`font-black text-lg ${style.text}`}>{getJarThaiName(jar.id)}</p>
                                                 <p className="text-xs text-stone-500 font-medium">{jar.description}</p>
                                             </div>
                                         </div>
