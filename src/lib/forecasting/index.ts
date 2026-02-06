@@ -189,32 +189,60 @@ export async function calculateOptimalProduction(
         const quantities = cleanedData.map(d => d.qtyCleaned);
         const mean = finalForecastMean;
 
+        // SAFETY: Validate and sanitize price/cost to prevent negative profit calculations
+        const safePrice = Math.max(0, input.product.price || 0);
+        const safeCost = Math.max(0, Math.min(safePrice, input.product.cost || 0));
+
         // Simple variance estimation
-        const historicalVariance = quantities.length >= 3 ? calculateVariance(quantities) : mean;
+        // SAFETY: Add small epsilon (1) when variance is exactly 0 to prevent edge cases
+        let historicalVariance = quantities.length >= 3 ? calculateVariance(quantities) : mean;
+        if (historicalVariance === 0 || !isFinite(historicalVariance)) {
+            historicalVariance = mean * 0.1 + 1; // Add small variance to prevent division issues
+            console.log('[Forecast] Variance was 0, adding epsilon');
+        }
+
         const varianceToMeanRatio = historicalVariance / (calculateMean(quantities) || 1);
         const estimatedVariance = Math.max(mean, mean * varianceToMeanRatio);
 
         let distribution: DistributionParams;
         let variance = mean;
 
-        if (estimatedVariance > mean * 1.1 && quantities.length >= 3) {
+        // Use NB only when variance is significantly higher than mean (overdispersion)
+        // Threshold increased from 1.1 to 1.3 to reduce unstable NB calculations
+        if (estimatedVariance > mean * 1.3 && quantities.length >= 3) {
             const p = mean / estimatedVariance;
             const r = (mean * p) / (1 - p);
-            distribution = { type: 'negativeBinomial', r, p };
-            variance = estimatedVariance;
+
+            // SAFETY: Use Poisson fallback when NB parameters are unstable
+            // Large r (>500) or p close to 1 (>0.9) causes CDF calculation failures
+            // This was the root cause of the "1 piece" bug for Saturday egg tarts
+            if (r > 500 || p > 0.9 || !isFinite(r) || isNaN(r) || !isFinite(p) || isNaN(p)) {
+                console.log(`[Forecast] NB params unstable (r=${r.toFixed(2)}, p=${p.toFixed(3)}), using Poisson fallback`);
+                distribution = { type: 'poisson', lambda: mean };
+            } else {
+                distribution = { type: 'negativeBinomial', r, p };
+                variance = estimatedVariance;
+            }
         } else {
             distribution = { type: 'poisson', lambda: mean };
         }
 
-        // Newsvendor Optimization
+        // Newsvendor Optimization (using sanitized price/cost)
         const newsvendorParams: NewsvendorParams = {
-            sellingPrice: input.product.price,
-            unitCost: input.product.cost,
+            sellingPrice: safePrice,
+            unitCost: safeCost,
             disposalCost: 0
         };
 
         const newsvendorResult = calculateOptimalQuantity(distribution, newsvendorParams);
-        const Q = Math.max(1, newsvendorResult.optimalQuantity);
+        let Q = Math.max(1, newsvendorResult.optimalQuantity);
+
+        // SAFETY: Q should never be less than 50% of mean for high-volume items
+        // This prevents the "1 piece" bug even if quantile calculation fails
+        if (mean > 50 && Q < mean * 0.5) {
+            console.log(`[Forecast] Q=${Q} too low for mean=${mean.toFixed(1)}, applying floor at 70%`);
+            Q = Math.round(mean * 0.7);
+        }
 
         // Risk metrics
         let stockoutProbability = 0.5, wasteProbability = 0.5;

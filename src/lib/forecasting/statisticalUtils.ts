@@ -156,8 +156,16 @@ export function calculateVariance(data: number[]): number {
 /**
  * Gamma Function (Approximation using Lanczos approximation)
  * Needed for Negative Binomial calculations
+ * SAFETY: Returns Infinity for very large z to prevent calculation errors
  */
 function gamma(z: number): number {
+    // SAFETY: Guard against invalid inputs
+    if (isNaN(z) || !isFinite(z)) return NaN;
+
+    // SAFETY: Large z causes overflow - return Infinity gracefully
+    if (z > 170) return Infinity;
+    if (z <= 0 && Number.isInteger(z)) return Infinity; // Poles at non-positive integers
+
     if (z < 0.5) return Math.PI / (Math.sin(Math.PI * z) * gamma(1 - z));
     z -= 1;
     let x = 0.99999999999980993;
@@ -170,38 +178,90 @@ function gamma(z: number): number {
         x += c[i] / (z + i + 1);
     }
     const t = z + c.length - 0.5;
-    return Math.sqrt(2 * Math.PI) * Math.pow(t, z + 0.5) * Math.exp(-t) * x;
+    const result = Math.sqrt(2 * Math.PI) * Math.pow(t, z + 0.5) * Math.exp(-t) * x;
+
+    // SAFETY: Guard against NaN/Infinity propagation
+    return isFinite(result) ? result : Infinity;
 }
 
 /**
  * Log Gamma Function
+ * SAFETY: Returns safe values for edge cases
  */
 function logGamma(z: number): number {
-    return Math.log(gamma(z));
+    // SAFETY: Guard against invalid inputs
+    if (isNaN(z) || !isFinite(z) || z <= 0) return Infinity;
+
+    const g = gamma(z);
+    if (!isFinite(g) || g <= 0) return Infinity;
+
+    return Math.log(g);
 }
 
 /**
  * Negative Binomial Probability Mass Function
  * P(X = k) = Gamma(k + r) / (k! * Gamma(r)) * p^r * (1-p)^k
+ * SAFETY: Returns 0 for invalid parameters instead of NaN
  */
 export function negativeBinomialPMF(k: number, r: number, p: number): number {
-    if (k < 0) return 0;
+    // SAFETY: Validate all parameters
+    if (k < 0 || !Number.isInteger(k)) return 0;
+    if (r <= 0 || !isFinite(r) || isNaN(r)) return 0;
+    if (p <= 0 || p >= 1 || !isFinite(p) || isNaN(p)) return 0;
+
+    // SAFETY: For very large r, fall back to normal approximation
+    if (r > 500) {
+        // Use normal approximation: mean = r(1-p)/p, var = r(1-p)/p²
+        const mean = r * (1 - p) / p;
+        const std = Math.sqrt(r * (1 - p)) / p;
+        const z = (k - mean) / std;
+        return Math.exp(-0.5 * z * z) / (std * Math.sqrt(2 * Math.PI));
+    }
+
     // Use log-gamma to avoid overflow with large factorials
     const logProb = logGamma(k + r) - logGamma(k + 1) - logGamma(r) +
         r * Math.log(p) + k * Math.log(1 - p);
-    return Math.exp(logProb);
+
+    // SAFETY: Check for overflow/underflow
+    if (!isFinite(logProb) || isNaN(logProb)) return 0;
+
+    const result = Math.exp(logProb);
+    return isFinite(result) ? result : 0;
 }
 
 /**
  * Negative Binomial Cumulative Distribution Function
+ * SAFETY: Includes NaN guard and early termination for convergence
  */
 export function negativeBinomialCDF(k: number, r: number, p: number): number {
+    // SAFETY: Validate parameters
     if (k < 0) return 0;
+    if (r <= 0 || !isFinite(r) || isNaN(r)) return 0.5; // Safe fallback
+    if (p <= 0 || p >= 1 || !isFinite(p) || isNaN(p)) return 0.5; // Safe fallback
+
     let cdf = 0;
-    for (let i = 0; i <= k; i++) {
-        cdf += negativeBinomialPMF(i, r, p);
+    let prevCdf = 0;
+
+    // SAFETY: Limit iterations and check for convergence
+    const maxIterations = Math.min(k, 10000);
+
+    for (let i = 0; i <= maxIterations; i++) {
+        const pmf = negativeBinomialPMF(i, r, p);
+        cdf += pmf;
+
+        // SAFETY: Early termination when CDF converges (pmf becomes negligible)
+        if (i > k * 0.5 && pmf < 1e-10 && Math.abs(cdf - prevCdf) < 1e-12) {
+            break;
+        }
+        prevCdf = cdf;
+
+        // SAFETY: Break if we've exceeded the target k
+        if (i >= k) break;
     }
-    return Math.min(cdf, 1);
+
+    // SAFETY: Ensure result is in valid range
+    if (isNaN(cdf) || !isFinite(cdf)) return 0.5;
+    return Math.max(0, Math.min(cdf, 1));
 }
 
 /**

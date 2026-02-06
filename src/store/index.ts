@@ -264,15 +264,21 @@ export const useStore = create<AppState>()(
                     // Merge products with local state to preserve variants
                     const mergedProducts = products?.map(dbProduct => {
                         const localProduct = state.products.find(p => p.id === dbProduct.id);
+                        // 🆕 Map is_active -> isActive (defaults to true if undefined)
+                        const mappedProduct = {
+                            ...dbProduct,
+                            isActive: dbProduct.is_active !== false // undefined/null = true
+                        };
+
                         if (localProduct) {
                             return {
-                                ...dbProduct,
+                                ...mappedProduct,
                                 variants: (localProduct.variants && (!dbProduct.variants || dbProduct.variants.length === 0))
                                     ? localProduct.variants
                                     : dbProduct.variants
                             };
                         }
-                        return dbProduct;
+                        return mappedProduct;
                     }) || state.products;
 
                     return {

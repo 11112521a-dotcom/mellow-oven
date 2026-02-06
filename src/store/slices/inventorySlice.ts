@@ -125,18 +125,19 @@ export const createInventorySlice: StateCreator<AppState, [], [], InventorySlice
     },
 
     addStockLog: async (log) => {
-        const dbLog = {
-            id: log.id,
-            date: log.date,
-            ingredient_id: log.ingredientId,
-            amount: log.amount,
-            reason: log.reason,
-            note: log.note
-        };
-        const { error } = await supabase.from('stock_logs').insert(dbLog);
-        if (!error) {
-            set(state => ({ stockLogs: [log, ...state.stockLogs] }));
-        }
+        // 🗑️ DISABLED: Stock logs disabled to save database space
+        // const dbLog = {
+        //     id: log.id,
+        //     date: log.date,
+        //     ingredient_id: log.ingredientId,
+        //     amount: log.amount,
+        //     reason: log.reason,
+        //     note: log.note
+        // };
+        // const { error } = await supabase.from('stock_logs').insert(dbLog);
+
+        // Keep local state update for current session only (not persisted)
+        set(state => ({ stockLogs: [log, ...state.stockLogs] }));
     },
 
     fetchDailyInventory: async (date) => {

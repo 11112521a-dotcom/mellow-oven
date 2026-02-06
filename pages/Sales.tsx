@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { DailySalesForm } from '@/src/components/POS/DailySalesForm';
-import { MenuManager } from '@/src/components/POS/MenuManager';
+import { MenuManager2 } from '@/src/components/POS/MenuManager2';
 import { MarketManager } from '@/src/components/POS/MarketManager';
 import { Settings, ClipboardList, Store, ShoppingBag, Sparkles } from 'lucide-react';
 
@@ -68,7 +68,7 @@ const Sales: React.FC = () => {
 
             {/* Content - Keep existing components */}
             {mode === 'LOG' && <DailySalesForm />}
-            {mode === 'MENU' && <MenuManager />}
+            {mode === 'MENU' && <MenuManager2 />}
             {mode === 'MARKET' && <MarketManager />}
         </div>
     );

@@ -107,6 +107,12 @@ export interface ProductsSlice {
     updateProduct: (id: string, updates: Partial<Product>) => void;
     removeProduct: (id: string) => void;
 
+    // 🆕 Toggle product active/inactive (สวิตช์พักขาย)
+    toggleProductActive: (id: string) => Promise<void>;
+
+    // 🆕 Toggle variant active/inactive (สวิตช์พักขายระดับ Variant)
+    toggleVariantActive: (productId: string, variantId: string) => Promise<void>;
+
     addDailyReport: (report: DailyReport) => void;
     updateDailyReport: (reportId: string, updates: Partial<DailyReport>) => void;
 

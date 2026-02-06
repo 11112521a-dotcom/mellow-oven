@@ -146,6 +146,7 @@ export interface Product {
   recipe?: Recipe;
   variants?: Variant[]; // List of variants
   bundleConfig?: BundleConfig | null; // NEW: Config for composite products (Snack Box)
+  isActive?: boolean; // NEW: Toggle to pause sales (defaults to true)
 }
 
 export interface Variant {
@@ -154,6 +155,7 @@ export interface Variant {
   price: number;
   cost: number;
   recipe?: Recipe;
+  isActive?: boolean; // 🆕 Variant-level toggle (defaults true)
 }
 
 export interface Recipe {

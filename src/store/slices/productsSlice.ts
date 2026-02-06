@@ -13,15 +13,21 @@ export const createProductsSlice: StateCreator<AppState, [], [], ProductsSlice> 
     addProduct: async (product) => {
         const tempId = product.id;
         set((state) => ({ products: [...state.products, product] }));
-        const { id, variants, ...productData } = product;
+
+        // Remove client-generated id (let Supabase generate it)
+        // But KEEP variants for JSONB storage
+        const { id, ...productData } = product;
 
         const { data, error } = await supabase.from('products').insert(productData).select().single();
         if (error) {
             console.error('Error adding product:', error);
+            // Rollback on error
+            set((state) => ({ products: state.products.filter(p => p.id !== tempId) }));
         } else if (data) {
             set((state) => ({
                 products: state.products.map((p) => p.id === tempId ? { ...p, id: data.id } : p)
             }));
+            console.log('[addProduct] Successfully added:', data.name);
         }
     },
 
@@ -29,8 +35,11 @@ export const createProductsSlice: StateCreator<AppState, [], [], ProductsSlice> 
         set((state) => ({
             products: state.products.map((p) => p.id === id ? { ...p, ...updates } : p)
         }));
-        const { variants, ...updatesWithoutVariants } = updates as any;
-        await supabase.from('products').update(updatesWithoutVariants).eq('id', id);
+        // Now include variants in DB update (JSONB column)
+        const { error } = await supabase.from('products').update(updates).eq('id', id);
+        if (error) {
+            console.error('[updateProduct] DB update failed:', error);
+        }
     },
 
     removeProduct: async (id) => {
@@ -50,6 +59,107 @@ export const createProductsSlice: StateCreator<AppState, [], [], ProductsSlice> 
         } catch (err) {
             console.error('[removeProduct] Error:', err);
             throw err;  // Re-throw for UI to handle
+        }
+    },
+
+    /**
+     * 🆕 Toggle product active/inactive status (สวิตช์พักขาย)
+     * @param id Product ID to toggle
+     * @description When inactive, product won't appear in sales, reports, POS, etc.
+     */
+    toggleProductActive: async (id) => {
+        const product = get().products.find((p) => p.id === id);
+        if (!product) {
+            console.warn('[toggleProductActive] Product not found:', id);
+            return;
+        }
+
+        // Toggle: undefined/true -> false, false -> true
+        const newStatus = product.isActive === false ? true : false;
+
+        try {
+            // 🛡️ Pessimistic Update: Wait for DB before updating local state
+            const { error } = await supabase
+                .from('products')
+                .update({ is_active: newStatus })
+                .eq('id', id);
+
+            if (error) {
+                console.error('[toggleProductActive] Database update failed:', error);
+                throw new Error(`เปลี่ยนสถานะไม่สำเร็จ: ${error.message}`);
+            }
+
+            // Update local state AFTER DB success
+            set((state) => ({
+                products: state.products.map((p) =>
+                    p.id === id ? { ...p, isActive: newStatus } : p
+                )
+            }));
+
+            console.log('[toggleProductActive] Success:', id, '->', newStatus ? 'เปิดขาย' : 'พักขาย');
+        } catch (err) {
+            console.error('[toggleProductActive] Error:', err);
+            throw err;
+        }
+    },
+
+    /**
+     * 🆕 Toggle variant active/inactive status (สวิตช์พักขายระดับ Variant)
+     * @param productId Product ID containing the variant
+     * @param variantId Variant ID to toggle
+     * @description When inactive, variant won't appear in sales, reports, POS, etc.
+     */
+    toggleVariantActive: async (productId, variantId) => {
+        const product = get().products.find((p) => p.id === productId);
+        if (!product?.variants) {
+            console.warn('[toggleVariantActive] Product or variants not found:', productId);
+            return;
+        }
+
+        const variantIndex = product.variants.findIndex((v) => v.id === variantId);
+        if (variantIndex === -1) {
+            console.warn('[toggleVariantActive] Variant not found:', variantId);
+            return;
+        }
+
+        const currentVariant = product.variants[variantIndex];
+        const newStatus = currentVariant.isActive === false ? true : false;
+
+        // 🛡️ Safety Check: Alert if all variants would be inactive
+        const updatedVariants = product.variants.map((v) =>
+            v.id === variantId ? { ...v, isActive: newStatus } : v
+        );
+        const allInactive = updatedVariants.every((v) => v.isActive === false);
+
+        if (allInactive && !newStatus) {
+            console.warn('[toggleVariantActive] All variants will be inactive!');
+            // Note: UI should show alert to user, but we proceed with the update
+        }
+
+        try {
+            // 🛡️ Pessimistic Update: Wait for DB before updating local state
+            // Variants stored as JSONB in products table
+            const { error } = await supabase
+                .from('products')
+                .update({ variants: updatedVariants })
+                .eq('id', productId);
+
+            if (error) {
+                console.error('[toggleVariantActive] Database update failed:', error);
+                throw new Error(`เปลี่ยนสถานะไม่สำเร็จ: ${error.message}`);
+            }
+
+            // Update local state AFTER DB success
+            set((state) => ({
+                products: state.products.map((p) =>
+                    p.id === productId ? { ...p, variants: updatedVariants } : p
+                )
+            }));
+
+            console.log('[toggleVariantActive] Success:', variantId, '->', newStatus ? 'เปิดขาย' : 'พักขาย');
+        } catch (err) {
+            console.error('[toggleVariantActive] Error:', err);
+            throw err;
         }
     },
 

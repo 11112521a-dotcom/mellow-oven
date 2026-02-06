@@ -9,14 +9,14 @@
 import React, { useState } from 'react';
 import { Product, Variant, Recipe } from '@/types';
 import { useStore } from '@/src/store';
-import { Plus, Edit2, Trash2 } from 'lucide-react';
+import { Plus, Edit2, Trash2, Power } from 'lucide-react';
 import { Modal } from '@/src/components/ui/Modal';
 import { RecipeBuilder } from './RecipeBuilder';
 import { formatCurrency } from '@/src/lib/utils';
 import { EditProductModal } from './EditProductModal';
 
 export const MenuManager: React.FC = () => {
-    const { products, addProduct, removeProduct } = useStore();
+    const { products, addProduct, removeProduct, toggleProductActive } = useStore();
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -130,104 +130,127 @@ export const MenuManager: React.FC = () => {
             <div className="p-6">
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {products.map((product) => (
-                        <div
-                            key={product.id}
-                            className="group bg-white rounded-2xl border border-gray-100 overflow-hidden hover:shadow-lg hover:border-gray-200 transition-all duration-300"
-                        >
-                            {/* Minimal Card Content */}
-                            <div className="p-5">
-                                {/* Header Row */}
-                                <div className="flex justify-between items-start mb-3">
-                                    <div className="flex-1 min-w-0">
-                                        <h4 className="font-bold text-lg text-gray-800 truncate">
-                                            {product.name}
-                                        </h4>
-                                        <p className="text-xs text-gray-400 mt-0.5">
-                                            {product.category}
-                                            {product.flavor && ` • ${product.flavor}`}
-                                        </p>
-                                    </div>
-                                    {/* Action Buttons - Always visible for accessibility (#17, #22) */}
-                                    <div className="flex gap-1.5">
-                                        <button
-                                            onClick={() => handleEditClick(product)}
-                                            className="p-2.5 min-w-[44px] min-h-[44px] flex items-center justify-center text-gray-500 hover:text-blue-600 bg-gray-50 hover:bg-blue-50 rounded-xl transition-all border border-gray-100 hover:border-blue-200"
-                                            aria-label={`แก้ไข ${product.name}`}
-                                        >
-                                            <Edit2 size={18} />
-                                        </button>
-                                        <button
-                                            onClick={() => handleDeleteClick(product)}
-                                            className="p-2.5 min-w-[44px] min-h-[44px] flex items-center justify-center text-gray-500 hover:text-red-600 bg-gray-50 hover:bg-red-50 rounded-xl transition-all border border-gray-100 hover:border-red-200"
-                                            aria-label={`ลบ ${product.name}`}
-                                        >
-                                            <Trash2 size={18} />
-                                        </button>
-                                    </div>
-                                </div>
-
-                                {/* Badges - Only if has recipe or variants */}
-                                {(product.recipe || (product.variants && product.variants.length > 0)) && (
-                                    <div className="flex gap-1.5 mb-3">
-                                        {product.variants && product.variants.length > 0 && (
-                                            <span className="text-[10px] bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full">
-                                                {product.variants.length} รส
-                                            </span>
-                                        )}
-                                        {product.recipe && (
-                                            <span className="text-[10px] bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded-full">
-                                                มีสูตร
-                                            </span>
-                                        )}
-                                    </div>
-                                )}
-
-                                {/* Variants Pills - Compact */}
-                                {product.variants && product.variants.length > 0 && (
-                                    <div className="flex flex-wrap gap-1 mb-4">
-                                        {product.variants.slice(0, 5).map((variant, idx) => (
-                                            <span
-                                                key={variant.id || idx}
-                                                className="text-xs bg-gray-50 text-gray-600 px-2 py-1 rounded-lg"
+                    {products.map((product) => {
+                        const isActive = product.isActive !== false;
+                        return (
+                            <div
+                                key={product.id}
+                                className={`group bg-white rounded-2xl border overflow-hidden hover:shadow-lg transition-all duration-300 ${isActive ? 'border-gray-100 hover:border-gray-200' : 'border-gray-200 bg-gray-50'
+                                    }`}
+                            >
+                                {/* Minimal Card Content */}
+                                <div className={`p-5 ${!isActive ? 'opacity-50' : ''}`}>
+                                    {/* Header Row */}
+                                    <div className="flex justify-between items-start mb-3">
+                                        <div className="flex-1 min-w-0">
+                                            <h4 className="font-bold text-lg text-gray-800 truncate">
+                                                {product.name}
+                                            </h4>
+                                            <p className="text-xs text-gray-400 mt-0.5 flex items-center gap-1.5">
+                                                {product.category}
+                                                {product.flavor && ` • ${product.flavor}`}
+                                                {/* 🆕 Badge พักขาย */}
+                                                {!isActive && (
+                                                    <span className="text-[10px] bg-gray-200 text-gray-600 px-1.5 py-0.5 rounded ml-1">
+                                                        พักขาย
+                                                    </span>
+                                                )}
+                                            </p>
+                                        </div>
+                                        {/* Action Buttons - Always visible for accessibility (#17, #22) */}
+                                        {/* 🆕 ปุ่มยังคงเด่นชัดแม้ card จะ opacity (ตาม Architect's recommendation) */}
+                                        <div className={`flex gap-1.5 ${!isActive ? 'opacity-100' : ''}`}>
+                                            {/* 🆕 Toggle Active/Inactive (สวิตช์พักขาย) */}
+                                            <button
+                                                onClick={() => toggleProductActive(product.id)}
+                                                className={`p-2.5 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl transition-all border ${isActive
+                                                    ? 'text-emerald-600 bg-emerald-50 hover:bg-emerald-100 border-emerald-200'
+                                                    : 'text-gray-500 bg-gray-100 hover:bg-gray-200 border-gray-300'
+                                                    }`}
+                                                aria-label={isActive ? `พักขาย ${product.name}` : `เปิดขาย ${product.name}`}
+                                                title={isActive ? 'คลิกเพื่อพักขาย' : 'คลิกเพื่อเปิดขาย'}
                                             >
-                                                {variant.name} <span className="text-gray-400">฿{variant.price}</span>
-                                            </span>
-                                        ))}
-                                        {product.variants.length > 5 && (
-                                            <span className="text-xs text-gray-400 px-2 py-1">
-                                                +{product.variants.length - 5}
-                                            </span>
-                                        )}
+                                                <Power size={18} />
+                                            </button>
+                                            <button
+                                                onClick={() => handleEditClick(product)}
+                                                className="p-2.5 min-w-[44px] min-h-[44px] flex items-center justify-center text-gray-500 hover:text-blue-600 bg-gray-50 hover:bg-blue-50 rounded-xl transition-all border border-gray-100 hover:border-blue-200"
+                                                aria-label={`แก้ไข ${product.name}`}
+                                            >
+                                                <Edit2 size={18} />
+                                            </button>
+                                            <button
+                                                onClick={() => handleDeleteClick(product)}
+                                                className="p-2.5 min-w-[44px] min-h-[44px] flex items-center justify-center text-gray-500 hover:text-red-600 bg-gray-50 hover:bg-red-50 rounded-xl transition-all border border-gray-100 hover:border-red-200"
+                                                aria-label={`ลบ ${product.name}`}
+                                            >
+                                                <Trash2 size={18} />
+                                            </button>
+                                        </div>
                                     </div>
-                                )}
 
-                                {/* Price Row - Clean */}
-                                <div className="flex items-end justify-between pt-3 border-t border-gray-50">
-                                    <div>
-                                        <p className="text-2xl font-bold text-gray-800">฿{product.price}</p>
-                                        <p className="text-xs text-gray-400">ราคาขาย</p>
+                                    {/* Badges - Only if has recipe or variants */}
+                                    {(product.recipe || (product.variants && product.variants.length > 0)) && (
+                                        <div className="flex gap-1.5 mb-3">
+                                            {product.variants && product.variants.length > 0 && (
+                                                <span className="text-[10px] bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full">
+                                                    {product.variants.length} รส
+                                                </span>
+                                            )}
+                                            {product.recipe && (
+                                                <span className="text-[10px] bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded-full">
+                                                    มีสูตร
+                                                </span>
+                                            )}
+                                        </div>
+                                    )}
+
+                                    {/* Variants Pills - Compact */}
+                                    {product.variants && product.variants.length > 0 && (
+                                        <div className="flex flex-wrap gap-1 mb-4">
+                                            {product.variants.slice(0, 5).map((variant, idx) => (
+                                                <span
+                                                    key={variant.id || idx}
+                                                    className="text-xs bg-gray-50 text-gray-600 px-2 py-1 rounded-lg"
+                                                >
+                                                    {variant.name} <span className="text-gray-400">฿{variant.price}</span>
+                                                </span>
+                                            ))}
+                                            {product.variants.length > 5 && (
+                                                <span className="text-xs text-gray-400 px-2 py-1">
+                                                    +{product.variants.length - 5}
+                                                </span>
+                                            )}
+                                        </div>
+                                    )}
+
+                                    {/* Price Row - Clean */}
+                                    <div className="flex items-end justify-between pt-3 border-t border-gray-50">
+                                        <div>
+                                            <p className="text-2xl font-bold text-gray-800">฿{product.price}</p>
+                                            <p className="text-xs text-gray-400">ราคาขาย</p>
+                                        </div>
+                                        <div className="text-right">
+                                            <p className="text-sm text-gray-500">฿{formatCurrency(product.cost)}</p>
+                                            <p className="text-xs text-gray-400">ต้นทุน</p>
+                                        </div>
                                     </div>
-                                    <div className="text-right">
-                                        <p className="text-sm text-gray-500">฿{formatCurrency(product.cost)}</p>
-                                        <p className="text-xs text-gray-400">ต้นทุน</p>
-                                    </div>
+
+                                    {/* Profit Badge - Subtle */}
+                                    {product.price > 0 && product.cost > 0 && (
+                                        <div className="mt-3 text-center">
+                                            <span className="inline-flex items-center gap-1 text-xs text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full">
+                                                กำไร ฿{formatCurrency(product.price - product.cost)}
+                                                <span className="text-emerald-400">
+                                                    ({Math.round(((product.price - product.cost) / product.price) * 100)}%)
+                                                </span>
+                                            </span>
+                                        </div>
+                                    )}
                                 </div>
-
-                                {/* Profit Badge - Subtle */}
-                                {product.price > 0 && product.cost > 0 && (
-                                    <div className="mt-3 text-center">
-                                        <span className="inline-flex items-center gap-1 text-xs text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full">
-                                            กำไร ฿{formatCurrency(product.price - product.cost)}
-                                            <span className="text-emerald-400">
-                                                ({Math.round(((product.price - product.cost) / product.price) * 100)}%)
-                                            </span>
-                                        </span>
-                                    </div>
-                                )}
                             </div>
-                        </div>
-                    ))}
+                        );
+                    })}
                 </div>
             </div>
 

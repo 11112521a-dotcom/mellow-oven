@@ -31,14 +31,20 @@ export const THAI_LOCATIONS: Record<string, LocationCoords> = {
     'nakhonratchasima': { latitude: 14.9799, longitude: 102.0978, name: 'นครราชสีมา' },
 };
 
+// SAFETY: Simple in-memory cache for weather data (fallback when API fails)
+const weatherCache: Map<string, WeatherForecast> = new Map();
+
 /**
  * Fetch weather forecast from Open-Meteo API
  * Free, no API key required, rate limit: generous
+ * SAFETY: Added 5-second timeout and cache fallback
  */
 export async function fetchWeatherForecast(
     date: string,
     location: LocationCoords | string = 'sisaket'
 ): Promise<WeatherForecast | null> {
+    const cacheKey = `${date}_${typeof location === 'string' ? location : location.name}`;
+
     try {
         const coords = typeof location === 'string'
             ? THAI_LOCATIONS[location] || THAI_LOCATIONS['sisaket']
@@ -50,46 +56,83 @@ export async function fetchWeatherForecast(
 
         // Open-Meteo only forecasts up to 16 days ahead
         if (daysAhead > 16 || daysAhead < 0) {
-            console.log('Date out of forecast range, using historical average');
-            return null;
+            console.log('Date out of forecast range, using cached/default');
+            return weatherCache.get(cacheKey) || getDefaultWeather(date);
         }
 
         const url = `https://api.open-meteo.com/v1/forecast?latitude=${coords.latitude}&longitude=${coords.longitude}&daily=weather_code,temperature_2m_max,precipitation_sum,relative_humidity_2m_mean&timezone=Asia%2FBangkok`;
 
-        const response = await fetch(url);
-        if (!response.ok) {
-            throw new Error(`Weather API error: ${response.status}`);
+        // SAFETY: Add 5-second timeout to prevent hanging
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+        try {
+            const response = await fetch(url, { signal: controller.signal });
+            clearTimeout(timeoutId);
+
+            if (!response.ok) {
+                throw new Error(`Weather API error: ${response.status}`);
+            }
+
+            const data = await response.json();
+
+            // Find the correct day index
+            const dateIndex = data.daily.time.findIndex((d: string) => d === date);
+            if (dateIndex === -1) {
+                return weatherCache.get(cacheKey) || getDefaultWeather(date);
+            }
+
+            const weatherCode = data.daily.weather_code[dateIndex];
+            const temperature = data.daily.temperature_2m_max[dateIndex];
+            const precipitation = data.daily.precipitation_sum[dateIndex];
+            const humidity = data.daily.relative_humidity_2m_mean[dateIndex];
+
+            // Convert WMO weather code to our conditions
+            const condition = wmoCodeToCondition(weatherCode);
+            const description = wmoCodeToDescription(weatherCode);
+
+            const forecast: WeatherForecast = {
+                date,
+                condition,
+                temperature,
+                precipitation,
+                humidity,
+                description
+            };
+
+            // SAFETY: Cache successful result for fallback
+            weatherCache.set(cacheKey, forecast);
+
+            return forecast;
+        } catch (fetchError) {
+            clearTimeout(timeoutId);
+            throw fetchError;
         }
-
-        const data = await response.json();
-
-        // Find the correct day index
-        const dateIndex = data.daily.time.findIndex((d: string) => d === date);
-        if (dateIndex === -1) {
-            return null;
-        }
-
-        const weatherCode = data.daily.weather_code[dateIndex];
-        const temperature = data.daily.temperature_2m_max[dateIndex];
-        const precipitation = data.daily.precipitation_sum[dateIndex];
-        const humidity = data.daily.relative_humidity_2m_mean[dateIndex];
-
-        // Convert WMO weather code to our conditions
-        const condition = wmoCodeToCondition(weatherCode);
-        const description = wmoCodeToDescription(weatherCode);
-
-        return {
-            date,
-            condition,
-            temperature,
-            precipitation,
-            humidity,
-            description
-        };
     } catch (error) {
-        console.error('Failed to fetch weather:', error);
-        return null;
+        // SAFETY: On any error, try cache first, then return default
+        const cached = weatherCache.get(cacheKey);
+        if (cached) {
+            console.log('[Weather] Using cached forecast due to API error');
+            return cached;
+        }
+
+        console.error('[Weather] API failed, using default sunny:', error);
+        return getDefaultWeather(date);
     }
+}
+
+/**
+ * SAFETY: Default weather fallback when API fails
+ */
+function getDefaultWeather(date: string): WeatherForecast {
+    return {
+        date,
+        condition: 'sunny',
+        temperature: 32,
+        precipitation: 0,
+        humidity: 65,
+        description: 'ค่าเริ่มต้น (API ไม่ตอบสนอง)'
+    };
 }
 
 /**

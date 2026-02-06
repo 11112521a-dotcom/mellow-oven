@@ -384,7 +384,7 @@ export const MenuStockPlanner: React.FC = () => {
         productId: string;
         productName: string;
         targetValue: number;
-        items: { item: InventoryItem; stockYesterday: number; confirmedProduction: number; neededProduction: number }[];
+        items: { item: InventoryItem; stockYesterday: number; confirmedProduction: number; neededProduction: number; wasteQty?: number }[];
     } | null>(null);
 
     // Bulk Action Modal State (Produce All / Send All)
@@ -400,9 +400,15 @@ export const MenuStockPlanner: React.FC = () => {
     const inventoryItems: InventoryItem[] = useMemo(() => {
         const items: InventoryItem[] = [];
         products.forEach(product => {
+            // 🆕 Skip inactive products (พักขาย)
+            if (product.isActive === false) return;
+
             if (product.variants && product.variants.length > 0) {
                 // Product has variants - add each variant
                 product.variants.forEach(variant => {
+                    // 🆕 Skip inactive variants (พักขาย)
+                    if (variant.isActive === false) return;
+
                     items.push({
                         id: `${product.id}-${variant.id}`,
                         productId: product.id,
@@ -983,17 +989,17 @@ export const MenuStockPlanner: React.FC = () => {
         const pendingTrans = pendingTransfer[item.id] || 0;
 
         return (
-            <div key={item.id} className="bg-white rounded-xl shadow-sm border border-cafe-100 p-3">
-                {/* Header Row */}
-                <div className="flex items-center justify-between mb-2">
+            <div key={item.id} className="bg-white rounded-xl shadow-sm border border-cafe-100 overflow-hidden">
+                {/* Header Row - Dark Style */}
+                <div className="px-4 py-3 bg-gradient-to-r from-cafe-600 to-cafe-700 text-white flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                        <span className="font-bold text-cafe-800">{item.name}</span>
-                        <span className="text-xs text-cafe-400 bg-cafe-100 px-2 py-0.5 rounded-full">{item.category}</span>
+                        <span className="font-bold text-white">{item.name}</span>
+                        <span className="text-[10px] text-cafe-100 bg-white/20 px-2 py-0.5 rounded-full">{item.category}</span>
                     </div>
                     <div className="flex items-center gap-2 text-xs">
-                        <span className="text-gray-500">เก่า: <b>{stockYesterday}</b></span>
-                        <span className="text-emerald-600 font-bold">รวม: {todayStock}</span>
-                        <span className={`font-bold ${leftover < 0 ? 'text-red-500' : 'text-amber-600'}`}>เหลือ: {leftover}</span>
+                        <span className="text-white/80">เก่า: <b>{stockYesterday}</b></span>
+                        <span className="text-emerald-100 bg-emerald-500/20 px-2 py-0.5 rounded-full font-bold border border-emerald-500/30">รวม: {todayStock}</span>
+                        <span className={`font-bold px-2 py-0.5 rounded-full border ${leftover < 0 ? 'text-white bg-red-500/80 border-red-400' : 'text-amber-100 bg-amber-500/20 border-amber-500/30'}`}>เหลือ: {leftover}</span>
                         <button
                             onClick={() => setEditModal({
                                 isOpen: true,
@@ -1002,7 +1008,7 @@ export const MenuStockPlanner: React.FC = () => {
                                 currentTransfer: confirmedTransfer,
                                 stockYesterday
                             })}
-                            className="p-1 text-purple-500 hover:bg-purple-100 rounded transition-colors"
+                            className="p-1 text-white/80 hover:bg-white/20 rounded transition-colors"
                             title="แก้ไขข้อมูล"
                         >
                             <Edit2 size={14} />
@@ -1011,7 +1017,7 @@ export const MenuStockPlanner: React.FC = () => {
                 </div>
 
                 {/* Action Row - Compact */}
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-wrap gap-2 p-3">
                     {/* Production */}
                     <div className="flex items-center gap-1 bg-blue-50 rounded-lg px-2 py-1 flex-1 min-w-[140px]">
                         <Flame size={14} className="text-blue-500" />
@@ -1107,17 +1113,17 @@ export const MenuStockPlanner: React.FC = () => {
                 className={`bg-white rounded-xl shadow-sm border overflow-hidden ${isNested ? 'ml-2 border-l-4 border-l-cafe-400' : 'border-cafe-100'}`}
             >
                 {/* Compact Header - Always Visible */}
-                <div className={`px-3 py-2 ${isNested ? 'bg-cafe-50' : 'bg-gradient-to-r from-cafe-100 to-cafe-50'}`}>
+                <div className={isNested ? "px-4 py-3 bg-cafe-50" : "px-4 py-3 bg-gradient-to-r from-cafe-600 to-cafe-700 text-white"}>
                     <div className="flex items-center justify-between gap-2">
                         <div className="flex items-center gap-1.5 min-w-0 flex-1">
                             {item.isVariant && <span className="text-cafe-400 text-xs">↳</span>}
-                            <h3 className="font-bold text-cafe-800 text-sm truncate">{item.name}</h3>
-                            <span className="text-[10px] text-cafe-400 bg-white/70 px-1.5 py-0.5 rounded shrink-0">{item.category}</span>
+                            <h3 className={`font-bold text-sm truncate ${isNested ? 'text-cafe-800' : 'text-white'}`}>{item.name}</h3>
+                            <span className={`text-[10px] px-1.5 py-0.5 rounded shrink-0 ${isNested ? 'text-cafe-400 bg-white/70' : 'text-cafe-100 bg-white/20'}`}>{item.category}</span>
                         </div>
                         {/* Quick Stats + Edit Button */}
                         <div className="flex items-center gap-1.5 shrink-0">
-                            <span className="text-xs bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full font-bold">{todayStock}</span>
-                            <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-bold">{leftover}</span>
+                            <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${isNested ? 'bg-emerald-100 text-emerald-700' : 'bg-emerald-400/30 text-white'}`}>{todayStock}</span>
+                            <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${isNested ? 'bg-amber-100 text-amber-700' : 'bg-amber-400/30 text-white'}`}>{leftover}</span>
                             <button
                                 onClick={() => setEditModal({
                                     isOpen: true,
@@ -1126,7 +1132,7 @@ export const MenuStockPlanner: React.FC = () => {
                                     currentTransfer: confirmedTransfer,
                                     stockYesterday
                                 })}
-                                className="p-1 text-purple-500 hover:bg-purple-100 rounded transition-colors"
+                                className={`p-1 rounded transition-colors ${isNested ? 'text-purple-500 hover:bg-purple-100' : 'text-white/80 hover:bg-white/20 hover:text-white'}`}
                                 title="แก้ไขข้อมูล"
                             >
                                 <Edit2 size={14} />
@@ -1293,7 +1299,7 @@ export const MenuStockPlanner: React.FC = () => {
                             {/* Group Header */}
                             <button
                                 onClick={() => toggleGroup(product.id)}
-                                className="w-full flex items-center justify-between p-4 bg-gradient-to-r from-cafe-700 to-cafe-800 text-white rounded-xl hover:from-cafe-600 hover:to-cafe-700 transition-colors shadow-md"
+                                className="w-full flex items-center justify-between px-4 py-3 bg-gradient-to-r from-cafe-600 to-cafe-700 text-white rounded-xl hover:from-cafe-700 hover:to-cafe-800 transition-colors shadow-md"
                             >
                                 <div className="flex items-center gap-3">
                                     <Layers size={20} />

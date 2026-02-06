@@ -170,9 +170,15 @@ export const DailySalesForm: React.FC = () => {
             const initialLogs: (DailyProductionLog & { product: Product, variant?: Variant })[] = [];
 
             products.forEach(p => {
+                // 🆕 Skip inactive products (พักขาย)
+                if (p.isActive === false) return;
+
                 if (p.variants && p.variants.length > 0) {
                     // For products WITH variants - look up each variant separately
                     p.variants.forEach(v => {
+                        // 🆕 Skip inactive variants (พักขาย)
+                        if (v.isActive === false) return;
+
                         // Match by BOTH productId AND variantId
                         const inventoryRecord = dailyInventory.find(
                             d => d.businessDate === date &&
@@ -544,11 +550,11 @@ export const DailySalesForm: React.FC = () => {
                         <div key={productId} className="bg-white rounded-2xl shadow-sm border border-cafe-100 overflow-hidden">
                             {/* Group Header */}
                             <div
-                                className={`px-4 py-3 flex items-center justify-between cursor-pointer transition-colors ${hasVariants ? 'bg-gradient-to-r from-cafe-600 to-cafe-700 text-white hover:from-cafe-700 hover:to-cafe-800' : 'bg-gradient-to-r from-cafe-100 to-cafe-50'}`}
+                                className="px-4 py-3 flex items-center justify-between cursor-pointer transition-colors bg-gradient-to-r from-cafe-600 to-cafe-700 text-white hover:from-cafe-700 hover:to-cafe-800"
                                 onClick={() => hasVariants && toggleGroup(productId)}
                             >
                                 <div className="flex items-center gap-3">
-                                    <span className={`font-bold ${hasVariants ? 'text-white' : 'text-cafe-800'}`}>
+                                    <span className="font-bold text-white">
                                         {group.product.name}
                                     </span>
                                     {hasVariants && (
@@ -558,10 +564,10 @@ export const DailySalesForm: React.FC = () => {
                                     )}
                                 </div>
                                 <div className="flex items-center gap-2">
-                                    <span className={`text-xs px-2 py-1 rounded-full font-bold ${hasVariants ? 'bg-blue-400/30 text-white' : 'bg-blue-100 text-blue-700'}`}>
+                                    <span className="text-xs px-2 py-1 rounded-full font-bold bg-blue-400/30 text-white">
                                         📦 {group.totalAvailable}
                                     </span>
-                                    <span className={`text-xs px-2 py-1 rounded-full font-bold ${hasVariants ? 'bg-green-400/30 text-white' : 'bg-green-100 text-green-700'}`}>
+                                    <span className="text-xs px-2 py-1 rounded-full font-bold bg-green-400/30 text-white">
                                         ✅ {group.totalSold}
                                     </span>
                                     {hasVariants && (

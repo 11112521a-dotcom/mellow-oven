@@ -54,6 +54,31 @@ const App: React.FC = () => {
         localStorage.setItem('cache-version', CACHE_VERSION);
       }
 
+      // 🧹 Auto-cleanup: Delete transactions older than 6 months (runs once per day)
+      const lastCleanup = localStorage.getItem('lastDbCleanup');
+      const today = new Date().toISOString().split('T')[0];
+      if (lastCleanup !== today) {
+        try {
+          const sixMonthsAgo = new Date();
+          sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+          const cutoffDate = sixMonthsAgo.toISOString().split('T')[0];
+
+          // Import supabase dynamically to avoid circular deps
+          const { supabase } = await import('./src/lib/supabase');
+          const { error, count } = await supabase
+            .from('transactions')
+            .delete()
+            .lt('date', cutoffDate);
+
+          if (!error) {
+            console.log(`[App] 🧹 Cleaned up transactions older than ${cutoffDate}`);
+            localStorage.setItem('lastDbCleanup', today);
+          }
+        } catch (e) {
+          console.warn('[App] Database cleanup skipped:', e);
+        }
+      }
+
       await checkSession();
       await fetchData();
       subscribeToRealtime();
