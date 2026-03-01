@@ -79,7 +79,7 @@ export const mapProductionForecast = (f: any): ProductionForecast => ({
 
 export const mapDailyInventory = (d: any): DailyInventory => ({
     id: d.id,
-    createdAt: d.created_at,
+    createdAt: d.created_at || d.createdAt, // Fallback for stability
     businessDate: d.business_date,
     productId: d.product_id,
     variantId: d.variant_id,
@@ -88,6 +88,8 @@ export const mapDailyInventory = (d: any): DailyInventory => ({
     toShopQty: d.to_shop_qty,
     soldQty: d.sold_qty,
     wasteQty: d.waste_qty ?? 0,
+    eatQty: d.eat_qty ?? 0, // NEW
+    giveawayQty: d.giveaway_qty ?? 0, // NEW
     stockYesterday: d.stock_yesterday,
     leftoverHome: d.leftover_home,
     unsoldShop: d.unsold_shop

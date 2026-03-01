@@ -3,6 +3,7 @@ import { Modal } from '../ui/Modal';
 import { Goal, JarType } from '@/types';
 import { useStore } from '@/src/store';
 import { Target, Trash2, Calendar } from 'lucide-react';
+import { NumberInput } from '@/src/components/ui/NumberInput';
 
 interface GoalModalProps {
     isOpen: boolean;
@@ -128,8 +129,8 @@ export const GoalModal: React.FC<GoalModalProps> = ({ isOpen, onClose, jarId, ed
                                     type="button"
                                     onClick={() => setIcon(ico)}
                                     className={`text-2xl p-2 rounded-lg transition-all ${icon === ico
-                                            ? 'bg-cafe-600 ring-2 ring-cafe-400 scale-110'
-                                            : 'bg-cafe-100 hover:bg-cafe-200'
+                                        ? 'bg-cafe-600 ring-2 ring-cafe-400 scale-110'
+                                        : 'bg-cafe-100 hover:bg-cafe-200'
                                         }`}
                                 >
                                     {ico}
@@ -157,10 +158,9 @@ export const GoalModal: React.FC<GoalModalProps> = ({ isOpen, onClose, jarId, ed
                     {/* Target Amount */}
                     <div>
                         <label className="block text-sm font-medium text-cafe-700 mb-1">จำนวนเงินเป้าหมาย</label>
-                        <input
-                            type="number"
-                            value={targetAmount}
-                            onChange={(e) => setTargetAmount(e.target.value)}
+                        <NumberInput
+                            value={parseFloat(targetAmount) || 0}
+                            onChange={(val) => setTargetAmount(val === 0 ? '' : val.toString())}
                             className="w-full p-3 border border-cafe-200 rounded-lg focus:ring-2 focus:ring-cafe-500 outline-none text-lg font-medium"
                             placeholder="20000"
                             min="0"

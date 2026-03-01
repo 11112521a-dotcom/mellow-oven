@@ -10,6 +10,7 @@ import { createPromotionSlice } from './slices/promotionSlice';
 import { createShopInfoSlice } from './slices/shopInfoSlice';
 import { createSnackBoxSlice } from './slices/snackBoxSlice';
 import { createPromotionOrderSlice } from './slices/promotionOrderSlice';
+import { createSnackBoxOrderSlice } from './slices/snackBoxOrderSlice';
 import { createQuotationSlice } from './slices/quotationSlice';
 import { createInvoiceSlice } from './slices/invoiceSlice';
 import { createReceiptSlice } from './slices/receiptSlice';
@@ -34,6 +35,7 @@ export const useStore = create<AppState>()(
             ...createShopInfoSlice(set, get, api),
             ...createSnackBoxSlice(set, get, api),
             ...createPromotionOrderSlice(set, get, api),
+            ...createSnackBoxOrderSlice(set, get, api),
             ...createQuotationSlice(set, get, api),
             // NEW: Invoice & Receipt System
             ...createInvoiceSlice(set, get, api),
@@ -42,6 +44,15 @@ export const useStore = create<AppState>()(
             // ==================== SHARED ACTIONS ====================
             storeName: 'Mellow Oven',
             setStoreName: (name) => set({ storeName: name }),
+
+            globalDateFilter: {
+                preset: 'today',
+                fromDate: new Date().toISOString().split('T')[0],
+                toDate: new Date().toISOString().split('T')[0],
+                label: 'วันนี้'
+            },
+            setGlobalDateFilter: (filter) => set({ globalDateFilter: filter }),
+
             loadStore: (newState) => set((state) => ({ ...state, ...newState })),
 
             resetStore: () => {
@@ -77,6 +88,7 @@ export const useStore = create<AppState>()(
                     conversionRate: Number(i.conversion_rate) || 1,
                     minStock: Number(i.min_stock) || 10,
                     isHidden: i.is_hidden,
+                    category: i.category || 'อื่นๆ',
                 })) || [];
 
                 const mappedTransactions = transactions?.map(t => ({

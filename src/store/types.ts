@@ -131,6 +131,9 @@ export interface ProductsSlice {
     deleteForecastsByDate: (date: string) => Promise<void>; // NEW
 }
 
+// ProductSaleLog is now defined above to include new fields
+// export interface ProductSaleLog { ... } // Removed duplicate
+
 export interface SalesSlice {
     productSales: ProductSaleLog[];
     markets: Market[];
@@ -174,6 +177,14 @@ export interface PromotionSlice {
 export interface SharedActions {
     storeName: string;
     setStoreName: (name: string) => void;
+    // Global Date Filter for syncing across pages
+    globalDateFilter: {
+        preset: string;
+        fromDate: string;
+        toDate: string;
+        label: string;
+    };
+    setGlobalDateFilter: (filter: { preset: string, fromDate: string, toDate: string, label: string }) => void;
     loadStore: (state: Partial<AppState>) => void;
     fetchData: () => Promise<void>;
     resetStore: () => void;
@@ -187,15 +198,16 @@ export interface SharedActions {
 import { ShopInfoSlice } from './slices/shopInfoSlice';
 import { SnackBoxSlice } from './slices/snackBoxSlice';
 import { PromotionOrderSlice } from './slices/promotionOrderSlice';
+import { SnackBoxOrderSlice } from './slices/snackBoxOrderSlice';
 import { QuotationSlice } from './slices/quotationSlice';
 import { InvoiceSlice } from './slices/invoiceSlice';
 import { ReceiptSlice } from './slices/receiptSlice';
 
-export type { ShopInfoSlice, SnackBoxSlice, PromotionOrderSlice, QuotationSlice, InvoiceSlice, ReceiptSlice };
+export type { ShopInfoSlice, SnackBoxSlice, PromotionOrderSlice, SnackBoxOrderSlice, QuotationSlice, InvoiceSlice, ReceiptSlice };
 
 // ==================== COMBINED APP STATE ====================
 
-export type AppState = AuthSlice & FinanceSlice & InventorySlice & ProductsSlice & SalesSlice & PromotionSlice & SharedActions & ShopInfoSlice & SnackBoxSlice & PromotionOrderSlice & QuotationSlice & InvoiceSlice & ReceiptSlice;
+export type AppState = AuthSlice & FinanceSlice & InventorySlice & ProductsSlice & SalesSlice & PromotionSlice & SharedActions & ShopInfoSlice & SnackBoxSlice & PromotionOrderSlice & SnackBoxOrderSlice & QuotationSlice & InvoiceSlice & ReceiptSlice;
 
 // Re-export types for convenience
 export type {
@@ -209,6 +221,7 @@ export type {
 // Re-export new types
 export type {
     ShopInfo, PackagingOption, SnackBoxSet, SnackBoxSetItem,
+    SnackBoxOrder, SnackBoxOrderStatus,
     PromotionOrder, PromotionOrderItem, PromotionOrderStatus,
     Quotation, QuotationItem, QuotationStatus,
     Invoice, InvoiceStatus,

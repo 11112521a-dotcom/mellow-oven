@@ -22,11 +22,11 @@ import {
     Filter,
     Power
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { useStore } from '@/src/store';
 import { Product, Variant } from '@/types';
 import { formatCurrency } from '@/src/lib/utils';
 import { RecipeBuilder } from './RecipeBuilder';
+import { AddProductModal } from './AddProductModal';
 
 // ============================================================
 // Sub-Components
@@ -57,7 +57,7 @@ interface ToggleSwitchProps {
     size?: 'sm' | 'md';
 }
 
-const ToggleSwitch: React.FC<ToggleSwitchProps> = ({ active, onToggle, size = 'md' }) => {
+export const ToggleSwitch: React.FC<ToggleSwitchProps> = ({ active, onToggle, size = 'md' }) => {
     const sizeClasses = size === 'sm'
         ? 'w-8 h-4'
         : 'w-10 h-5';
@@ -131,11 +131,9 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onClick, onEdit, onD
     };
 
     return (
-        <motion.div
-            layoutId={product.id}
+        <div
             onClick={() => onClick(product)}
-            whileHover={{ y: -4 }}
-            className={`bg-white rounded-2xl p-4 border border-gray-100 shadow-sm hover:shadow-md cursor-pointer transition-all ${allInactive ? 'opacity-60' : ''}`}
+            className={`bg-white rounded-2xl p-4 border border-gray-100 shadow-sm hover:shadow-lg hover:border-cafe-200 hover:-translate-y-1 cursor-pointer transition-all duration-200 ${allInactive ? 'opacity-60' : ''}`}
         >
             {/* Header */}
             <div className="flex justify-between items-start mb-3">
@@ -209,7 +207,7 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onClick, onEdit, onD
                     </p>
                 </div>
             </div>
-        </motion.div>
+        </div>
     );
 };
 
@@ -318,24 +316,17 @@ const DetailModal: React.FC<DetailModalProps> = ({
     if (!product) return null;
 
     return (
-        <AnimatePresence>
+        <>
             {isOpen && (
                 <>
                     {/* Backdrop */}
-                    <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
+                    <div
                         onClick={onClose}
-                        className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[100] flex items-center justify-center p-4"
+                        className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[100] flex items-center justify-center p-4 transition-opacity"
                     />
 
                     {/* Modal */}
-                    <motion.div
-                        initial={{ opacity: 0, scale: 0.95 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        exit={{ opacity: 0, scale: 0.95 }}
-                        transition={{ duration: 0.2, ease: "easeOut" }}
+                    <div
                         className="fixed inset-0 m-auto w-full max-w-xl h-fit max-h-[90vh] bg-white rounded-3xl shadow-2xl z-[101] overflow-hidden flex flex-col"
                     >
                         {/* Header */}
@@ -391,9 +382,7 @@ const DetailModal: React.FC<DetailModalProps> = ({
                         <div className="p-6 overflow-y-auto flex-1">
                             {/* Info Tab */}
                             {activeTab === 'info' && (
-                                <motion.div
-                                    initial={{ opacity: 0, y: 10 }}
-                                    animate={{ opacity: 1, y: 0 }}
+                                <div
                                     className="space-y-4"
                                 >
                                     <div>
@@ -448,14 +437,12 @@ const DetailModal: React.FC<DetailModalProps> = ({
                                             />
                                         </div>
                                     </div>
-                                </motion.div>
+                                </div>
                             )}
 
                             {/* Variants Tab */}
                             {activeTab === 'variants' && (
-                                <motion.div
-                                    initial={{ opacity: 0, y: 10 }}
-                                    animate={{ opacity: 1, y: 0 }}
+                                <div
                                     className="space-y-3"
                                 >
                                     {/* Info Banner */}
@@ -544,15 +531,12 @@ const DetailModal: React.FC<DetailModalProps> = ({
                                             <p className="text-xs">กรอกข้อมูลด้านบนเพื่อเพิ่มตัวเลือกใหม่</p>
                                         </div>
                                     )}
-                                </motion.div>
+                                </div>
                             )}
 
                             {/* Recipe Tab */}
                             {activeTab === 'recipe' && (
-                                <motion.div
-                                    initial={{ opacity: 0, y: 10 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                >
+                                <div>
                                     <RecipeBuilder
                                         product={{ name, price: Number(price) }}
                                         onRecipeChange={(newRecipe) => {
@@ -560,7 +544,7 @@ const DetailModal: React.FC<DetailModalProps> = ({
                                             setHasChanges(true);
                                         }}
                                     />
-                                </motion.div>
+                                </div>
                             )}
                         </div>
 
@@ -583,10 +567,10 @@ const DetailModal: React.FC<DetailModalProps> = ({
                                 บันทึกการเปลี่ยนแปลง
                             </button>
                         </div>
-                    </motion.div>
+                    </div>
                 </>
             )}
-        </AnimatePresence>
+        </>
     );
 };
 
@@ -605,32 +589,14 @@ export const MenuManager2: React.FC = () => {
     } = useStore();
 
     const [searchQuery, setSearchQuery] = useState('');
-    const [selectedCategory, setSelectedCategory] = useState('All');
     const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
     const [deleteConfirmProduct, setDeleteConfirmProduct] = useState<Product | null>(null);
     const [showAddModal, setShowAddModal] = useState(false);
 
-    // Form states for add modal
-    const [newName, setNewName] = useState('');
-    const [newPrice, setNewPrice] = useState('');
-    const [newCost, setNewCost] = useState('');
-    const [newCategory, setNewCategory] = useState('Cake');
-    const [newFlavor, setNewFlavor] = useState('');
-
-    // Get unique categories from products
-    const categories = useMemo(() => {
-        const cats = new Set(products.map(p => p.category));
-        return ['All', ...Array.from(cats)];
-    }, [products]);
-
     // Filter products
     const filteredProducts = useMemo(() => {
-        return products.filter(p => {
-            const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase());
-            const matchesCategory = selectedCategory === 'All' || p.category === selectedCategory;
-            return matchesSearch && matchesCategory;
-        });
-    }, [products, searchQuery, selectedCategory]);
+        return products.filter(p => p.name.toLowerCase().includes(searchQuery.toLowerCase()));
+    }, [products, searchQuery]);
 
     const handleDelete = async (product: Product) => {
         try {
@@ -645,32 +611,29 @@ export const MenuManager2: React.FC = () => {
         await updateProduct(productId, updates);
     };
 
-    const handleAddProduct = async () => {
-        if (!newName.trim() || !newPrice) return;
+    const handleAddProduct = (newProductData: {
+        name: string;
+        price: string;
+        cost: string;
+        category: string;
+        flavor: string;
+    }) => {
+        const { name, price, cost, category, flavor } = newProductData;
+        if (!name.trim() || !price) return;
 
         const newProduct: Product = {
             id: crypto.randomUUID(),
-            name: newName.trim(),
-            price: Number(newPrice),
-            cost: Number(newCost) || 0,
-            category: newCategory || 'Cake',
-            flavor: newFlavor,
+            name: name.trim(),
+            price: Number(price),
+            cost: cost ? Number(cost) : undefined,
+            category,
+            flavor: flavor.trim() || undefined,
             variants: [],
             isActive: true
         };
 
-        try {
-            await addProduct(newProduct);
-            // Reset form
-            setNewName('');
-            setNewPrice('');
-            setNewCost('');
-            setNewCategory('Cake');
-            setNewFlavor('');
-            setShowAddModal(false);
-        } catch (err) {
-            console.error('Add product failed:', err);
-        }
+        addProduct(newProduct);
+        setShowAddModal(false);
     };
 
     return (
@@ -710,27 +673,10 @@ export const MenuManager2: React.FC = () => {
             </header>
 
             <main className="max-w-7xl mx-auto px-6 py-8">
-                {/* Category Filters */}
-                <div className="flex items-center gap-2 mb-8 overflow-x-auto pb-2 scrollbar-hide">
-                    <div className="p-2 bg-white rounded-lg border text-slate-400 mr-2">
-                        <Filter size={18} />
-                    </div>
-                    {categories.map(cat => (
-                        <button
-                            key={cat}
-                            onClick={() => setSelectedCategory(cat)}
-                            className={`px-6 py-2 rounded-xl text-sm font-bold whitespace-nowrap transition-all ${selectedCategory === cat
-                                ? 'bg-cafe-600 text-white shadow-md'
-                                : 'bg-white text-slate-500 border hover:border-cafe-200'
-                                }`}
-                        >
-                            {cat === 'All' ? 'ทั้งหมด' : cat}
-                        </button>
-                    ))}
-                </div>
-
                 {/* Products Grid */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                <div
+                    className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"
+                >
                     {filteredProducts.map(product => (
                         <ProductCard
                             key={product.id}
@@ -744,9 +690,9 @@ export const MenuManager2: React.FC = () => {
                     {/* Add New Card Placeholder */}
                     <div
                         onClick={() => setShowAddModal(true)}
-                        className="border-2 border-dashed border-slate-200 rounded-2xl flex flex-col items-center justify-center p-8 text-slate-400 hover:bg-white hover:border-cafe-200 cursor-pointer transition-colors group min-h-[200px]"
+                        className="bg-white border-2 border-dashed border-slate-200 rounded-2xl flex flex-col items-center justify-center p-8 text-slate-400 hover:bg-cafe-50 hover:text-cafe-600 hover:border-cafe-300 shadow-sm hover:shadow-md hover:-translate-y-1 cursor-pointer transition-all duration-200 group min-h-[200px]"
                     >
-                        <div className="w-12 h-12 rounded-full bg-slate-50 flex items-center justify-center mb-3 group-hover:bg-cafe-50 group-hover:text-cafe-500 transition-colors">
+                        <div className="w-12 h-12 rounded-full bg-slate-50 flex items-center justify-center mb-3 group-hover:bg-white group-hover:shadow-sm transition-all">
                             <Plus size={24} />
                         </div>
                         <p className="text-sm font-bold">เพิ่มสินค้าใหม่</p>
@@ -775,168 +721,43 @@ export const MenuManager2: React.FC = () => {
             />
 
             {/* Add Product Modal */}
-            <AnimatePresence>
-                {showAddModal && (
-                    <>
-                        <motion.div
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            exit={{ opacity: 0 }}
-                            onClick={() => setShowAddModal(false)}
-                            className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[100]"
-                        />
-                        <motion.div
-                            initial={{ opacity: 0, scale: 0.95, y: 20 }}
-                            animate={{ opacity: 1, scale: 1, y: 0 }}
-                            exit={{ opacity: 0, scale: 0.95, y: 20 }}
-                            transition={{ duration: 0.2, ease: "easeOut" }}
-                            className="fixed inset-0 m-auto w-full max-w-md h-fit bg-white rounded-2xl shadow-2xl z-[101] overflow-hidden"
-                        >
-                            {/* Header */}
-                            <div className="p-6 border-b bg-gradient-to-r from-cafe-50 to-amber-50">
-                                <h3 className="text-xl font-bold text-gray-800 flex items-center gap-3">
-                                    <span className="text-2xl">🍰</span>
-                                    เพิ่มเมนูใหม่
-                                </h3>
-                                <p className="text-xs text-gray-500 mt-1">สร้างสินค้าใหม่สำหรับร้านของคุณ</p>
-                            </div>
-
-                            {/* Form */}
-                            <div className="p-6 space-y-4">
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                                        ชื่อสินค้า <span className="text-red-400">*</span>
-                                    </label>
-                                    <input
-                                        type="text"
-                                        value={newName}
-                                        onChange={(e) => setNewName(e.target.value)}
-                                        placeholder="เช่น เค้กช็อกโกแลต"
-                                        className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-cafe-500 focus:border-cafe-500 outline-none"
-                                    />
-                                </div>
-
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                                            ราคาขาย <span className="text-red-400">*</span>
-                                        </label>
-                                        <input
-                                            type="number"
-                                            value={newPrice}
-                                            onChange={(e) => setNewPrice(e.target.value)}
-                                            placeholder="฿"
-                                            className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-cafe-500 focus:border-cafe-500 outline-none"
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">ต้นทุน</label>
-                                        <input
-                                            type="number"
-                                            value={newCost}
-                                            onChange={(e) => setNewCost(e.target.value)}
-                                            placeholder="฿ (ถ้าทราบ)"
-                                            className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-cafe-500 focus:border-cafe-500 outline-none"
-                                        />
-                                    </div>
-                                </div>
-
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">หมวดหมู่</label>
-                                        <select
-                                            value={newCategory}
-                                            onChange={(e) => setNewCategory(e.target.value)}
-                                            className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-cafe-500 focus:border-cafe-500 outline-none bg-white"
-                                        >
-                                            <option value="Cake">🍰 Cake</option>
-                                            <option value="Bakery">🥐 Bakery</option>
-                                            <option value="Tart">🥧 Tart</option>
-                                            <option value="Bread">🍞 Bread</option>
-                                            <option value="Coffee">☕ Coffee</option>
-                                            <option value="Tea">🍵 Tea</option>
-                                            <option value="Beverage">🥤 Beverage</option>
-                                            <option value="Dessert">🧁 Dessert</option>
-                                            <option value="Snack Box">📦 Snack Box</option>
-                                        </select>
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">รสชาติ/แบบ</label>
-                                        <input
-                                            type="text"
-                                            value={newFlavor}
-                                            onChange={(e) => setNewFlavor(e.target.value)}
-                                            placeholder="เช่น Chocolate"
-                                            className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-cafe-500 focus:border-cafe-500 outline-none"
-                                        />
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Footer */}
-                            <div className="p-6 border-t bg-gray-50 flex gap-3">
-                                <button
-                                    onClick={() => setShowAddModal(false)}
-                                    className="flex-1 py-2.5 rounded-xl font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 transition-colors"
-                                >
-                                    ยกเลิก
-                                </button>
-                                <button
-                                    onClick={handleAddProduct}
-                                    disabled={!newName.trim() || !newPrice}
-                                    className={`flex-1 py-2.5 rounded-xl font-bold transition-all ${newName.trim() && newPrice
-                                            ? 'bg-cafe-600 text-white hover:bg-cafe-700 shadow-lg'
-                                            : 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                                        }`}
-                                >
-                                    <Plus size={18} className="inline mr-1" />
-                                    สร้างสินค้า
-                                </button>
-                            </div>
-                        </motion.div>
-                    </>
-                )}
-            </AnimatePresence>
+            <AddProductModal
+                isOpen={showAddModal}
+                onClose={() => setShowAddModal(false)}
+                onAdd={handleAddProduct}
+            />
 
             {/* Delete Confirmation Modal */}
-            <AnimatePresence>
-                {deleteConfirmProduct && (
-                    <>
-                        <motion.div
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            exit={{ opacity: 0 }}
-                            onClick={() => setDeleteConfirmProduct(null)}
-                            className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[100]"
-                        />
-                        <motion.div
-                            initial={{ opacity: 0, scale: 0.95 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            exit={{ opacity: 0, scale: 0.95 }}
-                            className="fixed inset-0 m-auto w-full max-w-sm h-fit bg-white rounded-2xl shadow-2xl z-[101] p-6"
-                        >
-                            <h3 className="text-lg font-bold text-gray-800 mb-2">ยืนยันการลบ?</h3>
-                            <p className="text-sm text-gray-500 mb-6">
-                                คุณต้องการลบ "{deleteConfirmProduct.name}" ใช่หรือไม่? การกระทำนี้ไม่สามารถย้อนกลับได้
-                            </p>
-                            <div className="flex gap-3">
-                                <button
-                                    onClick={() => setDeleteConfirmProduct(null)}
-                                    className="flex-1 py-2.5 rounded-xl font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 transition-colors"
-                                >
-                                    ยกเลิก
-                                </button>
-                                <button
-                                    onClick={() => handleDelete(deleteConfirmProduct)}
-                                    className="flex-1 py-2.5 rounded-xl font-bold text-white bg-red-500 hover:bg-red-600 transition-colors"
-                                >
-                                    ลบเลย
-                                </button>
-                            </div>
-                        </motion.div>
-                    </>
-                )}
-            </AnimatePresence>
+            {deleteConfirmProduct && (
+                <>
+                    <div
+                        onClick={() => setDeleteConfirmProduct(null)}
+                        className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[100]"
+                    />
+                    <div
+                        className="fixed inset-0 m-auto w-full max-w-sm h-fit bg-white rounded-2xl shadow-2xl z-[101] p-6"
+                    >
+                        <h3 className="text-lg font-bold text-gray-800 mb-2">ยืนยันการลบ?</h3>
+                        <p className="text-sm text-gray-500 mb-6">
+                            คุณต้องการลบ "{deleteConfirmProduct.name}" ใช่หรือไม่? การกระทำนี้ไม่สามารถย้อนกลับได้
+                        </p>
+                        <div className="flex gap-3">
+                            <button
+                                onClick={() => setDeleteConfirmProduct(null)}
+                                className="flex-1 py-2.5 rounded-xl font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 transition-colors"
+                            >
+                                ยกเลิก
+                            </button>
+                            <button
+                                onClick={() => handleDelete(deleteConfirmProduct)}
+                                className="flex-1 py-2.5 rounded-xl font-bold text-white bg-red-500 hover:bg-red-600 transition-colors"
+                            >
+                                ลบเลย
+                            </button>
+                        </div>
+                    </div>
+                </>
+            )}
 
             {/* Status Toast */}
             <div className="fixed bottom-8 left-1/2 -translate-x-1/2 bg-slate-900 text-white px-6 py-3 rounded-2xl shadow-2xl flex items-center gap-4 text-sm z-[50]">

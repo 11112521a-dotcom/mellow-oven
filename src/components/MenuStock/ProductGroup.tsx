@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
     ChevronDown, ChevronUp, Flame, Truck, Target, Clock,
-    Settings, Package, Trash2, Ban, BarChart3, Check
+    Settings, Package, Trash2, Ban, BarChart3, Check, Utensils, Gift
 } from 'lucide-react';
 
 // Types
@@ -14,6 +14,8 @@ interface VariantData {
         producedQty: number;
         toShopQty: number;
         wasteQty: number;
+        eatQty: number;
+        giveawayQty: number;
         soldQty: number;
     };
     dailyTarget: number;
@@ -28,6 +30,8 @@ interface ProductGroupProps {
     onProduce: (variantId: string, val: number) => void;
     onSend: (variantId: string, val: number) => void;
     onWaste: (variantId: string, val: number) => void;
+    onEat: (variantId: string, val: number) => void;
+    onGiveaway: (variantId: string, val: number) => void;
     onBulkProduce: (productId: string) => void;
     onBulkSend: (productId: string) => void;
     onBulkTarget: (productId: string) => void;
@@ -55,16 +59,23 @@ const VariantRow: React.FC<{
     onProduce: (val: number) => void;
     onSend: (val: number) => void;
     onWaste: (val: number) => void;
-}> = ({ variant, onProduce, onSend, onWaste }) => {
+    onEat: (val: number) => void;
+    onGiveaway: (val: number) => void;
+}> = ({ variant, onProduce, onSend, onWaste, onEat, onGiveaway }) => {
     const [prodInput, setProdInput] = useState('');
     const [sendInput, setSendInput] = useState('');
     const [wasteInput, setWasteInput] = useState('');
-    const [expandedAction, setExpandedAction] = useState<'produce' | 'send' | 'waste' | null>(null);
+    const [eatInput, setEatInput] = useState('');
+    const [giveawayInput, setGiveawayInput] = useState('');
+    const [expandedAction, setExpandedAction] = useState<'produce' | 'send' | 'waste' | 'eat' | 'giveaway' | null>(null);
 
     const saved = variant.savedRecord;
     const confirmedStock = variant.stockYesterday + saved.producedQty;
-    const availableToSend = Math.max(0, confirmedStock - saved.toShopQty - saved.wasteQty);
-    const leftover = confirmedStock - saved.toShopQty - saved.wasteQty;
+    // Calculation: Leftover = StockYesterday + Produced - ToShop - Waste - Eat - Giveaway
+    const leftover = confirmedStock - saved.toShopQty - saved.wasteQty - saved.eatQty - saved.giveawayQty;
+    // Available to send = Leftover (conceptually, but typically we send what we have)
+    // For safety, let's say available to send is what's not yet sent/wasted/eaten/given
+    const availableToSend = Math.max(0, leftover);
 
     const handleProduce = () => {
         const val = parseInt(prodInput);
@@ -73,16 +84,24 @@ const VariantRow: React.FC<{
 
     const handleSend = () => {
         const val = parseInt(sendInput);
-        if (val > 0 && val <= availableToSend) {
+        if (val > 0) {
             onSend(val); setSendInput(''); setExpandedAction(null);
-        } else if (val > availableToSend) {
-            alert(`ส่งไม่ได้! มีของให้ส่งแค่ ${availableToSend} ชิ้น`);
         }
     };
 
     const handleWaste = () => {
         const val = parseInt(wasteInput);
         if (val > 0) { onWaste(val); setWasteInput(''); setExpandedAction(null); }
+    };
+
+    const handleEat = () => {
+        const val = parseInt(eatInput);
+        if (val > 0) { onEat(val); setEatInput(''); setExpandedAction(null); }
+    };
+
+    const handleGiveaway = () => {
+        const val = parseInt(giveawayInput);
+        if (val > 0) { onGiveaway(val); setGiveawayInput(''); setExpandedAction(null); }
     };
 
     return (
@@ -96,7 +115,7 @@ const VariantRow: React.FC<{
 
                 {/* Quick Stats */}
                 <div className="flex items-center gap-3 text-xs">
-                    <div className="text-center">
+                    <div className="text-center hidden sm:block">
                         <span className="text-gray-400 block">เก่า</span>
                         <span className="font-semibold text-gray-600">{variant.stockYesterday}</span>
                     </div>
@@ -107,6 +126,14 @@ const VariantRow: React.FC<{
                     <div className="text-center">
                         <span className="text-violet-400 block">ส่ง</span>
                         <span className="font-semibold text-violet-600">{saved.toShopQty}</span>
+                    </div>
+                    <div className="text-center">
+                        <span className="text-orange-400 block">กิน</span>
+                        <span className="font-semibold text-orange-600">{saved.eatQty}</span>
+                    </div>
+                    <div className="text-center">
+                        <span className="text-pink-400 block">แจก</span>
+                        <span className="font-semibold text-pink-600">{saved.giveawayQty}</span>
                     </div>
                     <div className="text-center">
                         <span className="text-red-400 block">ทิ้ง</span>
@@ -124,22 +151,36 @@ const VariantRow: React.FC<{
                 <div className="flex items-center gap-1">
                     <button
                         onClick={() => setExpandedAction(expandedAction === 'produce' ? null : 'produce')}
-                        className={`p-2 rounded-lg transition-colors ${expandedAction === 'produce' ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-500 hover:bg-blue-50'
-                            }`}
+                        className={`p-2 rounded-lg transition-colors ${expandedAction === 'produce' ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-500 hover:bg-blue-50'}`}
+                        title="ผลิตเพิ่ม"
                     >
                         <Flame size={16} />
                     </button>
                     <button
                         onClick={() => setExpandedAction(expandedAction === 'send' ? null : 'send')}
-                        className={`p-2 rounded-lg transition-colors ${expandedAction === 'send' ? 'bg-violet-100 text-violet-600' : 'bg-gray-100 text-gray-500 hover:bg-violet-50'
-                            }`}
+                        className={`p-2 rounded-lg transition-colors ${expandedAction === 'send' ? 'bg-violet-100 text-violet-600' : 'bg-gray-100 text-gray-500 hover:bg-violet-50'}`}
+                        title="ส่งไปร้าน"
                     >
                         <Truck size={16} />
                     </button>
                     <button
+                        onClick={() => setExpandedAction(expandedAction === 'eat' ? null : 'eat')}
+                        className={`p-2 rounded-lg transition-colors ${expandedAction === 'eat' ? 'bg-orange-100 text-orange-600' : 'bg-gray-100 text-gray-500 hover:bg-orange-50'}`}
+                        title="กินเอง"
+                    >
+                        <Utensils size={16} />
+                    </button>
+                    <button
+                        onClick={() => setExpandedAction(expandedAction === 'giveaway' ? null : 'giveaway')}
+                        className={`p-2 rounded-lg transition-colors ${expandedAction === 'giveaway' ? 'bg-pink-100 text-pink-600' : 'bg-gray-100 text-gray-500 hover:bg-pink-50'}`}
+                        title="แจกฟรี"
+                    >
+                        <Gift size={16} />
+                    </button>
+                    <button
                         onClick={() => setExpandedAction(expandedAction === 'waste' ? null : 'waste')}
-                        className={`p-2 rounded-lg transition-colors ${expandedAction === 'waste' ? 'bg-red-100 text-red-600' : 'bg-gray-100 text-gray-500 hover:bg-red-50'
-                            }`}
+                        className={`p-2 rounded-lg transition-colors ${expandedAction === 'waste' ? 'bg-red-100 text-red-600' : 'bg-gray-100 text-gray-500 hover:bg-red-50'}`}
+                        title="ของเสีย"
                     >
                         <Trash2 size={16} />
                     </button>
@@ -150,27 +191,42 @@ const VariantRow: React.FC<{
             {expandedAction && (
                 <div className={`px-4 pb-3 animate-in slide-in-from-top-1`}>
                     <div className={`flex items-center gap-2 p-2 rounded-lg ${expandedAction === 'produce' ? 'bg-blue-50' :
-                            expandedAction === 'send' ? 'bg-violet-50' : 'bg-red-50'
+                            expandedAction === 'send' ? 'bg-violet-50' :
+                                expandedAction === 'eat' ? 'bg-orange-50' :
+                                    expandedAction === 'giveaway' ? 'bg-pink-50' :
+                                        'bg-red-50'
                         }`}>
                         <input
                             type="number"
-                            value={expandedAction === 'produce' ? prodInput : expandedAction === 'send' ? sendInput : wasteInput}
+                            value={
+                                expandedAction === 'produce' ? prodInput :
+                                    expandedAction === 'send' ? sendInput :
+                                        expandedAction === 'eat' ? eatInput :
+                                            expandedAction === 'giveaway' ? giveawayInput :
+                                                wasteInput
+                            }
                             onChange={(e) => {
                                 if (expandedAction === 'produce') setProdInput(e.target.value);
                                 if (expandedAction === 'send') setSendInput(e.target.value);
+                                if (expandedAction === 'eat') setEatInput(e.target.value);
+                                if (expandedAction === 'giveaway') setGiveawayInput(e.target.value);
                                 if (expandedAction === 'waste') setWasteInput(e.target.value);
                             }}
                             onKeyDown={(e) => {
                                 if (e.key === 'Enter') {
                                     if (expandedAction === 'produce') handleProduce();
                                     if (expandedAction === 'send') handleSend();
+                                    if (expandedAction === 'eat') handleEat();
+                                    if (expandedAction === 'giveaway') handleGiveaway();
                                     if (expandedAction === 'waste') handleWaste();
                                 }
                             }}
                             placeholder={
                                 expandedAction === 'produce' ? 'จำนวนที่ต้องการผลิต...' :
-                                    expandedAction === 'send' ? `ส่ง (max ${availableToSend})...` :
-                                        'จำนวนที่เสียหาย...'
+                                    expandedAction === 'send' ? 'จำนวนที่ส่งไปร้าน...' :
+                                        expandedAction === 'eat' ? 'จำนวนที่กินเอง...' :
+                                            expandedAction === 'giveaway' ? 'จำนวนที่แจกฟรี...' :
+                                                'จำนวนที่เสียหาย...'
                             }
                             className="flex-1 px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-amber-400"
                             autoFocus
@@ -179,11 +235,15 @@ const VariantRow: React.FC<{
                             onClick={() => {
                                 if (expandedAction === 'produce') handleProduce();
                                 if (expandedAction === 'send') handleSend();
+                                if (expandedAction === 'eat') handleEat();
+                                if (expandedAction === 'giveaway') handleGiveaway();
                                 if (expandedAction === 'waste') handleWaste();
                             }}
                             className={`p-2 rounded-lg text-white ${expandedAction === 'produce' ? 'bg-blue-500 hover:bg-blue-600' :
                                     expandedAction === 'send' ? 'bg-violet-500 hover:bg-violet-600' :
-                                        'bg-red-500 hover:bg-red-600'
+                                        expandedAction === 'eat' ? 'bg-orange-500 hover:bg-orange-600' :
+                                            expandedAction === 'giveaway' ? 'bg-pink-500 hover:bg-pink-600' :
+                                                'bg-red-500 hover:bg-red-600'
                                 }`}
                         >
                             <Check size={18} />
@@ -205,6 +265,8 @@ export const ProductGroup: React.FC<ProductGroupProps> = ({
     onProduce,
     onSend,
     onWaste,
+    onEat,
+    onGiveaway,
     onBulkProduce,
     onBulkSend,
     onBulkTarget
@@ -214,15 +276,17 @@ export const ProductGroup: React.FC<ProductGroupProps> = ({
     // Calculate group totals
     const totals = variants.reduce((acc, v) => {
         const stock = v.stockYesterday + v.savedRecord.producedQty;
-        const leftover = stock - v.savedRecord.toShopQty - v.savedRecord.wasteQty;
+        const leftover = stock - v.savedRecord.toShopQty - v.savedRecord.wasteQty - v.savedRecord.eatQty - v.savedRecord.giveawayQty;
         return {
             totalStock: acc.totalStock + stock,
             produced: acc.produced + v.savedRecord.producedQty,
             sent: acc.sent + v.savedRecord.toShopQty,
             waste: acc.waste + v.savedRecord.wasteQty,
+            eat: acc.eat + v.savedRecord.eatQty,
+            giveaway: acc.giveaway + v.savedRecord.giveawayQty,
             leftover: acc.leftover + leftover
         };
-    }, { totalStock: 0, produced: 0, sent: 0, waste: 0, leftover: 0 });
+    }, { totalStock: 0, produced: 0, sent: 0, waste: 0, eat: 0, giveaway: 0, leftover: 0 });
 
     return (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
@@ -304,6 +368,8 @@ export const ProductGroup: React.FC<ProductGroupProps> = ({
                             onProduce={(val) => onProduce(variant.variantId, val)}
                             onSend={(val) => onSend(variant.variantId, val)}
                             onWaste={(val) => onWaste(variant.variantId, val)}
+                            onEat={(val) => onEat(variant.variantId, val)}
+                            onGiveaway={(val) => onGiveaway(variant.variantId, val)}
                         />
                     ))}
                 </div>

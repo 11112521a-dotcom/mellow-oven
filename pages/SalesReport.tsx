@@ -55,23 +55,28 @@ import { OracleInsightCard } from '@/src/components/SalesReport/OracleInsightCar
 import { FileDown } from 'lucide-react'; // Ensure FileDown is imported
 
 interface EditSalesModalProps {
-    // ... existing interface ...
     isOpen: boolean;
     onClose: () => void;
     saleData: any;
-    onSave: (id: string, newQuantity: number) => void;
+    onSave: (id: string, newQuantity: number, eatQty: number, giveawayQty: number) => void;
 }
 
 const EditSalesModal: React.FC<EditSalesModalProps> = ({ isOpen, onClose, saleData, onSave }) => {
     const [quantity, setQuantity] = useState(0);
+    const [eatQty, setEatQty] = useState(0);
+    const [giveawayQty, setGiveawayQty] = useState(0);
 
     React.useEffect(() => {
-        if (saleData) setQuantity(saleData.quantity);
+        if (saleData) {
+            setQuantity(saleData.quantity);
+            setEatQty(saleData.eatQty || 0);
+            setGiveawayQty(saleData.giveawayQty || 0);
+        }
     }, [saleData]);
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        if (saleData) onSave(saleData.id, quantity);
+        if (saleData) onSave(saleData.id, quantity, eatQty, giveawayQty);
     };
 
     if (!saleData) return null;
@@ -84,16 +89,45 @@ const EditSalesModal: React.FC<EditSalesModalProps> = ({ isOpen, onClose, saleDa
                     <div className="font-bold text-cafe-900">
                         {new Date(saleData.date).toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' })}
                     </div>
+                    <div className="text-sm text-cafe-500 mt-2 mb-1">🍞 สินค้า</div>
+                    <div className="font-bold text-cafe-900">
+                        {saleData.productName} {saleData.variantName ? `(${saleData.variantName})` : ''}
+                    </div>
                 </div>
-                <div>
-                    <label className="block text-sm font-medium text-cafe-700 mb-2">จำนวนที่ขาย (ชิ้น)</label>
-                    <NumberInput
-                        value={quantity}
-                        onChange={setQuantity}
-                        className="w-full p-3 border-2 border-cafe-200 rounded-xl focus:border-cafe-500 focus:ring-2 focus:ring-cafe-200"
-                        min={0}
-                    />
+
+                <div className="grid grid-cols-1 gap-4">
+                    <div>
+                        <label className="block text-sm font-medium text-cafe-700 mb-2">💰 จำนวนที่ขาย (ชิ้น)</label>
+                        <NumberInput
+                            value={quantity}
+                            onChange={setQuantity}
+                            className="w-full p-3 border-2 border-cafe-200 rounded-xl focus:border-cafe-500 focus:ring-2 focus:ring-cafe-200 bg-white"
+                            min={0}
+                        />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-sm font-medium text-orange-700 mb-2">😋 กินเอง (ชิ้น)</label>
+                            <NumberInput
+                                value={eatQty}
+                                onChange={setEatQty}
+                                className="w-full p-3 border-2 border-orange-200 rounded-xl focus:border-orange-500 focus:ring-2 focus:ring-orange-200 bg-orange-50/50"
+                                min={0}
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-pink-700 mb-2">🎁 แจกฟรี (ชิ้น)</label>
+                            <NumberInput
+                                value={giveawayQty}
+                                onChange={setGiveawayQty}
+                                className="w-full p-3 border-2 border-pink-200 rounded-xl focus:border-pink-500 focus:ring-2 focus:ring-pink-200 bg-pink-50/50"
+                                min={0}
+                            />
+                        </div>
+                    </div>
                 </div>
+
                 <div className="flex gap-3 pt-4">
                     <button type="button" onClick={onClose} className="flex-1 px-4 py-3 bg-gray-100 hover:bg-gray-200 rounded-xl font-medium transition-colors flex items-center justify-center gap-2">
                         <X size={18} /> ยกเลิก
@@ -152,9 +186,20 @@ const formatDateLocal = (date: Date) => {
 export const SalesReport: React.FC = () => {
     const { productSales, markets, products, updateProductSaleLog, specialOrders, dailyInventory, fetchInventoryByDateRange } = useStore();
 
-    const [datePreset, setDatePreset] = useState<'today' | 'yesterday' | 'thisWeek' | 'lastWeek' | 'thisMonth' | 'lastMonth' | '3months' | '6months' | 'thisYear' | 'custom'>('today');
-    const [startDate, setStartDate] = useState(() => formatDateLocal(new Date()));
-    const [endDate, setEndDate] = useState(() => formatDateLocal(new Date()));
+    const globalDateFilter = useStore((state) => state.globalDateFilter);
+    const setGlobalDateFilter = useStore((state) => state.setGlobalDateFilter);
+
+    const datePreset = globalDateFilter.preset as any;
+    const startDate = globalDateFilter.fromDate;
+    const endDate = globalDateFilter.toDate;
+
+    const setStartDate = (date: string) => {
+        setGlobalDateFilter({ ...globalDateFilter, fromDate: date, preset: 'custom', label: 'กำหนดเอง' });
+    };
+
+    const setEndDate = (date: string) => {
+        setGlobalDateFilter({ ...globalDateFilter, toDate: date, preset: 'custom', label: 'กำหนดเอง' });
+    };
 
     // NEW: Fetch inventory when date range changes
     useEffect(() => {
@@ -255,7 +300,7 @@ export const SalesReport: React.FC = () => {
         setIsEditModalOpen(true);
     };
 
-    const handleSaveEdit = async (id: string, newQuantity: number) => {
+    const handleSaveEdit = async (id: string, newQuantity: number, eatQty: number, giveawayQty: number) => {
         if (!editingSale) return;
         const product = products.find(p => p.id === editingSale.productId);
         let defaultPrice = product?.price || 0;
@@ -266,11 +311,25 @@ export const SalesReport: React.FC = () => {
         }
         const pricePerUnit = editingSale.quantity > 0 ? editingSale.revenue / editingSale.quantity : defaultPrice;
         const costPerUnit = editingSale.quantity > 0 ? editingSale.cost / editingSale.quantity : defaultCost;
+
+        // Calculate totals
+        // Revenue comes ONLY from sold quantity
+        const totalRevenue = newQuantity * pricePerUnit;
+
+        // Cost comes from Sold + Eat + Giveaway (all are used)
+        const totalUsedQty = newQuantity + eatQty + giveawayQty;
+        const totalCost = totalUsedQty * costPerUnit;
+
+        // Gross Profit = Revenue - Total Cost
+        const grossProfit = totalRevenue - totalCost;
+
         await updateProductSaleLog(id, {
             quantitySold: newQuantity,
-            totalRevenue: newQuantity * pricePerUnit,
-            totalCost: newQuantity * costPerUnit,
-            grossProfit: newQuantity * (pricePerUnit - costPerUnit)
+            eatQty: eatQty, // Note: db naming convention might differ, check store slice
+            giveawayQty: giveawayQty,
+            totalRevenue: totalRevenue,
+            totalCost: totalCost,
+            grossProfit: grossProfit
         });
         setIsEditModalOpen(false);
         setEditingSale(null);
@@ -331,11 +390,26 @@ export const SalesReport: React.FC = () => {
                 break;
         }
 
+        let label = 'กำหนดเอง';
+        if (preset === 'today') label = 'วันนี้';
+        else if (preset === 'yesterday') label = 'เมื่อวาน';
+        else if (preset === 'thisWeek') label = 'สัปดาห์นี้';
+        else if (preset === 'thisMonth') label = 'เดือนนี้';
+
         if (preset !== 'custom') {
-            setStartDate(formatDateLocal(start));
-            setEndDate(formatDateLocal(end));
+            setGlobalDateFilter({
+                preset,
+                fromDate: formatDateLocal(start),
+                toDate: formatDateLocal(end),
+                label
+            });
+        } else {
+            setGlobalDateFilter({
+                ...globalDateFilter,
+                preset: 'custom',
+                label: 'กำหนดเอง'
+            });
         }
-        setDatePreset(preset);
     };
 
     const filteredSales = useMemo(() => {

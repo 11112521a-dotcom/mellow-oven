@@ -56,6 +56,8 @@ export interface DbProductSaleLogRow {
     variant_id: string | null;
     variant_name: string | null;
     waste_qty: number | null;
+    eat_qty: number | null; // NEW
+    giveaway_qty: number | null; // NEW
     weather_condition: string | null;
 }
 
@@ -99,6 +101,8 @@ export interface DbDailyInventoryRow {
     to_shop_qty: number;
     sold_qty: number;
     waste_qty: number | null;
+    eat_qty: number | null; // NEW
+    giveaway_qty: number | null; // NEW
     stock_yesterday: number;
     leftover_home: number;
     unsold_shop: number;

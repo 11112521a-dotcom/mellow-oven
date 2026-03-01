@@ -30,6 +30,8 @@ export const createSalesSlice: StateCreator<AppState, [], [], SalesSlice> = (set
             variant_id: log.variantId,
             variant_name: log.variantName,
             waste_qty: log.wasteQty || 0,
+            eat_qty: log.eatQty || 0, // NEW
+            giveaway_qty: log.giveawayQty || 0, // NEW
             weather_condition: log.weatherCondition || null
         };
         const { error } = await supabase.from('product_sales').insert(dbLog);
@@ -65,6 +67,8 @@ export const createSalesSlice: StateCreator<AppState, [], [], SalesSlice> = (set
             variantId: row.variant_id,
             variantName: row.variant_name,
             wasteQty: row.waste_qty,
+            eatQty: row.eat_qty, // NEW
+            giveawayQty: row.giveaway_qty, // NEW
             weatherCondition: row.weather_condition
         }));
 
@@ -82,10 +86,27 @@ export const createSalesSlice: StateCreator<AppState, [], [], SalesSlice> = (set
     getProductSalesByProduct: (productId) => get().productSales.filter(sale => sale.productId === productId),
 
     updateProductSaleLog: async (id, updates) => {
+        // Map frontend camelCase updates to backend snake_case for DB
+        const dbUpdates: any = { ...updates };
+        if (updates.quantitySold !== undefined) dbUpdates.quantity_sold = updates.quantitySold;
+        if (updates.totalRevenue !== undefined) dbUpdates.total_revenue = updates.totalRevenue;
+        if (updates.totalCost !== undefined) dbUpdates.total_cost = updates.totalCost;
+        if (updates.grossProfit !== undefined) dbUpdates.gross_profit = updates.grossProfit;
+        if (updates.eatQty !== undefined) dbUpdates.eat_qty = updates.eatQty; // NEW
+        if (updates.giveawayQty !== undefined) dbUpdates.giveaway_qty = updates.giveawayQty; // NEW
+
+        // Remove camelCase keys from dbUpdates to avoid errors
+        delete dbUpdates.quantitySold;
+        delete dbUpdates.totalRevenue;
+        delete dbUpdates.totalCost;
+        delete dbUpdates.grossProfit;
+        delete dbUpdates.eatQty;
+        delete dbUpdates.giveawayQty;
+
         set(state => ({
             productSales: state.productSales.map(log => log.id === id ? { ...log, ...updates } : log)
         }));
-        await supabase.from('product_sales').update(updates).eq('id', id);
+        await supabase.from('product_sales').update(dbUpdates).eq('id', id);
     },
 
     addMarket: async (market) => {

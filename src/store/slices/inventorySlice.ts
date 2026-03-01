@@ -20,7 +20,8 @@ export const createInventorySlice: StateCreator<AppState, [], [], InventorySlice
             buy_unit: ingredient.buyUnit,
             conversion_rate: ingredient.conversionRate,
             min_stock: ingredient.minStock,
-            is_hidden: ingredient.isHidden
+            is_hidden: ingredient.isHidden,
+            category: ingredient.category || 'อื่นๆ'
         };
 
         const { data, error } = await supabase.from('ingredients').insert(dbIngredient).select().single();
@@ -69,6 +70,10 @@ export const createInventorySlice: StateCreator<AppState, [], [], InventorySlice
     updateIngredient: async (id, updates) => {
         // Map camelCase to snake_case for DB
         const dbUpdates: Record<string, unknown> = {};
+        if (updates.name !== undefined) dbUpdates.name = updates.name;
+        if (updates.unit !== undefined) dbUpdates.unit = updates.unit;
+        if (updates.supplier !== undefined) dbUpdates.supplier = updates.supplier;
+        if (updates.category !== undefined) dbUpdates.category = updates.category;
         if (updates.currentStock !== undefined) dbUpdates.current_stock = updates.currentStock;
         if (updates.costPerUnit !== undefined) dbUpdates.cost_per_unit = updates.costPerUnit;
         if (updates.conversionRate !== undefined) dbUpdates.conversion_rate = updates.conversionRate;
@@ -190,6 +195,25 @@ export const createInventorySlice: StateCreator<AppState, [], [], InventorySlice
         const toShop = record.toShopQty ?? 0;
         const sold = record.soldQty ?? 0;
         const waste = record.wasteQty ?? 0;
+        const eat = record.eatQty ?? 0; // NEW
+        const giveaway = record.giveawayQty ?? 0; // NEW
+
+        // Leftover calculation might need to be adjusted if eat/giveaway comes from home/shop
+        // Assuming eat/giveaway are tracked daily and reduce the available stock effectively like waste/sold
+        // If they are taken from "Leftover Home" or "Unsold Shop", we need to know WHERE they are taken from.
+        // For now, assuming they are just recorded and don't double-subtract if they are already accounted for in "stock checks".
+        // BUT, if we are calculating "Leftover", we usually do: Start + Produced - Out(Shop) - Waste - Eat - Giveaway = Leftover Home?
+        // OR is it: Start + Produced - ToShop = Leftover Home (strict movement).
+        // And ToShop - Sold - WasteShop - EatShop ... = Leftover Shop.
+        // The current logic: leftoverHome = stockYesterday + produced - toShop - waste;
+        // This implies waste is at Home? Or overall?
+        // Let's stick to the current pattern and just add the fields to DB for now without changing the core calculation logic unless specified.
+        // The generic "waste" seems to subtract from Home in this calculation?
+        // valid point: "waste" subtracts from Leftover Home in line 194.
+        // I will treat eat/giveaway similarly for now to be safe, or just not subtract them if they are "recorded" but not "deducted" from this specific calculated field.
+        // CHECK implementation_plan.md: "Update marketAnalysisUtils.ts to include eat/giveaway... exclude from waste".
+        // The plan didn't explicitly say to change `leftover_home` calculation formula here.
+        // I will add them to DB object.
 
         const leftoverHome = stockYesterday + produced - toShop - waste;
         const unsoldShop = toShop - sold;
@@ -201,6 +225,8 @@ export const createInventorySlice: StateCreator<AppState, [], [], InventorySlice
             to_shop_qty: toShop,
             sold_qty: sold,
             waste_qty: waste,
+            eat_qty: eat, // NEW
+            giveaway_qty: giveaway, // NEW
             stock_yesterday: stockYesterday,
             leftover_home: leftoverHome,
             unsold_shop: unsoldShop

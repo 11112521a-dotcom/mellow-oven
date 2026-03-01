@@ -17,7 +17,7 @@ import {
   ChevronUp, Sparkles, Zap, Award, PieChart, BarChart3, Flame, Percent,
   ArrowUpRight, ArrowDownRight, Wallet, Sun, Moon, CloudSun, Lightbulb,
   AlertCircle, CheckCircle, Info, Trash2, Clock, LayoutGrid, RefreshCw,
-  TrendingUp as TrendUp, Minus, ExternalLink
+  TrendingUp as TrendUp, Minus, ExternalLink, CalendarDays, CheckCircle2, ChevronRight, Truck, ChefHat, Receipt, AlertOctagon
 } from 'lucide-react';
 import { startOfMonth, endOfMonth, differenceInDays, startOfWeek, startOfDay, endOfDay, format, subDays } from 'date-fns';
 import { th } from 'date-fns/locale';
@@ -319,11 +319,20 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
   const purchaseOrders = useStore((state) => state.purchaseOrders);
   const stockLogs = useStore((state) => state.stockLogs);
   const debtConfig = useStore((state) => state.debtConfig); // New Debt Config
+  const specialOrders = useStore((state) => state.specialOrders); // 🆕 Added specialOrders for Action Center
 
   const [isGoalModalOpen, setIsGoalModalOpen] = useState(false);
   const [editingGoal, setEditingGoal] = useState<any>(null);
   const [showLowStock, setShowLowStock] = useState(false);
-  const [dateRange, setDateRange] = useState<{ from: Date; to: Date; label: string }>({ from: startOfDay(new Date()), to: endOfDay(new Date()), label: 'วันนี้' });
+  const globalDateFilter = useStore((state) => state.globalDateFilter);
+  const setGlobalDateFilter = useStore((state) => state.setGlobalDateFilter);
+
+  const dateRange = useMemo(() => ({
+    from: new Date(`${globalDateFilter.fromDate}T00:00:00`),
+    to: new Date(`${globalDateFilter.toDate}T23:59:59`),
+    label: globalDateFilter.label
+  }), [globalDateFilter]);
+
   const [selectedMarket, setSelectedMarket] = useState<string>('all');
 
   // Tab navigation
@@ -344,7 +353,12 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
       case 'month': from = startOfMonth(today); to = endOfMonth(today); label = 'เดือนนี้'; break;
       default: return;
     }
-    setDateRange({ from, to, label });
+    setGlobalDateFilter({
+      preset,
+      fromDate: format(from, 'yyyy-MM-dd'),
+      toDate: format(to, 'yyyy-MM-dd'),
+      label
+    });
   };
 
   // FILTER SALES DATA
@@ -512,13 +526,14 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
       alerts.push({ type: 'info', message: `มีกำไรรอจัดสรร ${formatCurrency(unallocatedTotal)}` });
     }
 
-    // Low stock
-    if (lowStockItems.length > 3) {
-      alerts.push({ type: 'warning', message: `มี ${lowStockItems.length} วัตถุดิบใกล้หมด!` });
+    // Pending Snack Box / Special Orders (Action Center)
+    const todayOrders = specialOrders.filter(o => o.deliveryDate === todayStr && (o.status === 'pending' || o.status === 'confirmed' || o.status === 'producing'));
+    if (todayOrders.length > 0) {
+      alerts.push({ type: 'warning', message: `วันนี้มี ${todayOrders.length} ออเดอร์พิเศษที่ต้องเตรียมส่ง!` });
     }
 
     return alerts.slice(0, MAX_INSIGHTS);
-  }, [productionStats, metrics, unallocatedTotal, lowStockItems]);
+  }, [productionStats, metrics, unallocatedTotal, lowStockItems, specialOrders, todayStr]);
 
   // Jar colors
   const jarColors = ['bg-emerald-400', 'bg-sky-400', 'bg-violet-400', 'bg-amber-400', 'bg-rose-400'];
@@ -610,14 +625,73 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
         />
       ) : (
         <div className="space-y-6">
-          {/* 🚀 QUICK SUMMARY BANNER - At a glance performance */}
-          <QuickSummaryBanner
-            todayRevenue={metrics.revenue}
-            yesterdayRevenue={yesterdayMetrics.revenue}
-            todayProfit={metrics.profit}
-            yesterdayProfit={yesterdayMetrics.profit}
-            sellThrough={productionStats.sellThrough}
-          />
+          {/* 🚨 ACTION CENTER - Unified Urgent Tasks */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {/* Quick Summary Banner (Takes up full/most width based on grid) */}
+            <div className="lg:col-span-1">
+              <QuickSummaryBanner
+                todayRevenue={metrics.revenue}
+                yesterdayRevenue={yesterdayMetrics.revenue}
+                todayProfit={metrics.profit}
+                yesterdayProfit={yesterdayMetrics.profit}
+                sellThrough={productionStats.sellThrough}
+              />
+            </div>
+
+            {/* Snack Box / Special Orders Alert */}
+            <div className={`p-4 rounded-2xl border transition-all ${specialOrders.filter(o => o.deliveryDate === todayStr && (o.status === 'pending' || o.status === 'confirmed' || o.status === 'producing')).length > 0
+              ? 'bg-amber-50 border-amber-200'
+              : 'bg-white border-stone-100'
+              }`}>
+              <div className="flex items-start gap-4">
+                <div className={`p-3 rounded-xl ${specialOrders.filter(o => o.deliveryDate === todayStr && (o.status === 'pending' || o.status === 'confirmed' || o.status === 'producing')).length > 0
+                  ? 'bg-amber-100 text-amber-600'
+                  : 'bg-stone-50 text-stone-400'
+                  }`}>
+                  <Package size={24} />
+                </div>
+                <div className="flex-1">
+                  <h4 className="font-bold text-stone-800 text-sm mb-1">ออเดอร์พิเศษวันนี้</h4>
+                  <p className="text-xs text-stone-500 mb-2">
+                    {specialOrders.filter(o => o.deliveryDate === todayStr && (o.status === 'pending' || o.status === 'confirmed' || o.status === 'producing')).length} ออเดอร์ที่ต้องจัดส่ง
+                  </p>
+                  <button
+                    onClick={() => onNavigate?.('promotion')}
+                    className="text-xs font-medium text-amber-600 hover:text-amber-700 flex items-center gap-1 min-h-[44px] px-2 -ml-2 rounded-lg hover:bg-amber-100/50"
+                  >
+                    ดูรายละเอียด <ArrowRight size={14} />
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Low Stock Alert */}
+            <div className={`p-4 rounded-2xl border transition-all ${lowStockItems.length > 0
+              ? 'bg-rose-50 border-rose-200'
+              : 'bg-white border-stone-100'
+              }`}>
+              <div className="flex items-start gap-4">
+                <div className={`p-3 rounded-xl ${lowStockItems.length > 0
+                  ? 'bg-rose-100 text-rose-600'
+                  : 'bg-stone-50 text-stone-400'
+                  }`}>
+                  <AlertOctagon size={24} />
+                </div>
+                <div className="flex-1">
+                  <h4 className="font-bold text-stone-800 text-sm mb-1">สต็อกเตือนใกล้หมด</h4>
+                  <p className="text-xs text-stone-500 mb-2">
+                    {lowStockItems.length} วัตถุดิบวิกฤต
+                  </p>
+                  <button
+                    onClick={() => onNavigate?.('inventory')}
+                    className="text-xs font-medium text-rose-600 hover:text-rose-700 flex items-center gap-1 min-h-[44px] px-2 -ml-2 rounded-lg hover:bg-rose-100/50"
+                  >
+                    สั่งซื้อทันที <ArrowRight size={14} />
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
 
           {/* 📊 KEY METRICS + 7-DAY TREND */}
           <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
@@ -674,108 +748,177 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
             </div>
           )}
 
-          {/* 📊 BUSINESS HEALTH - Sell-Through & Waste */}
-          {productionStats.toShop > 0 && (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              {/* Sell-Through Rate */}
-              <div className="bg-white rounded-2xl p-6 border border-stone-100 shadow-sm">
-                <SectionHeader title="Sell-Through Rate" icon={<Percent className="text-emerald-500" size={20} />} />
-                <div className="flex items-center gap-6">
+          {/* ═══════════════════════════════════════════════════════════════
+              🚀 QUICK ACTIONS PANEL (Control Center)
+             ═══════════════════════════════════════════════════════════════ */}
+          <div>
+            <SectionHeader title="แผงควบคุมสั่งการด่วน" icon={<Zap className="text-amber-500" size={20} />} />
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
+              <button
+                onClick={() => onNavigate?.('sales')}
+                className="group flex flex-col items-center justify-center p-4 bg-white rounded-2xl border border-stone-100 hover:border-emerald-200 hover:bg-emerald-50 transition-all duration-300 shadow-sm hover:shadow-md"
+              >
+                <div className="w-12 h-12 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center mb-3 group-hover:scale-110 group-hover:bg-emerald-500 group-hover:text-white transition-all">
+                  <Receipt size={24} />
+                </div>
+                <span className="font-bold text-stone-700 text-sm">รับเงิน/ขายหน้าร้าน</span>
+              </button>
+
+              <button
+                onClick={() => onNavigate?.('financials')}
+                className="group flex flex-col items-center justify-center p-4 bg-white rounded-2xl border border-stone-100 hover:border-rose-200 hover:bg-rose-50 transition-all duration-300 shadow-sm hover:shadow-md"
+              >
+                <div className="w-12 h-12 rounded-xl bg-rose-100 text-rose-600 flex items-center justify-center mb-3 group-hover:scale-110 group-hover:bg-rose-500 group-hover:text-white transition-all">
+                  <Minus size={24} />
+                </div>
+                <span className="font-bold text-stone-700 text-sm">บันทึกรายจ่ายด่วน</span>
+              </button>
+
+              <button
+                onClick={() => onNavigate?.('production')}
+                className="group flex flex-col items-center justify-center p-4 bg-white rounded-2xl border border-stone-100 hover:border-sky-200 hover:bg-sky-50 transition-all duration-300 shadow-sm hover:shadow-md"
+              >
+                <div className="w-12 h-12 rounded-xl bg-sky-100 text-sky-600 flex items-center justify-center mb-3 group-hover:scale-110 group-hover:bg-sky-500 group-hover:text-white transition-all">
+                  <ChefHat size={24} />
+                </div>
+                <span className="font-bold text-stone-700 text-sm">บันทึกผลผลิต</span>
+              </button>
+
+              <button
+                onClick={() => onNavigate?.('salesreport')}
+                className="group flex flex-col items-center justify-center p-4 bg-white rounded-2xl border border-stone-100 hover:border-violet-200 hover:bg-violet-50 transition-all duration-300 shadow-sm hover:shadow-md"
+              >
+                <div className="w-12 h-12 rounded-xl bg-violet-100 text-violet-600 flex items-center justify-center mb-3 group-hover:scale-110 group-hover:bg-violet-500 group-hover:text-white transition-all">
+                  <PieChart size={24} />
+                </div>
+                <span className="font-bold text-stone-700 text-sm">ดูรายงานวันนี้</span>
+              </button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* ═══════════════════════════════════════════════════════════════
+                👩‍🍳 PRODUCTION LIVE-FEED (Today's Plan)
+               ═══════════════════════════════════════════════════════════════ */}
+            <div className="bg-white rounded-2xl p-5 border border-stone-100 shadow-sm flex flex-col">
+              <SectionHeader
+                title="สถานะการผลิตวันนี้"
+                icon={<Activity className="text-sky-500" size={20} />}
+                action={{ label: 'จัดการเมนูสต็อก', onClick: () => onNavigate?.('menustock') }}
+              />
+
+              <div className="flex-1 flex flex-col justify-center">
+                <div className="flex items-center gap-6 mb-6">
                   <ProgressRing
-                    value={productionStats.sellThrough}
-                    color={productionStats.sellThrough >= 80 ? '#10b981' : productionStats.sellThrough >= 50 ? '#f59e0b' : '#ef4444'}
+                    value={productionStats.produced > 0 ? (productionStats.produced / Math.max(productionStats.toShop, 1)) * 100 : 0}
+                    color="#0ea5e9"
                   />
-                  <div className="flex-1">
-                    <div className="flex justify-between text-sm mb-2">
-                      <span className="text-stone-500">ส่งไปร้าน</span>
+                  <div className="flex-1 space-y-2">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-stone-500">ผลิตเสร็จแล้ว</span>
+                      <span className="font-bold text-sky-600">{productionStats.produced} ชิ้น</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-stone-500">วางขายหน้าร้าน</span>
                       <span className="font-bold text-stone-700">{productionStats.toShop} ชิ้น</span>
                     </div>
-                    <div className="flex justify-between text-sm mb-2">
-                      <span className="text-stone-500">ขายได้</span>
-                      <span className="font-bold text-emerald-600">{productionStats.sold} ชิ้น</span>
-                    </div>
                     <div className="flex justify-between text-sm">
-                      <span className="text-stone-500">เหลือ</span>
-                      <span className="font-bold text-amber-600">{productionStats.toShop - productionStats.sold} ชิ้น</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Waste Analysis */}
-              <div className="bg-white rounded-2xl p-6 border border-stone-100 shadow-sm">
-                <SectionHeader title="Waste Analysis" icon={<Trash2 className="text-rose-500" size={20} />} />
-                <div className="flex items-center gap-6">
-                  <div className="relative w-20 h-20">
-                    <div className={`w-full h-full rounded-full flex items-center justify-center ${productionStats.wasteRate > 10 ? 'bg-rose-100' : 'bg-stone-100'}`}>
-                      <span className={`text-2xl font-bold ${productionStats.wasteRate > 10 ? 'text-rose-600' : 'text-stone-600'}`}>
-                        {productionStats.waste}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex justify-between text-sm mb-2">
                       <span className="text-stone-500">ของเสียวันนี้</span>
-                      <span className={`font-bold ${productionStats.wasteRate > 10 ? 'text-rose-600' : 'text-stone-700'}`}>
-                        {productionStats.waste} ชิ้น
-                      </span>
-                    </div>
-                    <div className="flex justify-between text-sm mb-2">
-                      <span className="text-stone-500">อัตราของเสีย</span>
-                      <span className={`font-bold ${productionStats.wasteRate > 10 ? 'text-rose-600' : 'text-stone-700'}`}>
-                        {productionStats.wasteRate.toFixed(1)}%
-                      </span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-stone-500">มูลค่าสูญเสีย</span>
-                      <span className="font-bold text-rose-600">{formatCurrency(productionStats.wasteCost)}</span>
+                      <span className="font-bold text-rose-600">{productionStats.waste} ชิ้น</span>
                     </div>
                   </div>
                 </div>
-              </div>
-            </div>
-          )}
 
-          {/* ⚠️ LOW STOCK ALERT */}
-          {lowStockItems.length > 0 && (
-            <div className="bg-rose-50 rounded-2xl p-5 border border-rose-200">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="font-bold text-rose-700 flex items-center gap-2">
-                  <AlertTriangle size={20} />
-                  วัตถุดิบใกล้หมด ({lowStockItems.length} รายการ)
-                </h3>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => setShowLowStock(!showLowStock)}
-                    className="px-3 py-1.5 bg-rose-100 hover:bg-rose-200 text-rose-700 rounded-lg text-sm font-medium transition-colors min-h-[44px]"
-                  >
-                    {showLowStock ? 'ซ่อน' : 'ดูทั้งหมด'}
-                  </button>
-                  <button onClick={() => onNavigate?.('inventory')} className="text-sm text-rose-600 hover:underline font-medium min-h-[44px] px-2">
-                    ไปเติมของ →
-                  </button>
-                </div>
-              </div>
-
-              {showLowStock && (
-                <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3 mt-4">
-                  {lowStockItems.slice(0, 12).map(ing => {
-                    const pct = Math.min(100, (ing.currentStock / (ing.minStock || 10)) * 100);
-                    return (
-                      <div key={ing.id} className="bg-white rounded-xl p-3 border border-rose-100">
-                        <p className="text-sm font-medium text-stone-700 truncate">{ing.name}</p>
-                        <p className="text-xl font-bold text-rose-600">{ing.currentStock}</p>
-                        <p className="text-xs text-stone-400">{ing.unit}</p>
-                        <div className="mt-2 h-1.5 bg-rose-100 rounded-full overflow-hidden">
-                          <div className="h-full bg-rose-500" style={{ width: `${pct}%` }} />
+                {todayInventory.length > 0 ? (
+                  <div className="bg-sky-50 rounded-xl p-4 border border-sky-100">
+                    <h4 className="font-bold text-sky-800 text-sm mb-2 flex items-center gap-2">
+                      <Flame size={16} className="text-orange-500" />
+                      รายการกำลังผลิต/ขายดีสุด
+                    </h4>
+                    <div className="space-y-2">
+                      {todayInventory.slice(0, 3).map((item, i) => (
+                        <div key={item.id} className="flex items-center justify-between text-sm">
+                          <span className="text-stone-700 truncate">{products.find(p => p.id === item.productId)?.name || 'Product'}</span>
+                          <span className="font-medium text-emerald-600">{item.soldQty} / {item.toShopQty}</span>
                         </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-center py-6 bg-stone-50 rounded-xl text-stone-400 text-sm">
+                    ยังไม่มีการบันทึกการผลิตสำหรับวันนี้
+                  </div>
+                )}
+              </div>
             </div>
-          )}
+
+            {/* ═══════════════════════════════════════════════════════════════
+                💲 LIVE FINANCIAL PULSE
+               ═══════════════════════════════════════════════════════════════ */}
+            <div className="bg-white rounded-2xl p-5 border border-stone-100 shadow-sm flex flex-col">
+              <SectionHeader
+                title="ชีพจรการเงิน"
+                icon={<DollarSign className="text-emerald-500" size={20} />}
+              />
+
+              <div className="grid grid-cols-2 gap-4 mb-6">
+                <div className="bg-emerald-50 rounded-xl p-4 border border-emerald-100">
+                  <p className="text-xs text-stone-500 mb-1">รายรับรวม</p>
+                  <p className="text-2xl font-bold text-emerald-700">{formatCurrency(metrics.revenue)}</p>
+                  <p className={`text-xs mt-1 ${trends.revenue >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                    {trends.revenue >= 0 ? '+' : ''}{trends.revenue.toFixed(1)}% vs เมื่อวาน
+                  </p>
+                </div>
+                <div className="bg-emerald-50/50 rounded-xl p-4 border border-emerald-100/50">
+                  <p className="text-xs text-stone-500 mb-1">กำไรสุทธิ</p>
+                  <p className="text-2xl font-bold text-emerald-600">{formatCurrency(metrics.profit)}</p>
+                  <p className="text-xs mt-1 text-emerald-600">Margin {metrics.margin.toFixed(0)}%</p>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                {/* Unallocated Profit Alert */}
+                {unallocatedTotal > 0 && (
+                  <div className="flex items-center justify-between bg-amber-50 p-3 rounded-xl border border-amber-200">
+                    <div className="flex items-center gap-3">
+                      <Wallet className="text-amber-500" size={20} />
+                      <div>
+                        <p className="font-bold text-amber-800 text-sm">กำไรพร้อมจัดสรร!</p>
+                        <p className="text-xs text-amber-700">{formatCurrency(unallocatedTotal)}</p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => onNavigate?.('financials')}
+                      className="px-3 py-1.5 bg-amber-500 text-white text-xs font-bold rounded-lg shadow-sm hover:bg-amber-600 transition"
+                    >
+                      จัดเข้าโถ
+                    </button>
+                  </div>
+                )}
+
+                {/* Sell-Through Indicator */}
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-xs font-medium text-stone-500">อัตราการขายออก (Sell-Through)</span>
+                    <span className={`text-xs font-bold ${productionStats.sellThrough >= 80 ? 'text-emerald-600' : productionStats.sellThrough >= 50 ? 'text-amber-600' : 'text-rose-600'}`}>
+                      {productionStats.sellThrough.toFixed(1)}%
+                    </span>
+                  </div>
+                  <div className="h-2 w-full bg-stone-100 rounded-full overflow-hidden">
+                    <div
+                      className={`h-full transition-all duration-1000 ${productionStats.sellThrough >= 80 ? 'bg-emerald-500' : productionStats.sellThrough >= 50 ? 'bg-amber-500' : 'bg-rose-500'}`}
+                      style={{ width: `${Math.min(productionStats.sellThrough, 100)}%` }}
+                    />
+                  </div>
+                </div>
+
+                {/* 7-Day Trend Miniature */}
+                <div className="mt-4 border-t border-stone-100 pt-4">
+                  <MiniTrendChart data={sevenDayTrend} height={50} />
+                </div>
+              </div>
+            </div>
+          </div>
 
           {/* 🛡️ DEBT PROGRESS WIDGET */}
           <DebtProgressWidget config={debtConfig} />

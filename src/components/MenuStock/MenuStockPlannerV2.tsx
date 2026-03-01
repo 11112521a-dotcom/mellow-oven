@@ -58,7 +58,7 @@ export const MenuStockPlannerV2: React.FC = () => {
                         variantId: variant.id,
                         name: `${product.name} (${variant.name})`,
                         isVariant: true,
-                        savedRecord: saved || { producedQty: 0, toShopQty: 0, wasteQty: 0, soldQty: 0 },
+                        savedRecord: saved || { producedQty: 0, toShopQty: 0, wasteQty: 0, soldQty: 0, eatQty: 0, giveawayQty: 0 },
                         stockYesterday: getYesterdayStock(product.id, businessDate, variant.id),
                         dailyTarget: (product as any).dailyTarget || 15 // Default target logic
                     };
@@ -73,7 +73,7 @@ export const MenuStockPlannerV2: React.FC = () => {
                     variantId: undefined,
                     name: product.name,
                     isVariant: false,
-                    savedRecord: saved || { producedQty: 0, toShopQty: 0, wasteQty: 0, soldQty: 0 },
+                    savedRecord: saved || { producedQty: 0, toShopQty: 0, wasteQty: 0, soldQty: 0, eatQty: 0, giveawayQty: 0 },
                     stockYesterday: getYesterdayStock(product.id, businessDate),
                     dailyTarget: (product as any).dailyTarget || 15
                 };
@@ -246,7 +246,7 @@ export const MenuStockPlannerV2: React.FC = () => {
                             key={item.id}
                             item={item}
                             stockYesterday={item.stockYesterday}
-                            savedRecord={item.savedRecord}
+                            savedRecord={item.savedRecord as any}
                             dailyTarget={item.dailyTarget}
                             onProduce={(val) => handleSingleAction(item, { producedQty: val }, 'add')}
                             onSend={(val) => handleSingleAction(item, { toShopQty: val }, 'add')}

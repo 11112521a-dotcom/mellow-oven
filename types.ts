@@ -99,6 +99,10 @@ export interface ProductSaleLog {
   // NEW: Variant Tracking
   variantId?: string;
   variantName?: string;
+
+  // NEW: Eat/Giveaway Tracking
+  eatQty?: number;       // Items eaten by staff/owner
+  giveawayQty?: number;  // Items given for free
 }
 
 // Inventory Types
@@ -114,6 +118,7 @@ export interface StockLog {
 export interface Ingredient {
   id: string;
   name: string;
+  category?: string; // แป้ง, น้ำตาล, นม, ผลไม้, เครื่องปรุง, บรรจุภัณฑ์, อื่นๆ
   unit: string;
   currentStock: number;
   costPerUnit: number;
@@ -181,6 +186,7 @@ export interface DailyProductionLog {
   soldQty: number;
   wasteQty: number; // Production Waste
   leftoverQty: number; // Good Leftover
+  freeQty?: number; // กินแจก - Consumed/Given Away (not waste, not sold)
   sellOutTime?: string; // HH:mm
   missedOppQty?: number; // Estimated missed sales
   wasteReason?: string; // Burnt, Defect, Expired
@@ -261,10 +267,12 @@ export interface DailyInventory {
   toShopQty: number;
   soldQty: number;
   wasteQty?: number;     // NEW: Items discarded at home (before shop)
+  eatQty?: number;       // NEW: Items eaten by staff/owner
+  giveawayQty?: number;  // NEW: Items given away for free
 
   // Calculated/Denormalized
   stockYesterday: number;
-  leftoverHome: number;  // = stockYesterday + produced - toShop - waste
+  leftoverHome: number;  // = stockYesterday + produced - toShop - waste - eat - giveaway
   unsoldShop: number;    // = toShop - sold
 }
 
@@ -472,6 +480,10 @@ export interface SnackBoxSetItem {
   selectionType: 'pick_one' | 'pick_many' | 'all';
   productIds: string[];
   sortOrder: number;
+  // Custom items (non-shop products like drinks, packaged snacks)
+  isCustom?: boolean;
+  customName?: string;
+  customCost?: number;
 }
 
 // Snack Box Set - Set Menu
@@ -487,6 +499,47 @@ export interface SnackBoxSet {
   items: SnackBoxSetItem[];
   isActive: boolean;
   sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Snack Box Order Status
+export type SnackBoxOrderStatus = 'pending' | 'confirmed' | 'producing' | 'delivered' | 'cancelled';
+
+// Snack Box Order - ออเดอร์ Snack Box
+export interface SnackBoxOrder {
+  id: string;
+  orderNumber: string;
+  setId: string;
+  setName: string;
+  setNameThai: string;
+
+  customerName: string;
+  customerPhone: string;
+  customerAddress: string;
+
+  quantity: number;
+  pricePerSet: number;
+  packagingCost: number;
+  subtotal: number;
+  totalPackagingCost: number;
+  totalPrice: number;
+
+  estimatedCostPerSet: number;
+  totalEstimatedCost: number;
+  estimatedProfit: number;
+
+  useManualPrice: boolean;
+  manualPrice: number | null;
+  discountNote: string;
+
+  deliveryDate: string;
+  deliveryTime: string;
+  notes: string;
+
+  status: SnackBoxOrderStatus;
+  profitRecorded: boolean;
+
   createdAt: string;
   updatedAt: string;
 }

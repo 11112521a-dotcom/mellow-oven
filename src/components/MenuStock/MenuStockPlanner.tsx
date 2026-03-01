@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useStore } from '@/src/store';
-import { Package, Save, Calendar, AlertCircle, Flame, Truck, X, Check, Sparkles, ChevronDown, ChevronUp, Layers, Box, Edit2, RotateCcw, Target, Zap, Trash2, RefreshCw } from 'lucide-react';
+import { Package, Save, Calendar, AlertCircle, Flame, Truck, X, Check, Sparkles, ChevronDown, ChevronUp, Layers, Box, Edit2, RotateCcw, Target, Zap, Trash2, RefreshCw, UtensilsCrossed } from 'lucide-react';
 import { Product, Variant } from '@/types';
 import { useDraftStorage } from '@/src/hooks/useFormDraft';
 
@@ -163,30 +163,33 @@ const BulkActionModal: React.FC<{
 const EditInventoryModal: React.FC<{
     isOpen: boolean;
     onClose: () => void;
-    onSave: (producedQty: number, toShopQty: number) => void | Promise<void>;  // Allow async
+    onSave: (producedQty: number, toShopQty: number, freeQty: number) => void | Promise<void>;  // Allow async
     itemName: string;
     currentProduced: number;
     currentTransfer: number;
+    currentFree: number;       // กินแจก consolidated
     stockYesterday: number;
-}> = ({ isOpen, onClose, onSave, itemName, currentProduced, currentTransfer, stockYesterday }) => {
+}> = ({ isOpen, onClose, onSave, itemName, currentProduced, currentTransfer, currentFree, stockYesterday }) => {
     const [produced, setProduced] = useState(currentProduced);
     const [transfer, setTransfer] = useState(currentTransfer);
+    const [free, setFree] = useState(currentFree);               // กินแจก consolidated
     const [isLoading, setIsLoading] = useState(false);
 
     useEffect(() => {
         setProduced(currentProduced);
         setTransfer(currentTransfer);
-    }, [currentProduced, currentTransfer, isOpen]);
+        setFree(currentFree);
+    }, [currentProduced, currentTransfer, currentFree, isOpen]);
 
     if (!isOpen) return null;
 
     const todayStock = stockYesterday + produced;
-    const leftover = todayStock - transfer;
+    const leftover = todayStock - transfer - free;
 
     const handleSave = async () => {
         setIsLoading(true);
         try {
-            await onSave(produced, transfer);
+            await onSave(produced, transfer, free);
             onClose();
         } finally {
             setIsLoading(false);
@@ -210,7 +213,7 @@ const EditInventoryModal: React.FC<{
                 </div>
 
                 {/* Body */}
-                <div className="p-6 space-y-4">
+                <div className="p-6 space-y-4 max-h-[60vh] overflow-y-auto">
                     <div className="bg-gray-50 p-3 rounded-xl text-sm text-gray-600">
                         📦 ของเก่า (เมื่อวาน): <strong>{stockYesterday}</strong> ชิ้น
                     </div>
@@ -241,6 +244,19 @@ const EditInventoryModal: React.FC<{
                                 disabled={isLoading}
                             />
                         </div>
+
+                        <div className="bg-violet-50 p-4 rounded-xl border border-violet-200">
+                            <label className="flex items-center gap-2 text-sm font-medium text-violet-700 mb-2">
+                                <UtensilsCrossed size={16} /> กินแจก
+                            </label>
+                            <input
+                                type="number"
+                                value={free}
+                                onChange={e => setFree(Math.max(0, parseInt(e.target.value) || 0))}
+                                className="w-full p-2 text-lg font-bold text-center border-2 border-violet-200 rounded-xl focus:border-violet-500 focus:ring-2 focus:ring-violet-200"
+                                disabled={isLoading}
+                            />
+                        </div>
                     </div>
 
                     {/* Preview */}
@@ -250,7 +266,7 @@ const EditInventoryModal: React.FC<{
                             <p className="text-2xl font-black text-emerald-700">{todayStock}</p>
                         </div>
                         <div className={`p-3 rounded-xl text-center border ${leftover < 0 ? 'bg-red-50 border-red-200' : 'bg-amber-50 border-amber-200'}`}>
-                            <p className={`text-xs ${leftover < 0 ? 'text-red-600' : 'text-amber-600'}`}>เหลือที่บ้าน</p>
+                            <p className={`text-xs ${leftover < 0 ? 'text-red-600' : 'text-amber-600'}`}>เหลือที่บ้าน (Est.)</p>
                             <p className={`text-2xl font-black ${leftover < 0 ? 'text-red-600' : 'text-amber-700'}`}>{leftover}</p>
                         </div>
                     </div>
@@ -298,12 +314,14 @@ export const MenuStockPlanner: React.FC = () => {
         pendingProduction: Record<string, number>;
         pendingTransfer: Record<string, number>;
         pendingWaste: Record<string, number>;
+        pendingFree: Record<string, number>; // กินแจก consolidated
     }>(draftKey);
 
     // Pending inputs BEFORE confirm (resets after confirm)
     const [pendingProduction, setPendingProduction] = useState<Record<string, number>>({});
     const [pendingTransfer, setPendingTransfer] = useState<Record<string, number>>({});
-
+    const [pendingWaste, setPendingWaste] = useState<Record<string, number>>({});
+    const [pendingFree, setPendingFree] = useState<Record<string, number>>({}); // กินแจก consolidated
 
     const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
 
@@ -324,6 +342,7 @@ export const MenuStockPlanner: React.FC = () => {
         item: InventoryItem;
         currentProduced: number;
         currentTransfer: number;
+        currentFree: number;      // กินแจก consolidated
         stockYesterday: number;
     } | null>(null);
 
@@ -331,19 +350,19 @@ export const MenuStockPlanner: React.FC = () => {
     const [bulkProduction, setBulkProduction] = useState<Record<string, number>>({});
     const [bulkTransfer, setBulkTransfer] = useState<Record<string, number>>({});
     const [bulkTarget, setBulkTarget] = useState<Record<string, number>>({}); // NEW: Target Input State
-    const [pendingWaste, setPendingWaste] = useState<Record<string, number>>({});  // NEW: Waste at home
 
     // Auto-save draft when pending values change
     useEffect(() => {
         const hasPendingData =
             Object.keys(pendingProduction).length > 0 ||
             Object.keys(pendingTransfer).length > 0 ||
-            Object.keys(pendingWaste).length > 0;
+            Object.keys(pendingWaste).length > 0 ||
+            Object.keys(pendingFree).length > 0;
 
         if (hasPendingData) {
-            saveDraft({ pendingProduction, pendingTransfer, pendingWaste });
+            saveDraft({ pendingProduction, pendingTransfer, pendingWaste, pendingFree });
         }
-    }, [pendingProduction, pendingTransfer, pendingWaste, saveDraft]);
+    }, [pendingProduction, pendingTransfer, pendingWaste, pendingFree, saveDraft]);
 
     // Restore draft on mount or date change
     useEffect(() => {
@@ -358,10 +377,14 @@ export const MenuStockPlanner: React.FC = () => {
             if (Object.keys(draft.pendingWaste || {}).length > 0) {
                 setPendingWaste(draft.pendingWaste);
             }
+            if (Object.keys(draft.pendingFree || {}).length > 0) {
+                setPendingFree(draft.pendingFree);
+            }
             const hasData =
                 Object.keys(draft.pendingProduction || {}).length > 0 ||
                 Object.keys(draft.pendingTransfer || {}).length > 0 ||
-                Object.keys(draft.pendingWaste || {}).length > 0;
+                Object.keys(draft.pendingWaste || {}).length > 0 ||
+                Object.keys(draft.pendingFree || {}).length > 0;
             if (hasData) {
                 setDraftRestored(true);
                 setTimeout(() => setDraftRestored(false), 5000); // Hide after 5s
@@ -375,6 +398,7 @@ export const MenuStockPlanner: React.FC = () => {
         setPendingProduction({});
         setPendingTransfer({});
         setPendingWaste({});
+        setPendingFree({});
         setDraftRestored(false);
     }, [clearDraft]);
 
@@ -464,7 +488,15 @@ export const MenuStockPlanner: React.FC = () => {
             d.productId === item.productId &&
             (d.variantId || '') === (item.variantId || '')
         );
-        return saved || { producedQty: 0, toShopQty: 0, wasteQty: 0, soldQty: 0, stockYesterday: getYesterdayForItem(item) };
+        return saved || {
+            producedQty: 0,
+            toShopQty: 0,
+            wasteQty: 0,
+            soldQty: 0,
+            eatQty: 0,      // NEW
+            giveawayQty: 0, // NEW
+            stockYesterday: getYesterdayForItem(item)
+        };
     };
 
     // Calculate today's stock = yesterday + ALL confirmed production
@@ -475,13 +507,14 @@ export const MenuStockPlanner: React.FC = () => {
         return stockYesterday + confirmedProduction;
     };
 
-    // Calculate leftover = today stock - confirmed transfer - waste
+    // Calculate leftover = today stock - confirmed transfer - waste - กินแจก
     const calculateLeftover = (item: InventoryItem) => {
         const todayStock = getTodayStock(item);
         const saved = getSavedRecord(item);
         const confirmedTransfer = saved.toShopQty || 0;
         const confirmedWaste = saved.wasteQty || 0;
-        return todayStock - confirmedTransfer - confirmedWaste;
+        const confirmedFree = (saved.eatQty || 0) + (saved.giveawayQty || 0); // backward compat: sum both
+        return todayStock - confirmedTransfer - confirmedWaste - confirmedFree;
     };
 
     // Toggle group expansion
@@ -526,8 +559,8 @@ export const MenuStockPlanner: React.FC = () => {
     };
 
     // Handle Edit Save with confirmation
-    const handleEditSave = async (producedQty: number, toShopQty: number) => {
-        console.log('[handleEditSave] Called with:', { producedQty, toShopQty, hasEditModal: !!editModal });
+    const handleEditSave = async (producedQty: number, toShopQty: number, freeQty: number) => {
+        console.log('[handleEditSave] Called with:', { producedQty, toShopQty, freeQty, hasEditModal: !!editModal });
 
         if (!editModal) {
             console.error('[handleEditSave] editModal is null! Cannot save.');
@@ -554,7 +587,9 @@ export const MenuStockPlanner: React.FC = () => {
                 producedQty,
                 toShopQty,
                 wasteQty: saved.wasteQty || 0,    // PRESERVE existing waste
-                soldQty: saved.soldQty || 0       // PRESERVE existing sold
+                soldQty: saved.soldQty || 0,       // PRESERVE existing sold
+                eatQty: freeQty,                   // กินแจก consolidated
+                giveawayQty: 0                     // consolidated into eatQty
             });
             console.log('[handleEditSave] upsertDailyInventory done!');
 
@@ -697,6 +732,8 @@ export const MenuStockPlanner: React.FC = () => {
                 toShopQty: number;
                 wasteQty: number;
                 soldQty: number;
+                eatQty: number;      // NEW
+                giveawayQty: number; // NEW
                 stockYesterday: number;
             }> = [];
 
@@ -729,6 +766,8 @@ export const MenuStockPlanner: React.FC = () => {
                         toShopQty: saved.toShopQty || 0,
                         wasteQty: saved.wasteQty || 0,   // PRESERVE existing waste
                         soldQty: saved.soldQty || 0,     // PRESERVE existing sold
+                        eatQty: saved.eatQty || 0,       // PRESERVE existing eat
+                        giveawayQty: saved.giveawayQty || 0, // PRESERVE existing giveaway
                         stockYesterday
                     });
                 } else if (bulkActionModal.type === 'sendAll') {
@@ -736,11 +775,15 @@ export const MenuStockPlanner: React.FC = () => {
                     const totalProduced = stockYesterday + (saved.producedQty || 0);
                     const alreadySent = saved.toShopQty || 0;
                     const wasteQty = saved.wasteQty || 0;  // 🛡️ FIX: Must subtract waste!
-                    const availableStock = Math.max(0, totalProduced - alreadySent - wasteQty);
+                    const eatQty = saved.eatQty || 0;      // 🛡️ FIX: Must subtract eat!
+                    const giveawayQty = saved.giveawayQty || 0; // 🛡️ FIX: Must subtract giveaway!
+
+                    // Available = Total - Sent - Waste - Eat - Giveaway
+                    const availableStock = Math.max(0, totalProduced - alreadySent - wasteQty - eatQty - giveawayQty);
                     const safeTransfer = Math.min(value, availableStock);
 
                     console.log(`[confirmBulkAction] sendAll calc:`, {
-                        totalProduced, alreadySent, wasteQty, availableStock, safeTransfer, value
+                        totalProduced, alreadySent, wasteQty, eatQty, giveawayQty, availableStock, safeTransfer, value
                     });
 
                     if (safeTransfer > 0) {
@@ -753,6 +796,8 @@ export const MenuStockPlanner: React.FC = () => {
                             toShopQty: alreadySent + safeTransfer,
                             wasteQty: saved.wasteQty || 0,   // PRESERVE existing waste
                             soldQty: saved.soldQty || 0,     // PRESERVE existing sold
+                            eatQty: saved.eatQty || 0,       // PRESERVE existing eat
+                            giveawayQty: saved.giveawayQty || 0, // PRESERVE existing giveaway
                             stockYesterday
                         });
                     } else {
@@ -777,6 +822,8 @@ export const MenuStockPlanner: React.FC = () => {
                         toShopQty: record.toShopQty,
                         wasteQty: record.wasteQty,
                         soldQty: record.soldQty,
+                        eatQty: record.eatQty,
+                        giveawayQty: record.giveawayQty,
                         stockYesterday: record.stockYesterday
                     })
                 ));
@@ -843,6 +890,37 @@ export const MenuStockPlanner: React.FC = () => {
         });
 
         // Refetch to get updated values
+        await fetchDailyInventory(businessDate);
+    };
+
+    // Handle กินแจก (Free) Confirmation - consolidated eat+giveaway
+    const handleFreeConfirm = async (item: InventoryItem, value: number) => {
+        if (value <= 0) return;
+
+        const saved = getSavedRecord(item);
+        const stockYesterday = saved.stockYesterday ?? getYesterdayForItem(item);
+
+        await upsertDailyInventory({
+            businessDate,
+            productId: item.productId,
+            variantId: item.variantId,
+            variantName: item.isVariant ? item.name : undefined,
+            producedQty: saved.producedQty || 0,
+            toShopQty: saved.toShopQty || 0,
+            wasteQty: saved.wasteQty || 0,
+            soldQty: saved.soldQty || 0,
+            eatQty: (saved.eatQty || 0) + value,       // ADD to existing (consolidated)
+            giveawayQty: 0,                            // consolidated into eatQty
+            stockYesterday
+        });
+
+        // Clear pending input
+        setPendingFree(prev => {
+            const updated = { ...prev };
+            delete updated[item.id];
+            return updated;
+        });
+
         await fetchDailyInventory(businessDate);
     };
 
@@ -983,8 +1061,11 @@ export const MenuStockPlanner: React.FC = () => {
         const confirmedProduction = saved.producedQty || 0;
         const confirmedTransfer = saved.toShopQty || 0;
         const confirmedWaste = saved.wasteQty || 0;
+        const confirmedEat = saved.eatQty || 0;
+        const confirmedGiveaway = saved.giveawayQty || 0;
+        const confirmedFree = confirmedEat + confirmedGiveaway; // backward compat
         const todayStock = stockYesterday + confirmedProduction;
-        const leftover = todayStock - confirmedTransfer - confirmedWaste;
+        const leftover = todayStock - confirmedTransfer - confirmedWaste - confirmedFree;
         const pendingProd = pendingProduction[item.id] || 0;
         const pendingTrans = pendingTransfer[item.id] || 0;
 
@@ -1006,6 +1087,7 @@ export const MenuStockPlanner: React.FC = () => {
                                 item,
                                 currentProduced: confirmedProduction,
                                 currentTransfer: confirmedTransfer,
+                                currentFree: confirmedFree,
                                 stockYesterday
                             })}
                             className="p-1 text-white/80 hover:bg-white/20 rounded transition-colors"
@@ -1060,11 +1142,32 @@ export const MenuStockPlanner: React.FC = () => {
                         </button>
                     </div>
 
+                    {/* กินแจก (Free) - consolidated */}
+                    <div className="flex items-center gap-1 bg-violet-50 rounded-lg px-2 py-1 flex-1 min-w-[140px]">
+                        <UtensilsCrossed size={14} className="text-violet-500" />
+                        <span className="text-xs text-violet-700">กินแจก</span>
+                        {confirmedFree > 0 && <span className="text-xs text-violet-600">+{confirmedFree}</span>}
+                        <input
+                            type="number"
+                            className="w-12 text-center text-sm font-bold bg-white border border-violet-200 rounded ml-auto"
+                            value={pendingFree[item.id] || ''}
+                            onChange={e => setPendingFree(prev => ({ ...prev, [item.id]: Math.max(0, parseInt(e.target.value) || 0) }))}
+                            placeholder="0"
+                        />
+                        <button
+                            onClick={() => handleFreeConfirm(item, pendingFree[item.id] || 0)}
+                            disabled={(pendingFree[item.id] || 0) <= 0}
+                            className="p-1 bg-violet-500 text-white rounded disabled:opacity-50"
+                        >
+                            <Check size={14} />
+                        </button>
+                    </div>
+
                     {/* Waste */}
                     <div className="flex items-center gap-1 bg-red-50 rounded-lg px-2 py-1 flex-1 min-w-[140px]">
                         <Trash2 size={14} className="text-red-500" />
                         <span className="text-xs text-red-700">ทิ้ง</span>
-                        {saved.wasteQty > 0 && <span className="text-xs text-red-600">+{saved.wasteQty}</span>}
+                        {confirmedWaste > 0 && <span className="text-xs text-red-600">+{confirmedWaste}</span>}
                         <input
                             type="number"
                             className="w-12 text-center text-sm font-bold bg-white border border-red-200 rounded ml-auto"
@@ -1091,13 +1194,16 @@ export const MenuStockPlanner: React.FC = () => {
         const stockYesterday = saved.stockYesterday ?? getYesterdayForItem(item);
         const confirmedProduction = saved.producedQty || 0;
         const confirmedTransfer = saved.toShopQty || 0;
+        const confirmedEat = saved.eatQty || 0;
+        const confirmedGiveaway = saved.giveawayQty || 0;
+        const confirmedFree = confirmedEat + confirmedGiveaway; // backward compat
 
         // Today stock = yesterday + confirmed production
         const todayStock = stockYesterday + confirmedProduction;
 
-        // Leftover = today stock - confirmed transfer - waste
+        // Leftover = today stock - confirmed transfer - waste - กินแจก
         const confirmedWaste = saved.wasteQty || 0;
-        const leftover = todayStock - confirmedTransfer - confirmedWaste;
+        const leftover = todayStock - confirmedTransfer - confirmedWaste - confirmedFree;
 
         // Pending inputs (before confirm)
         const pendingProd = pendingProduction[item.id] || 0;
@@ -1130,6 +1236,7 @@ export const MenuStockPlanner: React.FC = () => {
                                     item,
                                     currentProduced: confirmedProduction,
                                     currentTransfer: confirmedTransfer,
+                                    currentFree: confirmedFree,
                                     stockYesterday
                                 })}
                                 className={`p-1 rounded transition-colors ${isNested ? 'text-purple-500 hover:bg-purple-100' : 'text-white/80 hover:bg-white/20 hover:text-white'}`}
@@ -1197,7 +1304,34 @@ export const MenuStockPlanner: React.FC = () => {
                         </div>
                     </div>
 
-                    {/* Row 3: Waste/Discard */}
+                    {/* Row 3: กินแจก (Free) - consolidated */}
+                    <div className="flex items-center gap-2 text-xs">
+                        <span className="text-gray-400 w-14 shrink-0">กินแจก: {confirmedFree}</span>
+                        <div className="flex items-center gap-1 flex-1 bg-violet-50 rounded-lg px-2 py-1.5">
+                            <UtensilsCrossed size={12} className="text-violet-500 shrink-0" />
+                            <span className="text-violet-600 text-xs shrink-0">กินแจก</span>
+                            {confirmedFree > 0 && <span className="text-violet-500 text-[10px]">+{confirmedFree}</span>}
+                            <input
+                                type="number"
+                                className="w-10 text-center text-xs font-bold bg-white border border-violet-200 rounded ml-auto"
+                                value={pendingFree[item.id] || ''}
+                                onChange={e => {
+                                    const val = Math.max(0, parseInt(e.target.value) || 0);
+                                    setPendingFree(prev => ({ ...prev, [item.id]: val }));
+                                }}
+                                placeholder="0"
+                            />
+                            <button
+                                onClick={() => handleFreeConfirm(item, pendingFree[item.id] || 0)}
+                                disabled={(pendingFree[item.id] || 0) <= 0}
+                                className="p-0.5 bg-violet-500 text-white rounded disabled:opacity-40"
+                            >
+                                <Check size={10} />
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Row 4: Waste/Discard */}
                     <div className="flex items-center gap-2 text-xs">
                         <span className="text-gray-400 w-14 shrink-0">ทิ้ง: {saved.wasteQty || 0}</span>
                         <div className="flex items-center gap-1 flex-1 bg-red-50 rounded-lg px-2 py-1.5">
@@ -1448,6 +1582,7 @@ export const MenuStockPlanner: React.FC = () => {
                     itemName={editModal.item.parentName ? `${editModal.item.parentName} - ${editModal.item.name}` : editModal.item.name}
                     currentProduced={editModal.currentProduced}
                     currentTransfer={editModal.currentTransfer}
+                    currentFree={editModal.currentFree}
                     stockYesterday={editModal.stockYesterday}
                 />
             )}

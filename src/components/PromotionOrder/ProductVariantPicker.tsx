@@ -38,7 +38,7 @@ export const ProductVariantPicker: React.FC<ProductVariantPickerProps> = ({
         const groups: Record<string, Product[]> = {};
 
         products.forEach(product => {
-            if (!product.isHidden) {
+            if (!(product as any).isHidden) {
                 const cat = product.category || 'อื่นๆ';
                 if (!groups[cat]) groups[cat] = [];
                 groups[cat].push(product);

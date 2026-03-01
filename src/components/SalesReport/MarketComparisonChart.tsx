@@ -62,38 +62,57 @@ export const MarketComparisonChart: React.FC<MarketComparisonChartProps> = ({ da
     };
 
     return (
-        <div className="bg-white rounded-2xl shadow-md p-6">
-            <h3 className="text-lg font-bold text-cafe-800 mb-4">🏪 {config.title}</h3>
+        <div className="bg-white rounded-3xl shadow-sm border border-cafe-100 p-6 hover:shadow-lg transition-all duration-300">
+            <h3 className="text-lg font-bold text-cafe-800 mb-6 flex items-center gap-2">
+                <span className="bg-cafe-100 p-2 rounded-xl">🏪</span> {config.title}
+            </h3>
             {data.length === 0 ? (
-                <div className="h-64 flex items-center justify-center text-cafe-500">
-                    ไม่มีข้อมูล
+                <div className="h-72 flex flex-col items-center justify-center text-cafe-400 bg-cafe-50/50 rounded-2xl border border-dashed border-cafe-200">
+                    <span className="text-2xl mb-2">🏪</span>
+                    <p>ยังไม่มีข้อมูลเปรียบเทียบตลาด</p>
                 </div>
             ) : (
-                <ResponsiveContainer width="100%" height={300}>
-                    <BarChart data={data} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                        <XAxis
-                            dataKey="marketName"
-                            stroke="#9ca3af"
-                            style={{ fontSize: '12px' }}
-                        />
-                        <YAxis
-                            stroke="#9ca3af"
-                            style={{ fontSize: '12px' }}
-                            tickFormatter={(value) =>
-                                mode === 'quantity'
-                                    ? value
-                                    : `฿${(value / 1000).toFixed(0)}k`
-                            }
-                        />
-                        <Tooltip content={<CustomTooltip />} />
-                        <Bar
-                            dataKey={config.dataKey}
-                            fill={config.color}
-                            radius={[8, 8, 0, 0]}
-                        />
-                    </BarChart>
-                </ResponsiveContainer>
+                <div className="h-72 w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={data} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                            <defs>
+                                <linearGradient id="barGradient" x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="0%" stopColor={config.color} stopOpacity={0.9} />
+                                    <stop offset="100%" stopColor={config.color} stopOpacity={0.6} />
+                                </linearGradient>
+                            </defs>
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                            <XAxis
+                                dataKey="marketName"
+                                stroke="#94a3b8"
+                                fontSize={12}
+                                axisLine={false}
+                                tickLine={false}
+                                dy={10}
+                            />
+                            <YAxis
+                                stroke="#94a3b8"
+                                fontSize={12}
+                                axisLine={false}
+                                tickLine={false}
+                                tickFormatter={(value) =>
+                                    mode === 'quantity'
+                                        ? value
+                                        : `฿${(value / 1000).toFixed(0)}k`
+                                }
+                            />
+                            <Tooltip content={<CustomTooltip />} cursor={{ fill: '#f8fafc' }} />
+                            <Bar
+                                dataKey={config.dataKey}
+                                fill="url(#barGradient)"
+                                radius={[6, 6, 0, 0]}
+                                barSize={40}
+                                animationDuration={1000}
+                                animationEasing="ease-out"
+                            />
+                        </BarChart>
+                    </ResponsiveContainer>
+                </div>
             )}
         </div>
     );

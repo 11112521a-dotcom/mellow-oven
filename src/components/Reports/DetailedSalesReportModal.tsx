@@ -142,7 +142,15 @@ export const DetailedSalesReportModal: React.FC<DetailedSalesReportModalProps> =
         const totalWaste = filteredSales.reduce((sum, s) => sum + (s.wasteQty || 0), 0);
         const wasteCost = filteredSales.reduce((sum, s) => sum + ((s.wasteQty || 0) * s.costPerUnit), 0);
 
-        return { totalRevenue, totalCost, totalProfit, totalQuantity, totalWaste, wasteCost };
+        // กินแจก (Free) - consolidated eat+giveaway for backward compat
+        const totalFree = filteredSales.reduce((sum, s) => sum + (s.eatQty || 0) + (s.giveawayQty || 0), 0);
+        const freeCost = filteredSales.reduce((sum, s) => sum + (((s.eatQty || 0) + (s.giveawayQty || 0)) * s.costPerUnit), 0);
+
+        return {
+            totalRevenue, totalCost, totalProfit, totalQuantity,
+            totalWaste, wasteCost,
+            totalFree, freeCost
+        };
     }, [filteredSales]);
 
     // Group by market
@@ -155,19 +163,22 @@ export const DetailedSalesReportModal: React.FC<DetailedSalesReportModalProps> =
             profit: number;
             quantity: number;
             waste: number;
+            free: number;     // กินแจก consolidated
         }>();
 
         filteredSales.forEach(sale => {
             const existing = map.get(sale.marketId) || {
                 marketId: sale.marketId,
                 marketName: sale.marketName,
-                revenue: 0, cost: 0, profit: 0, quantity: 0, waste: 0
+                revenue: 0, cost: 0, profit: 0, quantity: 0, waste: 0,
+                free: 0
             };
             existing.revenue += sale.totalRevenue;
             existing.cost += sale.totalCost;
             existing.profit += sale.grossProfit;
             existing.quantity += sale.quantitySold;
             existing.waste += (sale.wasteQty || 0);
+            existing.free += (sale.eatQty || 0) + (sale.giveawayQty || 0);
             map.set(sale.marketId, existing);
         });
 
@@ -183,6 +194,8 @@ export const DetailedSalesReportModal: React.FC<DetailedSalesReportModalProps> =
             quantity: number;
             revenue: number;
             profit: number;
+            waste: number;
+            free: number;     // กินแจก consolidated
         }>();
 
         filteredSales.forEach(sale => {
@@ -192,11 +205,13 @@ export const DetailedSalesReportModal: React.FC<DetailedSalesReportModalProps> =
                 productId: sale.productId,
                 productName: name,
                 category: sale.category,
-                quantity: 0, revenue: 0, profit: 0
+                quantity: 0, revenue: 0, profit: 0, waste: 0, free: 0
             };
             existing.quantity += sale.quantitySold;
             existing.revenue += sale.totalRevenue;
             existing.profit += sale.grossProfit;
+            existing.waste += (sale.wasteQty || 0);
+            existing.free += (sale.eatQty || 0) + (sale.giveawayQty || 0);
             map.set(key, existing);
         });
 
@@ -210,17 +225,21 @@ export const DetailedSalesReportModal: React.FC<DetailedSalesReportModalProps> =
             revenue: number;
             profit: number;
             quantity: number;
+            free: number;     // กินแจก consolidated
+            waste: number;
             weather: string | null;
         }>();
 
         filteredSales.forEach(sale => {
             const existing = map.get(sale.saleDate) || {
                 date: sale.saleDate,
-                revenue: 0, profit: 0, quantity: 0, weather: null
+                revenue: 0, profit: 0, quantity: 0, free: 0, waste: 0, weather: null
             };
             existing.revenue += sale.totalRevenue;
             existing.profit += sale.grossProfit;
             existing.quantity += sale.quantitySold;
+            existing.free += (sale.eatQty || 0) + (sale.giveawayQty || 0);
+            existing.waste += (sale.wasteQty || 0);
             if (sale.weatherCondition) existing.weather = sale.weatherCondition;
             map.set(sale.saleDate, existing);
         });
@@ -241,6 +260,7 @@ export const DetailedSalesReportModal: React.FC<DetailedSalesReportModalProps> =
                 cost: number;
                 profit: number;
                 waste: number;
+                free: number;     // กินแจก consolidated
             }>;
         }>();
 
@@ -260,7 +280,7 @@ export const DetailedSalesReportModal: React.FC<DetailedSalesReportModalProps> =
                 market.products.set(productKey, {
                     productName,
                     category: sale.category,
-                    quantity: 0, revenue: 0, cost: 0, profit: 0, waste: 0
+                    quantity: 0, revenue: 0, cost: 0, profit: 0, waste: 0, free: 0
                 });
             }
             const product = market.products.get(productKey)!;
@@ -269,6 +289,7 @@ export const DetailedSalesReportModal: React.FC<DetailedSalesReportModalProps> =
             product.cost += sale.totalCost;
             product.profit += sale.grossProfit;
             product.waste += (sale.wasteQty || 0);
+            product.free += (sale.eatQty || 0) + (sale.giveawayQty || 0);
         });
 
         return Array.from(marketMap.values()).map(m => ({
@@ -353,6 +374,7 @@ export const DetailedSalesReportModal: React.FC<DetailedSalesReportModalProps> =
             const marketTotalProfit = market.products.reduce((s, p) => s + p.profit, 0);
             const marketTotalQty = market.products.reduce((s, p) => s + p.quantity, 0);
             const marketTotalWaste = market.products.reduce((s, p) => s + p.waste, 0);
+            const marketTotalFree = market.products.reduce((s, p) => s + p.free, 0);
 
             const productRows = market.products.map(p => `
                 <tr>
@@ -362,7 +384,8 @@ export const DetailedSalesReportModal: React.FC<DetailedSalesReportModalProps> =
                     <td style="padding:6px;border:1px solid #ddd;text-align:right;font-size:11px;">฿${p.revenue.toLocaleString()}</td>
                     <td style="padding:6px;border:1px solid #ddd;text-align:right;font-size:11px;">฿${p.cost.toLocaleString()}</td>
                     <td style="padding:6px;border:1px solid #ddd;text-align:right;font-size:11px;color:#16a34a;">฿${p.profit.toLocaleString()}</td>
-                    <td style="padding:6px;border:1px solid #ddd;text-align:center;font-size:11px;color:#dc2626;">${p.waste}</td>
+                    <td style="padding:6px;border:1px solid #ddd;text-align:center;font-size:11px;color:#8b5cf6;">${p.free > 0 ? p.free : '-'}</td>
+                    <td style="padding:6px;border:1px solid #ddd;text-align:center;font-size:11px;color:#dc2626;">${p.waste > 0 ? p.waste : '-'}</td>
                 </tr>
             `).join('');
 
@@ -370,7 +393,13 @@ export const DetailedSalesReportModal: React.FC<DetailedSalesReportModalProps> =
                 <div style="page-break-inside:avoid;margin-bottom:25px;">
                     <h3 style="font-size:14px;color:#1e40af;margin:15px 0 8px 0;background:#dbeafe;padding:8px;border-radius:4px;">
                         🏪 ${market.marketName}
-                        <span style="float:right;font-size:12px;color:#666;">รวม: ฿${marketTotalRevenue.toLocaleString()} | กำไร: ฿${marketTotalProfit.toLocaleString()} | ${marketTotalQty} ชิ้น</span>
+                        <span style="float:right;font-size:12px;color:#666;">
+                            รวม: ฿${marketTotalRevenue.toLocaleString()} | 
+                            กำไร: ฿${marketTotalProfit.toLocaleString()} | 
+                            ${marketTotalQty} ชิ้น | 
+                            กินแจก: ${marketTotalFree} | 
+                            เสีย: ${marketTotalWaste}
+                        </span>
                     </h3>
                     <table style="width:100%;border-collapse:collapse;font-size:11px;">
                         <thead>
@@ -381,6 +410,7 @@ export const DetailedSalesReportModal: React.FC<DetailedSalesReportModalProps> =
                                 <th style="padding:6px;border:1px solid #ddd;text-align:right;">รายได้</th>
                                 <th style="padding:6px;border:1px solid #ddd;text-align:right;">ต้นทุน</th>
                                 <th style="padding:6px;border:1px solid #ddd;text-align:right;">กำไร</th>
+                                <th style="padding:6px;border:1px solid #ddd;text-align:center;">กินแจก</th>
                                 <th style="padding:6px;border:1px solid #ddd;text-align:center;">เสีย</th>
                             </tr>
                         </thead>
@@ -392,6 +422,7 @@ export const DetailedSalesReportModal: React.FC<DetailedSalesReportModalProps> =
                                 <td style="padding:6px;border:1px solid #ddd;text-align:right;">฿${marketTotalRevenue.toLocaleString()}</td>
                                 <td style="padding:6px;border:1px solid #ddd;text-align:right;"></td>
                                 <td style="padding:6px;border:1px solid #ddd;text-align:right;color:#16a34a;">฿${marketTotalProfit.toLocaleString()}</td>
+                                <td style="padding:6px;border:1px solid #ddd;text-align:center;color:#8b5cf6;">${marketTotalFree}</td>
                                 <td style="padding:6px;border:1px solid #ddd;text-align:center;color:#dc2626;">${marketTotalWaste}</td>
                             </tr>
                         </tfoot>
@@ -900,7 +931,9 @@ export const DetailedSalesReportModal: React.FC<DetailedSalesReportModalProps> =
                                         <div className="bg-indigo-50 px-4 py-3 flex justify-between items-center">
                                             <span className="font-bold text-indigo-800">🏪 {market.marketName}</span>
                                             <div className="text-sm text-indigo-600">
-                                                {marketTotalQty} ชิ้น | {formatCurrency(marketTotalRevenue)} | กำไร {formatCurrency(marketTotalProfit)}
+                                                {marketTotalQty} ชิ้น | {formatCurrency(marketTotalRevenue)} | กำไร {formatCurrency(marketTotalProfit)} |
+                                                <span className="text-violet-600 ml-1">กินแจก {market.products.reduce((s, p) => s + p.free, 0)}</span> |
+                                                <span className="text-red-500 ml-1">เสีย {market.products.reduce((s, p) => s + p.waste, 0)}</span>
                                             </div>
                                         </div>
                                         <table className="w-full text-xs">
@@ -912,6 +945,7 @@ export const DetailedSalesReportModal: React.FC<DetailedSalesReportModalProps> =
                                                     <th className="px-3 py-2 text-right">รายได้</th>
                                                     <th className="px-3 py-2 text-right">ต้นทุน</th>
                                                     <th className="px-3 py-2 text-right">กำไร</th>
+                                                    <th className="px-3 py-2 text-center">กินแจก</th>
                                                     <th className="px-3 py-2 text-center">เสีย</th>
                                                 </tr>
                                             </thead>
@@ -924,6 +958,7 @@ export const DetailedSalesReportModal: React.FC<DetailedSalesReportModalProps> =
                                                         <td className="px-3 py-1.5 text-right">{formatCurrency(p.revenue)}</td>
                                                         <td className="px-3 py-1.5 text-right text-red-500">{formatCurrency(p.cost)}</td>
                                                         <td className="px-3 py-1.5 text-right text-green-600 font-bold">{formatCurrency(p.profit)}</td>
+                                                        <td className="px-3 py-1.5 text-center text-violet-500">{p.free > 0 ? p.free : '-'}</td>
                                                         <td className="px-3 py-1.5 text-center text-red-500">{p.waste > 0 ? p.waste : '-'}</td>
                                                     </tr>
                                                 ))}

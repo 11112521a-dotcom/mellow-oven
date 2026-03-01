@@ -160,7 +160,7 @@ export const ProductionPlannerDemo: React.FC = () => {
                                 <p className="text-green-100 mt-2">units recommended</p>
                             </div>
                             <div className="text-right">
-                                {getConfidenceBadge(forecast.confidenceLevel)}
+                                {getConfidenceBadge(forecast.confidenceLevel as 'high' | 'medium' | 'low')}
                                 <p className="text-green-100 text-sm mt-2">
                                     Based on {forecast.dataPoints} data points
                                 </p>

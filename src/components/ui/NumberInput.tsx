@@ -13,7 +13,7 @@ export const NumberInput: React.FC<NumberInputProps> = ({
     className = "",
     ...props
 }) => {
-    const [displayValue, setDisplayValue] = useState<string>(value.toString());
+    const [displayValue, setDisplayValue] = useState<string>(value === 0 ? '' : value.toString());
 
     useEffect(() => {
         // Only update display value from props if the parsed display value doesn't match the prop value
@@ -39,7 +39,13 @@ export const NumberInput: React.FC<NumberInputProps> = ({
     }, [value]);
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const val = e.target.value;
+        let val = e.target.value;
+
+        // 1. Strip Leading Zeros (ยกเว้น 0. สำหรับทศนิยม)
+        // ใช้ regex: ^0+(?!\.) เพื่อลบ 0 นำหน้าที่ไม่ได้ตามมาด้วยจุด
+        val = val.replace(/^0+(?!\.)/, '');
+
+        // 2. Allow Empty State
         setDisplayValue(val);
 
         if (val === '') {
@@ -59,12 +65,23 @@ export const NumberInput: React.FC<NumberInputProps> = ({
     };
 
     const handleBlur = (e: React.FocusEvent<HTMLInputElement>) => {
-        if (displayValue === '') {
-            setDisplayValue('0');
-            onChange(0);
-        } else {
-            // Format on blur? Maybe not needed.
+        let finalVal = displayValue;
+
+        // 2. Allow Empty State -> Convert to 0 onBlur
+        if (finalVal === '' || finalVal === '-') {
+            finalVal = '0';
+        } else if (finalVal.endsWith('.')) {
+            // Clean up trailing dot on blur
+            finalVal = finalVal.slice(0, -1);
         }
+
+        setDisplayValue(finalVal);
+
+        const num = parseFloat(finalVal);
+        if (!isNaN(num)) {
+            onChange(num);
+        }
+
         props.onBlur?.(e);
     }
 

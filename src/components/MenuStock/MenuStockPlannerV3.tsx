@@ -45,7 +45,7 @@ export const MenuStockPlannerV3: React.FC = () => {
                             variantId: variant.id,
                             name: variant.name,
                             stockYesterday: getYesterdayStock(product.id, businessDate, variant.id),
-                            savedRecord: saved || { producedQty: 0, toShopQty: 0, wasteQty: 0, soldQty: 0 },
+                            savedRecord: saved || { producedQty: 0, toShopQty: 0, wasteQty: 0, soldQty: 0, eatQty: 0, giveawayQty: 0 },
                             dailyTarget: (product as any).dailyTarget || 15
                         };
                     })
@@ -55,7 +55,7 @@ export const MenuStockPlannerV3: React.FC = () => {
                         variantId: product.id,
                         name: product.name,
                         stockYesterday: getYesterdayStock(product.id, businessDate),
-                        savedRecord: inventoryMap.get(`${product.id}-`) || { producedQty: 0, toShopQty: 0, wasteQty: 0, soldQty: 0 },
+                        savedRecord: inventoryMap.get(`${product.id}-`) || { producedQty: 0, toShopQty: 0, wasteQty: 0, soldQty: 0, eatQty: 0, giveawayQty: 0 },
                         dailyTarget: (product as any).dailyTarget || 15
                     }];
 
@@ -307,7 +307,9 @@ export const MenuStockPlannerV3: React.FC = () => {
                                 productId={group.productId}
                                 productName={group.productName}
                                 category={group.category}
-                                variants={group.variants}
+                                variants={group.variants as any}
+                                onEat={() => { }}
+                                onGiveaway={() => { }}
                                 onProduce={(variantId, val) => handleSingleAction(group.productId, variantId, { producedQty: val }, 'add')}
                                 onSend={(variantId, val) => handleSingleAction(group.productId, variantId, { toShopQty: val }, 'add')}
                                 onWaste={(variantId, val) => handleSingleAction(group.productId, variantId, { wasteQty: val }, 'add')}

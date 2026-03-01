@@ -47,18 +47,17 @@ export interface OraclePattern {
 // ==========================================
 
 // 1. Chrono-Cycle: Convert Date to Context
+// Fixed: No more overlap between Payday and Early Month
 const getChronoCycle = (dateStr: string) => {
     const date = new Date(dateStr);
     const dayName = date.toLocaleDateString('en-US', { weekday: 'long' });
     const day = date.getDate();
 
-    let phase = 'Mid-Month';
-    if (day <= 7) phase = 'Early Month';
-    // Days 25-31 or Day 1 = Payday Phase ?? (Let's stick to standard definition first)
-    // Adjust logic for "Payday" usually 25th - 5th
-    if (day >= 25 || day <= 5) phase = 'Payday Phase';
-    else if (day >= 13 && day <= 17) phase = 'Mid-Month'; // Strict mid-month
-    else phase = 'Normal Phase';
+    let phase: string;
+    if (day >= 25) phase = 'Payday Phase';       // 25-31: เงินเดือนออก
+    else if (day <= 5) phase = 'Early Month';     // 1-5: ต้นเดือน (หลังเงินเดือน)
+    else if (day >= 13 && day <= 17) phase = 'Mid-Month'; // 13-17: กลางเดือน
+    else phase = 'Normal Phase';                  // 6-12, 18-24: ปกติ
 
     return { dayName, phase };
 };
@@ -129,18 +128,22 @@ const getGap = (productLogs: ProductSaleLog[], currentDate: string): string => {
 };
 
 // 6. Basket Context: Store Traffic Context
+// Fixed: Dynamic threshold using percentiles instead of hardcoded values
 const getBasketContext = (allLogs: ProductSaleLog[], date: string): string => {
-    // Calculate total items sold in store that day
-    const dayLogs = allLogs.filter(l => l.saleDate === date);
-    const totalItems = dayLogs.reduce((sum, l) => sum + l.quantitySold, 0);
+    // Calculate total items sold per day across all days
+    const dailyTotals = new Map<string, number>();
+    allLogs.forEach(l => {
+        dailyTotals.set(l.saleDate, (dailyTotals.get(l.saleDate) || 0) + l.quantitySold);
+    });
 
-    // This needs a baseline. For now, simple threshold or relative to avg
-    // We'll compute this dynamically outside if possible, but for row-level extraction:
-    // Let's assume a "High Traffic" day is > 50 items (Placeholder, should be dynamic)
-    // Better: We need the global context. Let's rely on the passed in Aggregates.
-    // For simplicity V1: Just Return value
-    if (totalItems > 100) return 'High Traffic'; // Example threshold
-    if (totalItems < 30) return 'Low Traffic';
+    const totalsArray = Array.from(dailyTotals.values()).sort((a, b) => a - b);
+    const p75 = totalsArray.length > 0 ? ss.quantile(totalsArray, 0.75) : 100;
+    const p25 = totalsArray.length > 0 ? ss.quantile(totalsArray, 0.25) : 30;
+
+    const todayTotal = dailyTotals.get(date) || 0;
+
+    if (todayTotal >= p75) return 'High Traffic';
+    if (todayTotal <= p25) return 'Low Traffic';
     return 'Normal Traffic';
 };
 
@@ -153,7 +156,8 @@ export async function runOracle(
     productName: string,
     productId: string,
     history: ProductSaleLog[],
-    allSales: ProductSaleLog[] // Context for Store Traffic
+    allSales: ProductSaleLog[], // Context for Store Traffic
+    topN: number = 5 // Configurable: how many patterns to return
 ): Promise<OraclePattern[]> {
 
     const patterns: OraclePattern[] = [];
@@ -166,16 +170,28 @@ export async function runOracle(
 
     // EXCLUSION: Ignore "Mor Lam" (หมอลำ) events as they are non-recurring/annual events
     const validHistory = history.filter(log => !log.marketName?.includes('หมอลำ'));
+    const now = new Date();
 
     const dataset = validHistory.map(log => {
         const { dayName, phase } = getChronoCycle(log.saleDate);
+        const weather = getAtmosphere(allSales, log.saleDate);
+
+        // 🌟 Freshness Recency Bias 🌟
+        const logDate = new Date(log.saleDate);
+        const diffDays = Math.ceil(Math.abs(now.getTime() - logDate.getTime()) / (1000 * 60 * 60 * 24));
+        let weight = 1.0;
+        if (diffDays <= 14) weight = 1.5;
+        else if (diffDays <= 30) weight = 1.2;
+
         return {
             date: log.saleDate,
             qty: log.quantitySold,
+            weight,
             dims: {
                 day: dayName,
                 phase: phase,
-                weather: getAtmosphere(allSales, log.saleDate), // Use global logs for weather source
+                // Filter Unknown weather — skip dimension if no data
+                ...(weather !== 'Unknown' ? { weather } : {}),
                 momentum: getMomentum(history, log.saleDate),
                 velocity: getVelocity(history, log.saleDate),
                 gap: getGap(history, log.saleDate),
@@ -200,9 +216,12 @@ export async function runOracle(
         Object.entries(combo).sort((a, b) => a[0].localeCompare(b[0])).map(([k, v]) => `${k}:${v}`).join('|');
 
     // We scan the dataset and build counts for observed combinations
-    const observedCombos: Map<string, { count: number, totalQty: number, values: number[], criteria: Record<string, string> }> = new Map();
+    const observedCombos: Map<string, { count: number, weightedCount: number, totalQty: number, weightedTotalQty: number, values: number[], criteria: Record<string, string> }> = new Map();
 
-    const dimensions = ['day', 'phase', 'weather', 'momentum', 'velocity', 'gap', 'traffic', 'market'];
+    // Dynamic dimensions — only use dimensions present in first row
+    const allDimKeys = new Set<string>();
+    dataset.forEach(row => Object.keys(row.dims).forEach(k => allDimKeys.add(k)));
+    const dimensions = Array.from(allDimKeys);
 
     // Timeout Guardrail
     const startTime = Date.now();
@@ -221,10 +240,12 @@ export async function runOracle(
         // Level 1 (Single Factors)
         for (const dim of dimensions) {
             const key = JSON.stringify({ [dim]: row.dims[dim as keyof typeof row.dims] });
-            if (!observedCombos.has(key)) observedCombos.set(key, { count: 0, totalQty: 0, values: [], criteria: { [dim]: row.dims[dim as keyof typeof row.dims] } });
+            if (!observedCombos.has(key)) observedCombos.set(key, { count: 0, weightedCount: 0, totalQty: 0, weightedTotalQty: 0, values: [], criteria: { [dim]: row.dims[dim as keyof typeof row.dims] } });
             const entry = observedCombos.get(key)!;
             entry.count++;
+            entry.weightedCount += row.weight;
             entry.totalQty += row.qty;
+            entry.weightedTotalQty += (row.qty * row.weight);
             entry.values.push(row.qty);
         }
 
@@ -239,10 +260,12 @@ export async function runOracle(
                     [d2]: row.dims[d2 as keyof typeof row.dims]
                 };
                 const key = JSON.stringify(criteria);
-                if (!observedCombos.has(key)) observedCombos.set(key, { count: 0, totalQty: 0, values: [], criteria });
+                if (!observedCombos.has(key)) observedCombos.set(key, { count: 0, weightedCount: 0, totalQty: 0, weightedTotalQty: 0, values: [], criteria });
                 const entry = observedCombos.get(key)!;
                 entry.count++;
+                entry.weightedCount += row.weight;
                 entry.totalQty += row.qty;
+                entry.weightedTotalQty += (row.qty * row.weight);
                 entry.values.push(row.qty);
 
                 // Level 3 (Trios) - Only if i, j are core distinct categories
@@ -251,10 +274,12 @@ export async function runOracle(
                     const d3 = dimensions[k];
                     const criteria3 = { ...criteria, [d3]: row.dims[d3 as keyof typeof row.dims] };
                     const key3 = JSON.stringify(criteria3);
-                    if (!observedCombos.has(key3)) observedCombos.set(key3, { count: 0, totalQty: 0, values: [], criteria: criteria3 });
+                    if (!observedCombos.has(key3)) observedCombos.set(key3, { count: 0, weightedCount: 0, totalQty: 0, weightedTotalQty: 0, values: [], criteria: criteria3 });
                     const entry3 = observedCombos.get(key3)!;
                     entry3.count++;
+                    entry3.weightedCount += row.weight;
                     entry3.totalQty += row.qty;
+                    entry3.weightedTotalQty += (row.qty * row.weight);
                     entry3.values.push(row.qty);
                 }
             }
@@ -266,16 +291,19 @@ export async function runOracle(
         // Rule 1: Occurrence Check
         if (data.count < MIN_OCCURRENCE) return;
 
-        // Calculate Metrics
-        const avg = data.totalQty / data.count;
+        // Calculate Metrics (Using Freshness Weighted Avg)
+        const avg = data.weightedTotalQty / data.weightedCount;
         const std = ss.standardDeviation(data.values);
 
-        // Rule 2: Impact Check (Difference from Base > 25%)
+        // Rule 2: Impact Check (Difference from Base > 20% AND Real Absolute Change)
         // Avoid division by zero
         const safeBaseAvg = baseAvg === 0 ? 0.1 : baseAvg;
         const lift = (avg - safeBaseAvg) / safeBaseAvg;
 
-        if (Math.abs(lift) < 0.25) return; // Ignore boring patterns
+        // 🌟 Filter by Volume & Impact 🌟
+        if (Math.abs(lift) < 0.2) return; // Ignore small % shifts
+        const rawDailyDifference = Math.abs(avg - baseAvg);
+        if (rawDailyDifference < 1.5 && data.count < 10) return; // Ignore noisy low volume changes
 
         // Rule 3: Confidence (Consistency)
         // High confidence means low variance relative to mean
@@ -337,15 +365,16 @@ export async function runOracle(
         let analysis = '';
         let action = '';
 
+        // 🌟 Actionable Auto-Suggest & Human-friendly Analysis 🌟
         if (type === 'PERFECT_STORM') {
-            analysis = `ค้นพบพฤติกรรมทองคำ! ปกติ **'${productName}'** ขายได้เฉลี่ย **${baseAvg.toFixed(1)} ชิ้น**... แต่เมื่อ **${conditionText}** ยอดขายมักพุ่งสูงถึง **${avg.toFixed(1)} ชิ้น** (**+${(lift * 100).toFixed(0)}%**) โอกาสแม่นยำ **${confidence.toFixed(0)}%**`;
-            action = `เตรียมของเพิ่มอย่างน้อย **${Math.ceil(avg * 1.2)} ชิ้น** ในวันที่เงื่อนไขตรงกัน`;
+            analysis = `🎯 **โอกาสทอง!** ปกติ **'${productName}'** ขายได้ **${baseAvg.toFixed(1)} ชิ้น** แต่พอมีปัจจัย **${conditionText}** ยอดจะพุ่งไปถึง **${avg.toFixed(1)} ชิ้น** (+${(lift * 100).toFixed(0)}%)`;
+            action = `เตรียมอบเพิ่มเป็น **${Math.ceil(avg * 1.15)} ชิ้น** เพื่อไม่ให้ของขาดและโกยยอดขายได้เต็มที่`;
         } else if (type === 'SILENT_KILLER') {
-            analysis = `เตือนภัยระดับแดง! สินค้านี้มักขายไม่ออก (เหลือ **${avg.toFixed(1)} ชิ้น**) เมื่อ **${conditionText}** ยอดขายหายไปกว่า **-${Math.abs(lift * 100).toFixed(0)}%**`;
-            action = `ลดการผลิตลงครึ่งหนึ่งหรือหยุดผลิตในวันที่มีเงื่อนไขนี้`;
+            analysis = `⚠️ **ระวังของเหลือ!** เมื่อไหร่ที่ **${conditionText}** คนจะไม่ค่อยซื้อ **'${productName}'** (ยอดตกเหลือแค่ **${avg.toFixed(1)} ชิ้น** หรือหายไป -${Math.abs(lift * 100).toFixed(0)}%)`;
+            action = `ลดปริมาณการอบลงให้เหลือแค่ **${Math.floor(avg)} ชิ้น** หรือดรอปการทำเมนูนี้ไปก่อนเลย`;
         } else {
-            analysis = `โอกาสเล็กๆ: ยอดขายมักขยับขึ้น **+${(lift * 100).toFixed(0)}%** เมื่อ **${conditionText}**`;
-            action = `เพิ่มยอดผลิตเล็กน้อยเพื่อรองรับ`;
+            analysis = `💡 **ข้อสังเกต:** ยอดขายมักขยับขึ้นบวกนิดหน่อย (+${(lift * 100).toFixed(0)}%) เมื่อ **${conditionText}**`;
+            action = `เตรียมของเพิ่มนิดหน่อยเป็น **${Math.ceil(avg * 1.1)} ชิ้น** ก็พอรองรับได้สบายๆ`;
         }
 
         patterns.push({
@@ -360,15 +389,65 @@ export async function runOracle(
                 baseSales: baseAvg,
                 lift,
                 confidence,
-                significance: 0 // Placeholder
+                significance: baseStd > 0 ? (avg - baseAvg) / baseStd : 0 // Real Z-Score
             },
             analysis,
             action
         });
     });
 
-    // Sort by Impact (Lift) absolute
-    return patterns.sort((a, b) => Math.abs(b.metrics.lift) - Math.abs(a.metrics.lift)).slice(0, 3); // Top 3 ONLY
+    // 🌟 Advanced Redundancy Elimination 🌟
+    // Filter out patterns that describe the exact same underlying sales days
+    let filteredPatterns: OraclePattern[] = [];
+
+    // Sort primarily by lift to keep the most impactful ones first
+    const sortedPatterns = patterns.sort((a, b) => Math.abs(b.metrics.lift) - Math.abs(a.metrics.lift));
+
+    for (const p of sortedPatterns) {
+        let isRedundant = false;
+
+        for (const fp of filteredPatterns) {
+            // Only compare patterns of the same type (e.g., don't merge a STORM with a KILLER)
+            if (fp.type !== p.type) continue;
+            if (fp.productId !== p.productId) continue; // Must be same product
+
+            const fpKeys = Object.keys(fp.dimensions);
+            const pKeys = Object.keys(p.dimensions);
+
+            // Check if one is a strict dimension subset of another
+            // (e.g., fp = { day: 'Monday' }, p = { day: 'Monday', marketId: 'M1' })
+            const isSubsetOfFp = pKeys.every(k => fp.dimensions[k] === p.dimensions[k]);
+            const fpIsSubsetOfP = fpKeys.every(k => fp.dimensions[k] === p.dimensions[k]);
+
+            // If they are subsets or identical combinations
+            if (isSubsetOfFp || fpIsSubsetOfP) {
+                // If they have similar occurrence counts (meaning the exact same days triggered both)
+                // e.g. "Monday" happened 3 times, and "Monday at Market X" also happened 3 times
+                // It means all Monday sales were at Market X anyway -> Redundant!
+                const occurrenceDiff = Math.abs(fp.metrics.occurrence - p.metrics.occurrence);
+
+                // If the occurrence is exactly the same, or very close (<= 1 difference for small datasets)
+                // AND the lift is similar, we throw away the more complex/less impactful one
+                if (occurrenceDiff <= 1) {
+                    isRedundant = true;
+                    break;
+                }
+
+                // If occurrence is different but lift is basically the same, still redundant
+                const liftDiff = Math.abs(Math.abs(fp.metrics.lift) - Math.abs(p.metrics.lift));
+                if (liftDiff < 0.10) {
+                    isRedundant = true;
+                    break;
+                }
+            }
+        }
+
+        if (!isRedundant) {
+            filteredPatterns.push(p);
+        }
+    }
+
+    return filteredPatterns.slice(0, topN);
 }
 
 // ==========================================
@@ -447,12 +526,13 @@ export async function runComboAnalysis(
             let analysis = '';
             let action = '';
 
+            // 🌟 Smart Bundling Suggestions 🌟
             if (type === 'POWER_COUPLE') {
-                analysis = `💑 **คู่หูขายดีด้วยกัน!** เมื่อ **'${nameA}'** ขายดี มักพบว่า **'${nameB}'** ก็ขายดีตาม (Correlation: ${(correlation * 100).toFixed(0)}%)`;
-                action = `ผลิตคู่กันเสมอ → ถ้าวันไหนทำนายว่า ${nameA} ขายดี ให้เพิ่ม ${nameB} ด้วย`;
+                analysis = `🤝 **ลูกค้ารักที่จะซื้อคู่กัน:** 10 คนซื้อ **'${nameA}'** โอกาสสูงมากที่จะหยิบ **'${nameB}'** ไปด้วย (จับคู่กันบ่อยถึง ${(correlation * 100).toFixed(0)}%)`;
+                action = `จัดโปรโมชั่น **"ซื้อคู่ถูกกว่า (Combo Set)"** เพื่อเร่งระบายสต็อก หรือขยับตำแหน่งจัดวางให้หยิบเพลินทั้งคู่`;
             } else {
-                analysis = `⚔️ **สินค้าแย่งลูกค้ากัน!** เมื่อ **'${nameA}'** ขายดี มักพบว่า **'${nameB}'** ขายลดลง (Correlation: ${(correlation * 100).toFixed(0)}%)`;
-                action = `อย่าผลิตพร้อมกันเยอะเกินไป → อาจต้องเลือกโฟกัสวันนั้น`;
+                analysis = `⚔️ **สินค้าแข่งไซส์กันเอง:** เมื่อ **'${nameA}'** ขายดี ยอดของ **'${nameB}'** จะตกพรวด (ลูกค้าเลือกลังเลอย่างใดอย่างหนึ่ง)`;
+                action = `อย่าวางขายคู่กันเด่นๆ เด็ดขาด ควรแยกจับโปรโมตสลับวันเพื่อลดของเหลือทิ้ง (Waste)`;
             }
 
             patterns.push({
@@ -478,7 +558,7 @@ export async function runComboAnalysis(
     }
 
     // Sort by absolute correlation
-    return patterns.sort((a, b) => Math.abs(b.metrics.lift) - Math.abs(a.metrics.lift)).slice(0, 3);
+    return patterns.sort((a, b) => Math.abs(b.metrics.lift) - Math.abs(a.metrics.lift)).slice(0, 5);
 }
 
 // ==========================================
@@ -566,12 +646,12 @@ export async function runCannibalismCheck(
                     confidence: Math.min(95, oldSalesAfter.length * 10), // More data = more confident
                     significance: 0
                 },
-                analysis: `🦈 **พฤติกรรม Cannibalism!** หลังจากเพิ่ม **'${newProductName}'** ยอดขาย **'${oldProductName}'** ลดลง **-${dropPercent}%** (จาก ${avgBefore.toFixed(1)} → ${avgAfter.toFixed(1)} ชิ้น/วัน)`,
-                action: `พิจารณาลดการผลิต ${oldProductName} เมื่อมี ${newProductName} ขาย หรือพิจารณาหยุดสินค้าที่แย่งลูกค้ากัน`
+                analysis: `🤼 **ลูกค้าเทใจไปเมนูใหม่:** ตั้งแต่ส่ง **'${newProductName}'** ลงตลาด ยอดของ **'${oldProductName}'** ลดฮวบถึง **-${dropPercent}%** (เหลือ ${avgAfter.toFixed(1)} ชิ้น/วัน)`,
+                action: `ลดปริมาณการทำ ${oldProductName} ลงครึ่งหนึ่งเพื่อเปิดทางให้ของใหม่ หรือ **จัดเซ็ตจับคู่สุดคุ้ม** เพื่อให้เก่ายังขายออก`
             });
         }
     }
 
     // Sort by drop magnitude
-    return patterns.sort((a, b) => a.metrics.lift - b.metrics.lift).slice(0, 3);
+    return patterns.sort((a, b) => a.metrics.lift - b.metrics.lift).slice(0, 5);
 }

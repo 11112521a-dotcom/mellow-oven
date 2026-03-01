@@ -3,6 +3,7 @@ import { Product, Recipe, RecipeItem, Ingredient } from '@/types';
 import { useStore } from '@/src/store';
 import { Plus, Trash2, Calculator, ChefHat } from 'lucide-react';
 import { formatCurrency } from '@/src/lib/utils';
+import { NumberInput } from '@/src/components/ui/NumberInput';
 
 interface RecipeBuilderProps {
     product: Partial<Product>;
@@ -85,15 +86,14 @@ export const RecipeBuilder: React.FC<RecipeBuilderProps> = ({ product, onRecipeC
                 <div>
                     <label className="block text-xs font-medium text-cafe-600 mb-1">จำนวนที่ได้ (Yield)</label>
                     <div className="flex items-center gap-2">
-                        <input
-                            type="number"
-                            value={yieldQty === 0 ? '' : yieldQty}
-                            onChange={e => {
-                                const val = e.target.value === '' ? 0 : Number(e.target.value);
+                        <NumberInput
+                            value={yieldQty}
+                            onChange={(val) => {
                                 setYieldQty(val);
                                 calculateAndNotify(items, val);
                             }}
                             className="w-full p-2 text-sm border border-cafe-200 rounded-lg bg-white text-center font-bold text-cafe-900"
+                            placeholder="0"
                         />
                         <span className="text-sm text-cafe-500">ชิ้น</span>
                     </div>
@@ -114,10 +114,9 @@ export const RecipeBuilder: React.FC<RecipeBuilderProps> = ({ product, onRecipeC
                                 <option key={ing.id} value={ing.id}>{ing.name} ({ing.unit})</option>
                             ))}
                         </select>
-                        <input
-                            type="number"
-                            value={item.quantity === 0 ? '' : item.quantity}
-                            onChange={e => handleItemChange(index, 'quantity', e.target.value === '' ? 0 : Number(e.target.value))}
+                        <NumberInput
+                            value={item.quantity}
+                            onChange={(val) => handleItemChange(index, 'quantity', val)}
                             className="w-20 p-2 text-sm border border-cafe-200 rounded-lg bg-white text-center"
                             placeholder="Qty"
                         />

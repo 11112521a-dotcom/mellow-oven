@@ -3,7 +3,7 @@ import { useStore } from '@/src/store';
 import { Product, DailyProductionLog, Variant } from '@/types';
 import { formatCurrency } from '@/src/lib/utils';
 import { NumberInput } from '@/src/components/ui/NumberInput';
-import { Calendar, Store, Save, ShoppingCart, Package, TrendingUp, AlertCircle, Check, X, Sparkles, ArrowRight, Sun, Cloud, CloudRain, CloudLightning, ChevronDown, ChevronUp, Wind, ThermometerSnowflake } from 'lucide-react';
+import { Calendar, Store, Save, ShoppingCart, Package, TrendingUp, AlertCircle, Check, X, Sparkles, ArrowRight, Sun, Cloud, CloudRain, CloudLightning, ChevronDown, ChevronUp, Wind, ThermometerSnowflake, UtensilsCrossed } from 'lucide-react';
 
 // Weather type
 type WeatherCondition = 'sunny' | 'cloudy' | 'rain' | 'storm' | 'wind' | 'cold' | null;
@@ -198,7 +198,8 @@ export const DailySalesForm: React.FC = () => {
                             preparedQty: availableFromStock,
                             soldQty: availableFromStock, // Default: assume all remaining sold
                             wasteQty: 0,
-                            leftoverQty: 0
+                            leftoverQty: 0,
+                            freeQty: 0
                         });
                     });
                 } else {
@@ -219,7 +220,8 @@ export const DailySalesForm: React.FC = () => {
                         preparedQty: availableFromStock,
                         soldQty: availableFromStock, // Default: assume all remaining sold
                         wasteQty: 0,
-                        leftoverQty: 0
+                        leftoverQty: 0,
+                        freeQty: 0
                     });
                 }
             });
@@ -232,12 +234,13 @@ export const DailySalesForm: React.FC = () => {
         const log = newLogs[index];
         (log as any)[field] = value;
 
-        // Auto-calculate: Sold = Available - Waste - Leftover
-        if (['wasteQty', 'leftoverQty'].includes(field)) {
+        // Auto-calculate: Sold = Available - Waste - Leftover - Free(กินแจก)
+        if (['wasteQty', 'leftoverQty', 'freeQty'].includes(field)) {
             const available = Number(log.preparedQty) || 0;
             const waste = Number(log.wasteQty) || 0;
             const leftover = Number(log.leftoverQty) || 0;
-            log.soldQty = Math.max(0, available - waste - leftover);
+            const free = Number(log.freeQty) || 0;
+            log.soldQty = Math.max(0, available - waste - leftover - free);
         }
 
         setLogs(newLogs);
@@ -293,7 +296,10 @@ export const DailySalesForm: React.FC = () => {
     const totalCOGS = logs.reduce((sum, log) => sum + (log.soldQty * (log.variant ? (log.variant.cost || log.product.cost) : log.product.cost)), 0);
     const totalWasteCost = logs.reduce((sum, log) => sum + (log.wasteQty * (log.variant ? (log.variant.cost || log.product.cost) : log.product.cost)), 0);
     const totalLeftover = logs.reduce((sum, log) => sum + (log.leftoverQty || 0), 0);
-    const trueProfit = totalRevenue - totalCOGS - totalWasteCost;
+    // NEW: กินแจก totals
+    const totalFreeQty = logs.reduce((sum, log) => sum + (log.freeQty || 0), 0);
+    const totalFreeCost = logs.reduce((sum, log) => sum + ((log.freeQty || 0) * (log.variant ? (log.variant.cost || log.product.cost) : log.product.cost)), 0);
+    const trueProfit = totalRevenue - totalCOGS - totalWasteCost - totalFreeCost;
 
     const handleSaveClick = () => {
         // Validate market selection
@@ -393,6 +399,8 @@ export const DailySalesForm: React.FC = () => {
                     variantId: log.variantId,
                     variantName: log.variant?.name,
                     wasteQty: log.wasteQty || 0,
+                    eatQty: log.freeQty || 0,      // กินแจก → stored as eatQty
+                    giveawayQty: 0,                 // consolidated into eatQty
                     weatherCondition: weather // NEW: Include weather condition
                 });
 
@@ -409,7 +417,8 @@ export const DailySalesForm: React.FC = () => {
             preparedQty: 0,
             soldQty: 0,
             wasteQty: 0,
-            leftoverQty: 0
+            leftoverQty: 0,
+            freeQty: 0
         })));
 
         // FIX: Refresh data to sync across devices and update jar balances
@@ -584,12 +593,14 @@ export const DailySalesForm: React.FC = () => {
                                             const available = item.preparedQty || 0;
                                             const waste = item.wasteQty || 0;
                                             const leftover = item.leftoverQty || 0;
+                                            const free = item.freeQty || 0;
                                             const sold = item.soldQty || 0;
+                                            const isOverflow = (waste + leftover + free) > available;
 
                                             return (
                                                 <div
                                                     key={`${item.productId}-${item.variantId || ''}`}
-                                                    className="bg-white rounded-xl shadow-sm border border-cafe-100 p-3"
+                                                    className={`bg-white rounded-xl shadow-sm border p-3 ${isOverflow ? 'border-red-400 ring-2 ring-red-200' : 'border-cafe-100'}`}
                                                 >
                                                     {/* Header Row */}
                                                     <div className="flex items-center justify-between mb-2">
@@ -603,9 +614,16 @@ export const DailySalesForm: React.FC = () => {
                                                         </div>
                                                         <div className="flex items-center gap-2 shrink-0">
                                                             <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-bold">{available}</span>
-                                                            <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-bold">{sold}</span>
+                                                            <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${isOverflow ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>{sold}</span>
                                                         </div>
                                                     </div>
+
+                                                    {/* Overflow Warning */}
+                                                    {isOverflow && (
+                                                        <div className="text-xs text-red-600 bg-red-50 rounded-lg px-2 py-1 mb-2 flex items-center gap-1">
+                                                            <AlertCircle size={12} /> ยอดรวมเกินจำนวนของ!
+                                                        </div>
+                                                    )}
 
                                                     {/* Input Row */}
                                                     <div className="flex items-center gap-2">
@@ -616,6 +634,17 @@ export const DailySalesForm: React.FC = () => {
                                                                 value={waste}
                                                                 onChange={val => handleLogChange(item.logIndex, 'wasteQty', val)}
                                                                 className="w-12 text-center text-sm font-bold bg-white border border-red-200 rounded ml-auto"
+                                                            />
+                                                        </div>
+
+                                                        {/* กินแจก (Free) */}
+                                                        <div className="flex items-center gap-1 bg-violet-50 rounded-lg px-2 py-1.5 flex-1">
+                                                            <UtensilsCrossed size={12} className="text-violet-500 shrink-0" />
+                                                            <span className="text-xs text-violet-600">กินแจก</span>
+                                                            <NumberInput
+                                                                value={free}
+                                                                onChange={val => handleLogChange(item.logIndex, 'freeQty', val)}
+                                                                className="w-12 text-center text-sm font-bold bg-white border border-violet-200 rounded ml-auto"
                                                             />
                                                         </div>
 
@@ -652,6 +681,7 @@ export const DailySalesForm: React.FC = () => {
                                 กำไร: {formatCurrency(trueProfit)}
                             </span>
                             <span className="text-cafe-600">ขาย: {totalSoldItems} ชิ้น</span>
+                            {totalFreeQty > 0 && <span className="text-violet-600">🍽️ กินแจก: {totalFreeQty} ชิ้น</span>}
                             <span className="text-amber-600">เหลือคืน: {totalLeftover} ชิ้น</span>
                         </div>
                     </div>
@@ -687,6 +717,12 @@ export const DailySalesForm: React.FC = () => {
                             <span>ของเสีย</span>
                             <span className="text-red-600">-{formatCurrency(totalWasteCost)}</span>
                         </div>
+                        {totalFreeCost > 0 && (
+                            <div className="flex justify-between text-sm text-gray-600">
+                                <span>🍽️ กินแจก ({totalFreeQty} ชิ้น)</span>
+                                <span className="text-violet-600">-{formatCurrency(totalFreeCost)}</span>
+                            </div>
+                        )}
                         <hr className="my-3" />
                         <div className="flex justify-between font-bold text-lg">
                             <span className="text-green-700">กำไรสุทธิ</span>

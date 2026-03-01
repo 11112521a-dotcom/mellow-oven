@@ -9,6 +9,7 @@ import {
     Boxes, Shield, Briefcase, PiggyBank, Lock, Unlock, Star, Edit2, X,
     Target, Gauge, Settings2, ArrowDown
 } from 'lucide-react';
+import { NumberInput } from '@/src/components/ui/NumberInput';
 
 interface AllocationStationProps {
     onAllocate: (amount: number, allocations: Record<JarType, number>, fromProfit: boolean, specificProfits?: { id: string, amount: number }[], manualDebtAmount?: number) => void;
@@ -765,16 +766,16 @@ export const AllocationStation: React.FC<AllocationStationProps> = ({ onAllocate
                             <label className="block text-xs font-bold text-stone-400 mb-3 uppercase tracking-wider">ยอดเงินที่จะจัดสรร</label>
                             <div className="relative">
                                 <span className="absolute left-5 top-1/2 -translate-y-1/2 text-2xl font-black bg-gradient-to-r from-amber-500 to-orange-500 bg-clip-text text-transparent">฿</span>
-                                <input
-                                    type="number"
-                                    value={amount}
-                                    onChange={(e) => { setAmount(e.target.value); setShowPreview(true); }}
+                                <NumberInput
+                                    value={parseFloat(amount) || 0}
+                                    onChange={(val) => { setAmount(val === 0 ? '' : val.toString()); setShowPreview(true); }}
                                     disabled={allocationSource === 'profit'}
                                     className={`w-full pl-14 pr-5 py-6 text-4xl font-black text-center rounded-2xl outline-none transition-all duration-300 ${allocationSource === 'profit'
                                         ? 'bg-gradient-to-r from-emerald-50 to-teal-50 text-emerald-600 border-2 border-emerald-200'
                                         : 'bg-stone-50 focus:bg-white focus:ring-4 focus:ring-amber-100 text-cafe-900 border-2 border-transparent focus:border-amber-200'
                                         }`}
                                     placeholder="0"
+                                    allowDecimals
                                 />
                             </div>
                         </div>

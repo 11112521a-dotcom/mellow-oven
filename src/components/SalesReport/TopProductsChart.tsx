@@ -58,43 +58,66 @@ export const TopProductsChart: React.FC<TopProductsChartProps> = ({ data, mode }
     const topData = data.slice(0, 10);
 
     return (
-        <div className="bg-white rounded-2xl shadow-md p-6">
-            <h3 className="text-lg font-bold text-cafe-800 mb-4">
-                🏆 Top 10 เมนูขายดี ({getModeLabel()})
+        <div className="bg-white rounded-3xl shadow-sm border border-cafe-100 p-6 hover:shadow-lg transition-all duration-300">
+            <h3 className="text-lg font-bold text-cafe-800 mb-6 flex items-center gap-2">
+                <span className="bg-cafe-100 p-2 rounded-xl">🏆</span> Top 10 เมนูขายดี ({getModeLabel()})
             </h3>
             {topData.length === 0 ? (
-                <div className="h-80 flex items-center justify-center text-cafe-500">
-                    ไม่มีข้อมูล
+                <div className="h-80 flex flex-col items-center justify-center text-cafe-400 bg-cafe-50/50 rounded-2xl border border-dashed border-cafe-200">
+                    <span className="text-2xl mb-2">🏆</span>
+                    <p>ยังไม่มีข้อมูลเพียงพอ</p>
                 </div>
             ) : (
-                <ResponsiveContainer width="100%" height={400}>
-                    <BarChart
-                        data={topData}
-                        layout="vertical"
-                        margin={{ top: 5, right: 30, left: 100, bottom: 5 }}
-                    >
-                        <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                        <XAxis
-                            type="number"
-                            stroke="#9ca3af"
-                            style={{ fontSize: '12px' }}
-                            tickFormatter={(value) => mode === 'quantity' ? value : `฿${(value / 1000).toFixed(0)}k`}
-                        />
-                        <YAxis
-                            dataKey="productName"
-                            type="category"
-                            stroke="#9ca3af"
-                            style={{ fontSize: '12px' }}
-                            width={90}
-                        />
-                        <Tooltip content={<CustomTooltip />} />
-                        <Bar dataKey="value" radius={[0, 8, 8, 0]}>
-                            {topData.map((entry, index) => (
-                                <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                            ))}
-                        </Bar>
-                    </BarChart>
-                </ResponsiveContainer>
+                <div className="h-80 w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                        <BarChart
+                            data={topData}
+                            layout="vertical"
+                            margin={{ top: 0, right: 30, left: 100, bottom: 0 }}
+                        >
+                            <defs>
+                                {topData.map((_, index) => (
+                                    <linearGradient key={`grad-${index}`} id={`colorGrad-${index}`} x1="0" y1="0" x2="1" y2="0">
+                                        <stop offset="0%" stopColor={COLORS[index % COLORS.length]} stopOpacity={0.6} />
+                                        <stop offset="100%" stopColor={COLORS[index % COLORS.length]} stopOpacity={1} />
+                                    </linearGradient>
+                                ))}
+                            </defs>
+                            <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#f1f5f9" />
+                            <XAxis
+                                type="number"
+                                stroke="#94a3b8"
+                                fontSize={12}
+                                axisLine={false}
+                                tickLine={false}
+                                tickFormatter={(value) => mode === 'quantity' ? value : `฿${(value / 1000).toFixed(0)}k`}
+                            />
+                            <YAxis
+                                dataKey="productName"
+                                type="category"
+                                stroke="#64748b"
+                                fontSize={12}
+                                fontWeight={500}
+                                axisLine={false}
+                                tickLine={false}
+                                width={90}
+                                tick={{ fill: '#475569' }}
+                            />
+                            <Tooltip content={<CustomTooltip />} cursor={{ fill: '#f8fafc' }} />
+                            <Bar
+                                dataKey="value"
+                                radius={[0, 8, 8, 0]}
+                                barSize={24}
+                                animationDuration={1200}
+                                animationEasing="ease-out"
+                            >
+                                {topData.map((entry, index) => (
+                                    <Cell key={`cell-${index}`} fill={`url(#colorGrad-${index})`} className="hover:opacity-80 transition-opacity" />
+                                ))}
+                            </Bar>
+                        </BarChart>
+                    </ResponsiveContainer>
+                </div>
             )}
         </div>
     );

@@ -127,9 +127,9 @@ export const PromotionPage: React.FC = () => {
                         </div>
                         <div>
                             <h1 className="text-2xl sm:text-3xl font-black text-cafe-900 tracking-tight flex items-center gap-3">
-                                Promotion & Snack Box
+                                ออเดอร์พิเศษ
                             </h1>
-                            <p className="text-stone-500 text-sm font-medium mt-1">จัดการโปรโมชั่นและสินค้าชุดพิเศษ</p>
+                            <p className="text-stone-500 text-sm font-medium mt-1">Promotion & Snack Box</p>
                         </div>
                     </div>
                     {unsyncedOrders.length > 0 && (

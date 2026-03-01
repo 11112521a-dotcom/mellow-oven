@@ -4,6 +4,7 @@ import { useStore } from '@/src/store';
 import { JarType } from '@/types';
 import { ArrowRight, ArrowRightLeft, TrendingUp, TrendingDown, Wallet, Store, Tag, FileText, Plus } from 'lucide-react';
 import { formatCurrency } from '@/src/lib/utils';
+import { NumberInput } from '@/src/components/ui/NumberInput';
 
 interface TransactionModalProps {
     isOpen: boolean;
@@ -97,16 +98,15 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({ isOpen, onCl
                 <div className="bg-gray-50 p-6 rounded-2xl text-center border border-gray-100">
                     <label className="block text-sm font-medium text-gray-500 mb-2">จำนวนเงิน (บาท)</label>
                     <div className="relative max-w-[200px] mx-auto">
-                        <input
-                            type="number"
+                        <NumberInput
                             required
                             min="0"
-                            step="0.01"
-                            value={amount}
-                            onChange={(e) => setAmount(e.target.value)}
+                            value={parseFloat(amount) || 0}
+                            onChange={(val) => setAmount(val === 0 ? '' : val.toString())}
                             className={`w-full bg-transparent text-4xl font-bold text-center outline-none placeholder-gray-300 text-${themeColor}-600`}
                             placeholder="0.00"
                             autoFocus
+                            allowDecimals
                         />
                     </div>
 

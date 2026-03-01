@@ -14,11 +14,20 @@ export const createProductsSlice: StateCreator<AppState, [], [], ProductsSlice> 
         const tempId = product.id;
         set((state) => ({ products: [...state.products, product] }));
 
-        // Remove client-generated id (let Supabase generate it)
-        // But KEEP variants for JSONB storage
-        const { id, ...productData } = product;
+        // Prepare data for Supabase (map camelCase to snake_case)
+        const dbProduct = {
+            name: product.name,
+            category: product.category,
+            flavor: product.flavor,
+            price: product.price,
+            cost: product.cost,
+            recipe: product.recipe || null,
+            variants: product.variants || [],
+            bundle_config: product.bundleConfig || null,
+            is_active: product.isActive !== undefined ? product.isActive : true
+        };
 
-        const { data, error } = await supabase.from('products').insert(productData).select().single();
+        const { data, error } = await supabase.from('products').insert(dbProduct).select().single();
         if (error) {
             console.error('Error adding product:', error);
             // Rollback on error

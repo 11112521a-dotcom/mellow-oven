@@ -3,6 +3,7 @@ import { Modal } from '../ui/Modal';
 import { Transaction, JarType } from '@/types';
 import { useStore } from '@/src/store';
 import { DollarSign, FileText, Calendar } from 'lucide-react';
+import { NumberInput } from '@/src/components/ui/NumberInput';
 
 interface EditTransactionModalProps {
     isOpen: boolean;
@@ -73,14 +74,13 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({ isOp
                         <DollarSign size={16} />
                         จำนวนเงิน
                     </label>
-                    <input
-                        type="number"
-                        value={amount}
-                        onChange={(e) => setAmount(e.target.value)}
+                    <NumberInput
+                        value={parseFloat(amount) || 0}
+                        onChange={(val) => setAmount(val === 0 ? '' : val.toString())}
                         className="w-full px-4 py-2 border border-cafe-200 rounded-lg focus:ring-2 focus:ring-cafe-500 outline-none"
                         required
                         min="0"
-                        step="0.01"
+                        allowDecimals
                     />
                 </div>
 

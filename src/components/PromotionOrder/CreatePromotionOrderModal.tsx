@@ -10,6 +10,7 @@ import {
     X, Save, User, Phone, MapPin, Calendar,
     Clock, DollarSign, Loader2, FileText, ToggleLeft, ToggleRight
 } from 'lucide-react';
+import { NumberInput } from '../ui/NumberInput';
 
 interface SelectedItem {
     productId: string;
@@ -275,13 +276,12 @@ export const CreatePromotionOrderModal: React.FC<CreatePromotionOrderModalProps>
                                         <>
                                             <div>
                                                 <label className="text-sm text-gray-600">ราคาที่ต้องการ</label>
-                                                <input
-                                                    type="number"
+                                                <NumberInput
                                                     name="manualPrice"
                                                     value={form.manualPrice}
-                                                    onChange={handleChange}
+                                                    onChange={(val) => setForm(prev => ({ ...prev, manualPrice: val }))}
                                                     className="w-full px-3 py-2 border border-amber-300 rounded-lg focus:ring-2 focus:ring-amber-500 mt-1"
-                                                    min={0}
+                                                    min="0"
                                                 />
                                             </div>
                                             <div>

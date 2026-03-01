@@ -580,6 +580,8 @@ const DailyCard: React.FC<{ day: DailyBreakdown }> = ({ day }) => {
                             <th className="text-right py-1 font-medium text-amber-600">เอาไป (ชิ้น)</th>
                             <th className="text-right py-1 font-medium text-stone-700">ขายได้ (ชิ้น)</th>
                             <th className="text-right py-1 font-medium text-rose-500">เหลือ (ชิ้น)</th>
+                            <th className="text-right py-1 font-medium text-violet-500">กินแจก</th>
+                            <th className="text-right py-1 font-medium text-rose-500">เสีย</th>
                             <th className="text-right py-1 font-medium">รายรับ</th>
                             <th className="text-right py-1 font-medium">กำไร</th>
                         </tr>
@@ -604,6 +606,12 @@ const DailyCard: React.FC<{ day: DailyBreakdown }> = ({ day }) => {
                                 <td className="py-1.5 text-right font-bold text-stone-800">{p.quantity}</td>
                                 <td className="py-1.5 text-right font-medium text-rose-500">
                                     {p.leftoverQty !== undefined && p.leftoverQty > 0 ? p.leftoverQty : (p.leftoverQty === 0 ? <span className="text-stone-300">-</span> : '-')}
+                                </td>
+                                <td className="py-1.5 text-right font-medium text-violet-500">
+                                    {(p.eatQty || 0) + (p.giveawayQty || 0) > 0 ? (p.eatQty || 0) + (p.giveawayQty || 0) : '-'}
+                                </td>
+                                <td className="py-1.5 text-right font-medium text-rose-500">
+                                    {p.wasteQty !== undefined && p.wasteQty > 0 ? p.wasteQty : '-'}
                                 </td>
                                 <td className="py-1.5 text-right text-stone-600">{formatCurrency(p.revenue)}</td>
                                 <td className="py-1.5 text-right font-medium text-emerald-600">{formatCurrency(p.profit)}</td>

@@ -34,7 +34,7 @@ export interface ProductionForecast {
     expectedProfit: number;
 
     // Confidence
-    confidenceLevel: 'high' | 'medium' | 'low';
+    confidenceLevel: 'high' | 'medium' | 'low' | 'none';
     predictionIntervalLower: number;
     predictionIntervalUpper: number;
     outliersRemoved: number;

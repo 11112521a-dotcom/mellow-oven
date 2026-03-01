@@ -7,10 +7,16 @@
 // - #20: Single responsibility
 // ============================================================
 
-import { ProductSaleLog, DailyInventory } from '../../../types';
+import { ProductSaleLog, DailyInventory } from '../../store/types';
 import { format } from 'date-fns';
 import { th } from 'date-fns/locale';
 import { calculateProductSeasonality, predictProduction } from './forecastingUtils';
+
+// Helper to extend ProductSaleLog if types are not yet updated globally (Safety)
+interface ExtendedProductSaleLog extends ProductSaleLog {
+    eatQty?: number;
+    giveawayQty?: number;
+}
 
 // ============================================================
 // Types
@@ -51,6 +57,8 @@ export interface ProductAnalysis {
     avgPrice: number;
     revenueShare: number; // % of market's revenue
     rank: number;
+    eatQty?: number; // NEW
+    giveawayQty?: number; // NEW
     // 🔮 Forecasting Integration
     suggestedProduction?: number; // For "Tomorrow"
     seasonalityScore?: number; // Confidence level
@@ -88,6 +96,9 @@ export interface DailyProductDetail {
     // NEW: Inventory Data
     preparedQty?: number; // Produced + StockYesterday - WasteHome
     leftoverQty?: number; // Unsold
+    eatQty?: number; // NEW
+    giveawayQty?: number; // NEW
+    wasteQty?: number; // NEW
 }
 
 export interface DailyBreakdown {
@@ -131,16 +142,9 @@ const HIGH_MARGIN_THRESHOLD = 40;
 const TOP_PRODUCTS_LIMIT = 3;
 const DAY_NAMES_TH = ['อาทิตย์', 'จันทร์', 'อังคาร', 'พุธ', 'พฤหัสบดี', 'ศุกร์', 'เสาร์'];
 
-// ============================================================
-// ============================================================
-// Main Analysis Function
-// ============================================================
-// Legacy functions removed in favor of consolidated implementation below
 
 
-// ============================================================
-// Daily Breakdown
-// ============================================================
+// ... existing ...
 
 // Helper to aggregate daily stats
 // Support function for calculating daily breakdowns
@@ -180,15 +184,24 @@ function calculateDailyBreakdownInternal(sales: ProductSaleLog[], inventory: Dai
                 productName: s.productName,
                 variantName: s.variantName,
                 marketName: s.marketName,
-                quantity: 0,
+                quantity: 0, // Quantity Sold
                 revenue: 0,
-                profit: 0
+                profit: 0,
+                eatQty: 0, // NEW
+                giveawayQty: 0, // NEW
+                wasteQty: 0 // NEW
             };
         }
         day.productMap[productKey].quantity += s.quantitySold;
         day.productMap[productKey].revenue += s.totalRevenue;
         day.productMap[productKey].profit += s.grossProfit;
+        const sExt = s as ExtendedProductSaleLog;
+        day.productMap[productKey].eatQty = (day.productMap[productKey].eatQty || 0) + (sExt.eatQty || 0); // NEW
+        day.productMap[productKey].giveawayQty = (day.productMap[productKey].giveawayQty || 0) + (sExt.giveawayQty || 0); // NEW
+        day.productMap[productKey].wasteQty = (day.productMap[productKey].wasteQty || 0) + (s.wasteQty || 0); // NEW
     });
+
+    // Merge Inventory ... (rest of function)
 
     // Merge Inventory
     if (inventory.length > 0) {
@@ -274,7 +287,9 @@ export function calculateEnhancedMarketData(
                 productName: sale.productName,
                 variantName: sale.variantName,
                 soldQty: 0, revenue: 0, cost: 0, profit: 0, margin: 0, rank: 0, revenueShare: 0,
-                avgPrice: 0 // Initialize avgPrice
+                avgPrice: 0, // Initialize avgPrice
+                eatQty: 0, // NEW
+                giveawayQty: 0 // NEW
             });
         }
         const p = productMap.get(key)!;
@@ -282,6 +297,9 @@ export function calculateEnhancedMarketData(
         p.revenue += sale.totalRevenue;
         p.cost += sale.totalCost;
         p.profit += sale.grossProfit;
+        const saleExt = sale as ExtendedProductSaleLog;
+        p.eatQty = (p.eatQty || 0) + (saleExt.eatQty || 0); // NEW
+        p.giveawayQty = (p.giveawayQty || 0) + (saleExt.giveawayQty || 0); // NEW
     });
 
     const allProducts = Array.from(productMap.values()).map(p => ({
@@ -537,6 +555,8 @@ export function exportMarketToCSV(data: EnhancedMarketData): string {
     lines.push('วันที่,วัน,รายรับ,กำไร,ขายได้,รายการ,Margin');
     data.dailyBreakdown.forEach(d => {
         lines.push(`${d.date},${d.dayName},${d.revenue},${d.profit},${d.soldQty},${d.transactionCount},${d.margin.toFixed(1)}%`);
+        // Add product details for CSV? Maybe just keep summary for now as requested.
+        // User asked for "Check easily", so maybe details are better in UI/PDF.
     });
 
     return lines.join('\n');
@@ -990,10 +1010,12 @@ export function generateMarketPDFReport(data: EnhancedMarketData): void {
                         <tr>
                             <th style="width: ${metrics.marketId === 'all' ? '25' : '35'}%; background:transparent; padding-top:0;">สินค้า</th>
                             ${metrics.marketId === 'all' ? '<th style="width: 13%; background:transparent; padding-top:0;">ตลาด</th>' : ''}
-                            <th class="text-right text-amber" style="width: 12%; background:transparent; padding-top:0;">เอาไป</th>
-                            <th class="text-right" style="width: 12%; background:transparent; padding-top:0;">ขายได้</th>
-                            <th class="text-right text-rose" style="width: 12%; background:transparent; padding-top:0;">เหลือ</th>
-                            <th class="text-right" style="width: 13%; background:transparent; padding-top:0;">รายรับ</th>
+                            <th class="text-right text-amber" style="width: 10%; background:transparent; padding-top:0;">เอาไป</th>
+                            <th class="text-right" style="width: 10%; background:transparent; padding-top:0;">ขายได้</th>
+                            <th class="text-right text-rose" style="width: 10%; background:transparent; padding-top:0;">เหลือ</th>
+                            <th class="text-right text-violet" style="width: 10%; background:transparent; padding-top:0;">กินแจก</th>
+                            <th class="text-right text-rose" style="width: 10%; background:transparent; padding-top:0;">เสีย</th>
+                            <th class="text-right" style="width: 12%; background:transparent; padding-top:0;">รายรับ</th>
                             <th class="text-right" style="width: 13%; background:transparent; padding-top:0;">กำไร</th>
                         </tr>
                     </thead>
@@ -1005,6 +1027,8 @@ export function generateMarketPDFReport(data: EnhancedMarketData): void {
                             <td class="text-right text-amber text-bold" style="border-bottom:1px dashed #f5f5f4;">${p.preparedQty !== undefined ? formatNumberPDF(p.preparedQty) : '-'}</td>
                             <td class="text-right text-bold" style="border-bottom:1px dashed #f5f5f4;">${formatNumberPDF(p.quantity)}</td>
                             <td class="text-right text-rose" style="border-bottom:1px dashed #f5f5f4;">${p.leftoverQty !== undefined && p.leftoverQty > 0 ? formatNumberPDF(p.leftoverQty) : '-'}</td>
+                            <td class="text-right text-violet" style="border-bottom:1px dashed #f5f5f4;">${(p.eatQty || 0) + (p.giveawayQty || 0) > 0 ? formatNumberPDF((p.eatQty || 0) + (p.giveawayQty || 0)) : '-'}</td>
+                            <td class="text-right text-rose" style="border-bottom:1px dashed #f5f5f4;">${p.wasteQty !== undefined && p.wasteQty > 0 ? formatNumberPDF(p.wasteQty) : '-'}</td>
                             <td class="text-right" style="border-bottom:1px dashed #f5f5f4;">${formatCurrencyPDF(p.revenue)}</td>
                             <td class="text-right text-emerald" style="border-bottom:1px dashed #f5f5f4;">${formatCurrencyPDF(p.profit)}</td>
                         </tr>

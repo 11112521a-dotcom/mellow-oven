@@ -14,6 +14,7 @@ export const PurchaseOrderForm: React.FC = () => {
     const [cost, setCost] = useState('');
     const [useBuyUnit, setUseBuyUnit] = useState(true); // Default to buy unit if available
     const [cart, setCart] = useState<{ ingredient: Ingredient, quantity: number, cost: number, buyUnit?: string, buyQuantity?: number }[]>([]);
+    const [isGeneratingImage, setIsGeneratingImage] = useState(false);
 
     const selectedIngredient = ingredients.find(i => i.id === selectedIngredientId);
 
@@ -60,23 +61,76 @@ export const PurchaseOrderForm: React.FC = () => {
 
     const handleDownloadImage = async () => {
         const element = document.getElementById('purchase-order-summary');
-        if (element) {
-            try {
-                const canvas = await html2canvas(element, {
-                    backgroundColor: '#ffffff',
-                    scale: 2 // Higher resolution
-                });
-                const data = canvas.toDataURL('image/png');
+        if (!element) return;
+
+        try {
+            setIsGeneratingImage(true);
+            const canvas = await html2canvas(element, {
+                backgroundColor: '#ffffff',
+                scale: window.devicePixelRatio || 2,
+                useCORS: true,
+                // Fix: html2canvas crash with Tailwind v4 oklch() colors.
+                // 1. Convert computed styles to inline RGB
+                // 2. Remove all stylesheets so html2canvas's CSS parser doesn't crash on standard CSS reading
+                onclone: (doc: Document, clonedEl: HTMLElement) => {
+                    const allElements = clonedEl.querySelectorAll('*');
+                    const resolveColors = (el: Element) => {
+                        const computed = getComputedStyle(el);
+                        const htmlEl = el as HTMLElement;
+                        htmlEl.style.color = computed.color || '';
+                        htmlEl.style.backgroundColor = computed.backgroundColor || '';
+                        htmlEl.style.borderColor = computed.borderColor || '';
+                        htmlEl.style.outlineColor = computed.outlineColor || '';
+                    };
+
+                    // Apply to root and children
+                    resolveColors(clonedEl);
+                    allElements.forEach(resolveColors);
+
+                    // CRITICAL: Strip all external/internal stylesheets to prevent the parser crash
+                    const styles = doc.querySelectorAll('style, link[rel="stylesheet"]');
+                    styles.forEach(s => s.remove());
+                },
+            });
+
+            canvas.toBlob(async (blob) => {
+                if (!blob) throw new Error('Could not generate image');
+
+                const fileName = `po-${new Date().toISOString().split('T')[0]}.png`;
+                const file = new File([blob], fileName, { type: 'image/png' });
+
+                // Try Web Share API first (Native Mobile Experience - "Bank Slip" feel)
+                if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                    try {
+                        await navigator.share({
+                            files: [file],
+                            title: 'ใบสั่งซื้อ Mellow Oven',
+                            text: 'รายการสั่งซื้อวัตถุดิบ Mellow Oven'
+                        });
+                        return; // Shared successfully
+                    } catch (shareError: any) {
+                        // User cancelled share or it failed
+                        if (shareError.name === 'AbortError') return;
+                        console.log('Share failed, falling back to download', shareError);
+                    }
+                }
+
+                // Fallback: Standard Download (Desktop or older browsers)
+                const url = URL.createObjectURL(blob);
                 const link = document.createElement('a');
-                link.href = data;
-                link.download = `purchase-order-${new Date().toISOString().split('T')[0]}.png`;
+                link.href = url;
+                link.download = fileName;
                 document.body.appendChild(link);
                 link.click();
                 document.body.removeChild(link);
-            } catch (error) {
-                console.error('Error generating image:', error);
-                alert('เกิดข้อผิดพลาดในการบันทึกรูปภาพ');
-            }
+                URL.revokeObjectURL(url);
+
+            }, 'image/png');
+        } catch (error) {
+            console.error('Error generating image:', error);
+            alert('เกิดข้อผิดพลาดในการบันทึกรูปภาพ กรุณาลองใหม่');
+        } finally {
+            setIsGeneratingImage(false);
         }
     };
 
@@ -258,10 +312,21 @@ export const PurchaseOrderForm: React.FC = () => {
                     <div className="grid grid-cols-2 gap-3" data-html2canvas-ignore="true">
                         <button
                             onClick={handleDownloadImage}
-                            className="flex items-center justify-center gap-2 bg-white border border-cafe-300 text-cafe-700 py-3 rounded-xl font-bold hover:bg-cafe-50 transition-colors"
+                            disabled={isGeneratingImage}
+                            className={`flex items-center justify-center gap-2 border border-cafe-300 py-3 rounded-xl font-bold transition-colors ${isGeneratingImage ? 'bg-cafe-100 text-cafe-400 cursor-not-allowed' : 'bg-white text-cafe-700 hover:bg-cafe-50'
+                                }`}
                         >
-                            <ImageIcon size={20} />
-                            บันทึกรูปภาพ
+                            {isGeneratingImage ? (
+                                <>
+                                    <div className="w-5 h-5 border-2 border-cafe-400 border-t-transparent rounded-full animate-spin" />
+                                    กำลังบันทึก...
+                                </>
+                            ) : (
+                                <>
+                                    <ImageIcon size={20} />
+                                    บันทึกรูปภาพ
+                                </>
+                            )}
                         </button>
                         <button
                             onClick={handleConfirmOrder}

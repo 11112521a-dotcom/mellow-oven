@@ -3,6 +3,7 @@ import { X, Package, Check, AlertCircle } from 'lucide-react';
 import { Product, BundleConfig, BundleSelectionSnapshot } from '../../../types';
 import { useStore } from '../../store';
 import { formatCurrency } from '../../lib/utils';
+import { NumberInput } from '../ui/NumberInput';
 
 interface SnackBoxBuilderProps {
     product: Product;
@@ -169,12 +170,11 @@ export const SnackBoxBuilder: React.FC<SnackBoxBuilderProps> = ({
                                 >
                                     -
                                 </button>
-                                <input
-                                    type="number"
+                                <NumberInput
                                     value={quantity}
-                                    onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value) || 1))}
+                                    onChange={(val) => setQuantity(Math.max(1, val))}
                                     className="w-20 h-10 text-center border-2 border-stone-200 rounded-lg font-bold text-lg focus:border-orange-400 focus:ring-2 focus:ring-orange-200"
-                                    min={1}
+                                    min="1"
                                 />
                                 <button
                                     onClick={() => setQuantity(q => q + 1)}

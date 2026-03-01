@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { X, Tag, ChevronDown } from 'lucide-react';
 import { useStore } from '@/src/store';
 import { formatCurrency } from '@/src/lib/utils';
+import { NumberInput } from '@/src/components/ui/NumberInput';
 
 interface AddPromotionModalProps {
     isOpen: boolean;
@@ -164,10 +165,9 @@ export const AddPromotionModal: React.FC<AddPromotionModalProps> = ({ isOpen, on
 
                             <div>
                                 <label className="block text-sm font-bold text-cafe-700 mb-1">ราคาโปรโมชั่น (บาท)</label>
-                                <input
-                                    type="number"
-                                    value={discountPrice}
-                                    onChange={(e) => setDiscountPrice(e.target.value)}
+                                <NumberInput
+                                    value={parseFloat(discountPrice) || 0}
+                                    onChange={(val) => setDiscountPrice(val === 0 ? '' : val.toString())}
                                     placeholder="0"
                                     className="w-full border border-stone-200 rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-amber-500 outline-none"
                                 />
@@ -193,11 +193,11 @@ export const AddPromotionModal: React.FC<AddPromotionModalProps> = ({ isOpen, on
                     {/* Minimum Quantity */}
                     <div>
                         <label className="block text-sm font-bold text-cafe-700 mb-1">จำนวนขั้นต่ำ</label>
-                        <input
-                            type="number"
-                            value={minQuantity}
-                            onChange={(e) => setMinQuantity(e.target.value)}
+                        <NumberInput
+                            value={parseFloat(minQuantity) || 0}
+                            onChange={(val) => setMinQuantity(val === 0 ? '' : val.toString())}
                             min="1"
+                            placeholder="1"
                             className="w-full border border-stone-200 rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-amber-500 outline-none"
                         />
                     </div>

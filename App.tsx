@@ -19,10 +19,20 @@ const Settings = lazy(() => import('./pages/Settings'));
 
 // Loading Fallback Component
 const PageLoader = () => (
-  <div className="flex h-[calc(100vh-100px)] items-center justify-center">
-    <div className="flex flex-col items-center gap-2">
-      <Loader2 className="h-8 w-8 animate-spin text-amber-500" />
-      <p className="text-sm text-stone-500 animate-pulse">กำลังโหลด...</p>
+  <div className="flex flex-col h-[calc(100vh-100px)] items-center justify-center bg-[#fbf7f4]/50">
+    <div className="relative w-24 h-24 mb-6">
+      <div className="absolute inset-0 border-4 border-cafe-300 rounded-full border-t-transparent animate-spin"></div>
+      <div className="absolute inset-3 border-4 border-cafe-500 rounded-full border-b-transparent animate-[spin_2s_linear_infinite_reverse]"></div>
+      <div className="absolute inset-6 border-4 border-amber-200 rounded-full border-l-transparent animate-[spin_1.5s_linear_infinite]"></div>
+      <div className="absolute inset-[34px] bg-cafe-500 rounded-full flex items-center justify-center shadow-[0_0_15px_rgba(176,137,104,0.5)] animate-pulse"></div>
+    </div>
+    <div className="flex flex-col items-center gap-1">
+      <h3 className="text-xl font-bold text-cafe-800 tracking-wide">Mellow Oven</h3>
+      <div className="flex gap-1.5 mt-2">
+        <div className="w-2 h-2 rounded-full bg-cafe-500 animate-bounce" style={{ animationDelay: '0ms' }}></div>
+        <div className="w-2 h-2 rounded-full bg-cafe-500 animate-bounce" style={{ animationDelay: '150ms' }}></div>
+        <div className="w-2 h-2 rounded-full bg-cafe-500 animate-bounce" style={{ animationDelay: '300ms' }}></div>
+      </div>
     </div>
   </div>
 );
@@ -88,70 +98,28 @@ const App: React.FC = () => {
     return () => unsubscribeFromRealtime();
   }, [fetchData, subscribeToRealtime, unsubscribeFromRealtime, checkSession]);
 
-  // Auth Guard
+  // 🎬 Dismiss splash screen after init (Netflix-style fade-out)
+  // Also cache the shop logo URL for instant display on next visit
+  const { shopInfo } = useStore();
+
+  useEffect(() => {
+    if (!isInitializing) {
+      // Cache logo URL for next splash screen
+      if (shopInfo?.logoUrl) {
+        localStorage.setItem('splash-logo-url', shopInfo.logoUrl);
+      }
+
+      const splash = document.getElementById('splash-screen');
+      if (splash) {
+        splash.classList.add('fade-out');
+        setTimeout(() => splash.remove(), 600);
+      }
+    }
+  }, [isInitializing, shopInfo?.logoUrl]);
+
+  // Auth Guard - while initializing, the HTML splash handles the visual
   if (isInitializing) {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-amber-50 via-orange-50 to-rose-50 relative overflow-hidden">
-        {/* Background Decorations */}
-        <div className="absolute inset-0 pointer-events-none">
-          {/* Floating Bread/Croissant Shapes */}
-          <div className="absolute top-20 left-10 w-16 h-16 bg-amber-200/40 rounded-full animate-bounce" style={{ animationDelay: '0s', animationDuration: '3s' }} />
-          <div className="absolute top-40 right-20 w-12 h-12 bg-orange-200/40 rounded-full animate-bounce" style={{ animationDelay: '0.5s', animationDuration: '2.5s' }} />
-          <div className="absolute bottom-32 left-1/4 w-8 h-8 bg-rose-200/40 rounded-full animate-bounce" style={{ animationDelay: '1s', animationDuration: '2s' }} />
-          <div className="absolute top-1/3 right-1/4 w-20 h-20 bg-amber-100/30 rounded-full animate-pulse" />
-          <div className="absolute bottom-20 right-10 w-14 h-14 bg-orange-100/40 rounded-full animate-bounce" style={{ animationDelay: '1.5s', animationDuration: '2.8s' }} />
-        </div>
-
-        {/* Main Content */}
-        <div className="relative z-10 flex flex-col items-center">
-          {/* Animated Logo */}
-          <div className="relative mb-6">
-            <div className="w-24 h-24 bg-gradient-to-br from-amber-400 via-orange-500 to-amber-600 rounded-3xl flex items-center justify-center shadow-2xl shadow-amber-300/50 animate-pulse">
-              <span className="text-white font-black text-3xl tracking-tight">MO</span>
-            </div>
-            {/* Sparkle Effect */}
-            <div className="absolute -top-2 -right-2 w-6 h-6 bg-yellow-300 rounded-full animate-ping opacity-75" />
-            <div className="absolute -bottom-1 -left-1 w-4 h-4 bg-amber-300 rounded-full animate-ping opacity-50" style={{ animationDelay: '0.3s' }} />
-          </div>
-
-          {/* Brand Name */}
-          <h1 className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-amber-600 via-orange-600 to-amber-700 mb-2">
-            Mellow Oven
-          </h1>
-          <p className="text-amber-600/70 text-sm mb-8">Café Management System</p>
-
-          {/* Loading Bar */}
-          <div className="w-64 h-2 bg-amber-100 rounded-full overflow-hidden mb-4 shadow-inner">
-            <div className="h-full bg-gradient-to-r from-amber-400 via-orange-500 to-amber-400 rounded-full animate-loading-bar"
-              style={{
-                animation: 'loading-bar 1.5s ease-in-out infinite',
-                backgroundSize: '200% 100%'
-              }}
-            />
-          </div>
-
-          {/* Loading Text */}
-          <div className="flex items-center gap-2 text-amber-700">
-            <Loader2 className="w-5 h-5 animate-spin" />
-            <span className="text-sm font-medium animate-pulse">กำลังเตรียมความอร่อย...</span>
-          </div>
-
-          {/* Fun Facts */}
-          <p className="mt-6 text-xs text-amber-500/60 max-w-xs text-center italic">
-            ☕ กาแฟดีๆ ต้องใช้เวลาชง เว็บดีๆ ก็ต้องใช้เวลาโหลดนิดหน่อยนะ
-          </p>
-        </div>
-
-        {/* CSS for Loading Bar Animation */}
-        <style>{`
-          @keyframes loading-bar {
-            0% { transform: translateX(-100%); }
-            50% { transform: translateX(0%); }
-            100% { transform: translateX(100%); }
-          }
-        `}</style>
-      </div>
-    );
+    return null; // HTML splash is already showing
   }
 
   if (!session) {
@@ -184,8 +152,16 @@ const App: React.FC = () => {
     <ErrorBoundary>
       <Layout activeTab={activeTab} onTabChange={setActiveTab}>
         <header className="mb-8">
-          <h2 className="text-3xl font-bold text-cafe-800 capitalize">{activeTab === 'financials' ? 'การเงิน (Finance)' : activeTab}</h2>
-          <p className="text-cafe-500">Manage your bakery efficiently.</p>
+          <h2 className="text-3xl font-bold text-cafe-800 capitalize">
+            {activeTab === 'financials' ? 'การเงิน (Finance)' :
+              activeTab === 'promotion' ? 'ออเดอร์พิเศษ' :
+                activeTab === 'overview' ? 'Business Command Center' : activeTab}
+          </h2>
+          <p className="text-cafe-500">
+            {activeTab === 'promotion' ? 'Promotion & Snack Box' :
+              activeTab === 'overview' ? 'สรุปภาพรวมและจัดการงานด่วนประจำวัน' :
+                'Manage your bakery efficiently.'}
+          </p>
         </header>
         <PageErrorBoundary>
           {renderContent()}
