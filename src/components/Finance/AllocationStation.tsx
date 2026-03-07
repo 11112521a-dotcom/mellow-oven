@@ -7,7 +7,7 @@ import {
     Calendar, TrendingUp, Sparkles, Check, Plus, Eye, Wallet,
     ArrowUpRight, ChevronDown, ChevronUp, Coins, BadgeDollarSign,
     Boxes, Shield, Briefcase, PiggyBank, Lock, Unlock, Star, Edit2, X,
-    Target, Gauge, Settings2, ArrowDown
+    Target, Gauge, Settings2, ArrowDown, AlertTriangle
 } from 'lucide-react';
 import { NumberInput } from '@/src/components/ui/NumberInput';
 
@@ -114,6 +114,9 @@ export const AllocationStation: React.FC<AllocationStationProps> = ({ onAllocate
     const [showPreview, setShowPreview] = useState(false);
 
     const [isEditing, setIsEditing] = useState(false);
+    const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+    const [pendingProfileSelection, setPendingProfileSelection] = useState<string | null>(null);
+    const [showUnsavedWarning, setShowUnsavedWarning] = useState(false);
     const [newProfileName, setNewProfileName] = useState('');
     const [isLocked, setIsLocked] = useState(() => {
         const saved = localStorage.getItem('allocationStationLocked');
@@ -252,6 +255,7 @@ export const AllocationStation: React.FC<AllocationStationProps> = ({ onAllocate
         if (profile) {
             setCurrentAllocations(profile.allocations);
             setIsEditing(false);
+            setHasUnsavedChanges(false);
         }
     }, [selectedProfileId, allocationProfiles]);
 
@@ -311,6 +315,12 @@ export const AllocationStation: React.FC<AllocationStationProps> = ({ onAllocate
             ...prev,
             [jarId]: clampedValue
         }));
+
+        // Check for unsaved changes against the currently selected profile
+        const profile = allocationProfiles.find(p => p.id === selectedProfileId);
+        if (profile) {
+            setHasUnsavedChanges(true); // Any change marks it as unsaved
+        }
         setIsEditing(true);
     };
 
@@ -346,19 +356,57 @@ export const AllocationStation: React.FC<AllocationStationProps> = ({ onAllocate
 
     const totalPercentage: number = Object.values(currentAllocations).reduce<number>((sum, val) => sum + (val as number), 0);
 
-    const handleSaveProfile = () => {
-        if (!newProfileName) return;
-
-        const newProfile: AllocationProfile = {
-            id: crypto.randomUUID(),
-            name: newProfileName,
-            allocations: currentAllocations
-        };
-
-        saveAllocationProfile(newProfile);
-        setSelectedProfileId(newProfile.id);
-        setNewProfileName('');
+    const handleSaveProfile = (isNew: boolean = true) => {
+        if (isNew) {
+            if (!newProfileName) return;
+            const newProfile: AllocationProfile = {
+                id: crypto.randomUUID(),
+                name: newProfileName,
+                allocations: currentAllocations
+            };
+            saveAllocationProfile(newProfile);
+            setSelectedProfileId(newProfile.id);
+            setNewProfileName('');
+        } else {
+            // Update existing profile
+            const existingProfile = allocationProfiles.find(p => p.id === selectedProfileId);
+            if (existingProfile) {
+                const updatedProfile: AllocationProfile = {
+                    ...existingProfile,
+                    allocations: currentAllocations
+                };
+                saveAllocationProfile(updatedProfile);
+            }
+        }
         setIsEditing(false);
+        setHasUnsavedChanges(false);
+    };
+
+    const handleRevertChanges = () => {
+        const profile = allocationProfiles.find(p => p.id === selectedProfileId);
+        if (profile) {
+            setCurrentAllocations(profile.allocations);
+            setHasUnsavedChanges(false);
+            setIsEditing(false);
+            setNewProfileName('');
+        }
+    };
+
+    const handleProfileSelect = (id: string) => {
+        if (hasUnsavedChanges && id !== selectedProfileId) {
+            setPendingProfileSelection(id);
+            setShowUnsavedWarning(true);
+        } else {
+            setSelectedProfileId(id);
+        }
+    };
+
+    const confirmProfileChange = (discard: boolean) => {
+        if (discard && pendingProfileSelection) {
+            setSelectedProfileId(pendingProfileSelection);
+        }
+        setShowUnsavedWarning(false);
+        setPendingProfileSelection(null);
     };
 
     const handleDeleteProfile = (id: string, e: React.MouseEvent) => {
@@ -956,7 +1004,7 @@ export const AllocationStation: React.FC<AllocationStationProps> = ({ onAllocate
                         {allocationProfiles.map(profile => (
                             <div
                                 key={profile.id}
-                                onClick={() => setSelectedProfileId(profile.id)}
+                                onClick={() => handleProfileSelect(profile.id)}
                                 className={`group flex items-center gap-2 px-4 py-2.5 rounded-full border-2 text-sm font-bold cursor-pointer transition-all duration-300 ${selectedProfileId === profile.id
                                     ? 'bg-cafe-900 text-white border-cafe-900 shadow-xl shadow-stone-400/30'
                                     : 'bg-white text-stone-500 border-stone-200 hover:border-stone-300 hover:shadow-md'
@@ -997,22 +1045,61 @@ export const AllocationStation: React.FC<AllocationStationProps> = ({ onAllocate
                             </div>
                         ))}
 
-                        {isEditing ? (
+                        {hasUnsavedChanges ? (
+                            <div className="flex items-center gap-2 bg-stone-50 px-4 py-2 rounded-full border-2 border-stone-200 shadow-inner">
+                                <span className="text-sm font-bold text-amber-600 flex items-center gap-1.5"><AlertTriangle size={14} /> มีการเปลี่ยนแปลง</span>
+                                <div className="h-4 w-px bg-stone-300 mx-1"></div>
+                                {selectedProfileId !== 'default' && (
+                                    <button onClick={() => handleSaveProfile(false)} className="text-xs font-bold bg-amber-100 text-amber-700 px-3 py-1.5 rounded-lg hover:bg-amber-200 transition-colors">
+                                        บันทึกทับ
+                                    </button>
+                                )}
+                                <div className="flex items-center gap-1 bg-white px-2 py-1 rounded-lg border border-stone-200 ml-1">
+                                    <input
+                                        className="bg-transparent text-xs outline-none w-24 font-medium"
+                                        placeholder="บันทึกชื่อใหม่..."
+                                        value={newProfileName}
+                                        onChange={e => setNewProfileName(e.target.value)}
+                                        onKeyDown={e => e.key === 'Enter' && newProfileName && handleSaveProfile(true)}
+                                    />
+                                    <button
+                                        onClick={() => handleSaveProfile(true)}
+                                        disabled={!newProfileName}
+                                        className="bg-stone-800 text-white p-1 rounded hover:bg-stone-900 transition-colors disabled:opacity-50"
+                                    >
+                                        <Check size={12} />
+                                    </button>
+                                </div>
+                                <button onClick={handleRevertChanges} className="text-stone-400 hover:text-stone-600 p-1 ml-1" title="ยกเลิกการเปลี่ยนแปลง">
+                                    <X size={14} />
+                                </button>
+                            </div>
+                        ) : isEditing ? (
                             <div className="flex items-center gap-2 bg-stone-50 px-4 py-2 rounded-full border-2 border-stone-200">
                                 <input
                                     autoFocus
                                     className="bg-transparent text-sm outline-none w-28 font-medium"
-                                    placeholder="ชื่อโปรไฟล์..."
+                                    placeholder="ชื่อโปรไฟล์ใหม่..."
                                     value={newProfileName}
                                     onChange={e => setNewProfileName(e.target.value)}
-                                    onKeyDown={e => e.key === 'Enter' && handleSaveProfile()}
+                                    onKeyDown={e => e.key === 'Enter' && newProfileName && handleSaveProfile(true)}
                                 />
-                                <button onClick={handleSaveProfile} className="bg-stone-800 text-white p-1.5 rounded-full hover:bg-stone-900 transition-colors">
+                                <button
+                                    onClick={() => handleSaveProfile(true)}
+                                    disabled={!newProfileName}
+                                    className="bg-stone-800 text-white p-1.5 rounded-full hover:bg-stone-900 transition-colors disabled:opacity-50"
+                                >
                                     <Check size={12} />
+                                </button>
+                                <button onClick={handleRevertChanges} className="text-stone-400 hover:text-stone-600 p-1">
+                                    <X size={14} />
                                 </button>
                             </div>
                         ) : (
-                            <button className="px-4 py-2.5 rounded-full border-2 border-dashed border-stone-300 text-stone-400 text-sm font-bold hover:border-stone-500 hover:text-stone-600 hover:bg-stone-50 flex items-center gap-2 transition-all">
+                            <button
+                                onClick={() => setIsEditing(true)}
+                                className="px-4 py-2.5 rounded-full border-2 border-dashed border-stone-300 text-stone-400 text-sm font-bold hover:border-stone-500 hover:text-stone-600 hover:bg-stone-50 flex items-center gap-2 transition-all"
+                            >
                                 <Plus size={14} />
                                 สร้างใหม่
                             </button>
@@ -1044,7 +1131,7 @@ export const AllocationStation: React.FC<AllocationStationProps> = ({ onAllocate
                                         </div>
                                         <div className="text-right">
                                             {inputMode === 'percentage' ? (
-                                                <div className="flex items-center gap-1">
+                                                <div className="flex items-center gap-1 relative">
                                                     <input
                                                         type="number"
                                                         value={percentage.toFixed(0)}
@@ -1052,10 +1139,15 @@ export const AllocationStation: React.FC<AllocationStationProps> = ({ onAllocate
                                                         disabled={isLocked}
                                                         className={`w-16 text-right bg-white border rounded-xl px-3 py-2 font-black text-xl outline-none focus:ring-2 transition-all ${style.text} ${style.ring} ${isLocked ? 'opacity-50 cursor-not-allowed border-transparent' : 'border-stone-200 hover:border-stone-300'}`}
                                                     />
+                                                    {isLocked && (
+                                                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                                                            <Lock size={12} className="text-stone-400/50 absolute left-1" />
+                                                        </div>
+                                                    )}
                                                     <span className={`text-lg font-black ${style.text}`}>%</span>
                                                 </div>
                                             ) : (
-                                                <div className="flex items-center gap-1">
+                                                <div className="flex items-center gap-1 relative">
                                                     <span className={`text-lg font-black ${style.text}`}>฿</span>
                                                     <input
                                                         type="number"
@@ -1064,6 +1156,11 @@ export const AllocationStation: React.FC<AllocationStationProps> = ({ onAllocate
                                                         disabled={isLocked}
                                                         className={`w-28 text-right bg-white border rounded-xl px-3 py-2 font-black text-xl outline-none focus:ring-2 transition-all ${style.text} ${style.ring} ${isLocked ? 'opacity-50 cursor-not-allowed border-transparent' : 'border-stone-200 hover:border-stone-300'}`}
                                                     />
+                                                    {isLocked && (
+                                                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                                                            <Lock size={12} className="text-stone-400/50 absolute right-1" />
+                                                        </div>
+                                                    )}
                                                 </div>
                                             )}
                                             {numAmount > 0 && inputMode === 'percentage' && (
@@ -1080,6 +1177,9 @@ export const AllocationStation: React.FC<AllocationStationProps> = ({ onAllocate
                                                 className={`absolute inset-y-0 left-0 bg-gradient-to-r ${style.gradient} rounded-full transition-all duration-300`}
                                                 style={{ width: `${percentage}%` }}
                                             />
+                                            {isLocked && (
+                                                <div className="absolute inset-0 bg-stone-200/30 w-full h-full pointer-events-none" />
+                                            )}
                                             <input
                                                 type="range"
                                                 min="0"
@@ -1168,6 +1268,41 @@ export const AllocationStation: React.FC<AllocationStationProps> = ({ onAllocate
                     </div>
                 )
             }
+            {/* Unsaved Changes Warning Modal */}
+            {showUnsavedWarning && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+                    <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden animate-in zoom-in-95 duration-200">
+                        <div className="p-5 bg-amber-50 border-b border-amber-100 flex items-start gap-3">
+                            <div className="bg-amber-100 p-2 rounded-full text-amber-600">
+                                <AlertTriangle size={24} />
+                            </div>
+                            <div>
+                                <h3 className="font-bold text-lg text-stone-800">มีการเปลี่ยนแปลงที่ยังไม่บันทึก</h3>
+                                <p className="text-sm text-stone-500 mt-1">
+                                    คุณได้แก้สัดส่วนโปรไฟล์นี้เอาไว้แต่ยังไม่ได้บันทึก หากเปลี่ยนหน้าสัดส่วนที่แก้ไว้จะหายไป
+                                </p>
+                            </div>
+                        </div>
+                        <div className="p-4 flex flex-col gap-2">
+                            <button
+                                onClick={() => {
+                                    setShowUnsavedWarning(false);
+                                    setPendingProfileSelection(null);
+                                }}
+                                className="w-full py-3 bg-stone-100 text-stone-700 rounded-xl font-bold hover:bg-stone-200 transition-colors"
+                            >
+                                กลับไปแก้ไขต่อ
+                            </button>
+                            <button
+                                onClick={() => confirmProfileChange(true)}
+                                className="w-full py-3 bg-rose-50 text-rose-600 rounded-xl font-bold hover:bg-rose-100 transition-colors border border-rose-100"
+                            >
+                                ทิ้งการเปลี่ยนแปลง (Discard)
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div >
     );
 };
