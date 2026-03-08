@@ -112,6 +112,7 @@ export const AllocationStation: React.FC<AllocationStationProps> = ({ onAllocate
     const [allocationSource, setAllocationSource] = useState<AllocationSource>('profit');
     const [selectedProfitDate, setSelectedProfitDate] = useState<string>('all');
     const [showPreview, setShowPreview] = useState(false);
+    const [manualStackDays, setManualStackDays] = useState(1);
 
     const [isEditing, setIsEditing] = useState(false);
     const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
@@ -145,38 +146,53 @@ export const AllocationStation: React.FC<AllocationStationProps> = ({ onAllocate
     }, [debtConfig]);
 
     // Calculate debt deduction based on current amount
-    const calculateDebtDeduction = (grossProfit: number) => {
-        if (!debtConfig.isEnabled || grossProfit <= 0) return 0;
-        if (grossProfit >= debtConfig.safetyThreshold) {
-            return debtConfig.fixedAmount;
-        } else {
-            return grossProfit * debtConfig.safetyRatio;
-        }
-    };
+    // Replaced by inline logic to handle explicit days
+    // const calculateDebtDeduction = (grossProfit: number) => {
+    //     if (!debtConfig.isEnabled || grossProfit <= 0) return 0;
+    //     if (grossProfit >= debtConfig.safetyThreshold) {
+    //         return debtConfig.fixedAmount;
+    //     } else {
+    //         return grossProfit * debtConfig.safetyRatio;
+    //     }
+    // };
 
     // Declare availableDates first (needed for effectiveDebtAmount calculation)
     const availableDates = [...new Set(unallocatedProfits.filter(p => p.amount > 0).map(p => p.date))].sort((a, b) => b.localeCompare(a));
     const unallocatedBalance = getUnallocatedBalance();
 
     // Manual Debt Override State
-    // 🛡️ FIX: When allocating multiple days, multiply debt by number of days
-    const effectiveDebtAmount = useMemo(() => {
+    // 🛡️ FIX: When allocating multiple days, multiply debt by number of days explicitly
+    const effectiveDebt = useMemo(() => {
         const numAmount = parseFloat(amount) || 0;
-        const dailyDebt = calculateDebtDeduction(numAmount);
+        if (!debtConfig.isEnabled || numAmount <= 0) return { amount: 0, days: 0, isBelowThreshold: false, perDayAmount: 0 };
 
-        // If allocating 'all' unallocated profits, multiply by number of unallocated days
-        if (allocationSource === 'profit' && selectedProfitDate === 'all') {
-            const unallocatedDays = availableDates.length;
-            if (unallocatedDays > 1) {
-                // Calculate average daily profit to get proper deduction per day
-                const avgDailyProfit = numAmount / unallocatedDays;
-                const perDayDebt = calculateDebtDeduction(avgDailyProfit);
-                return perDayDebt * unallocatedDays;
+        let days = 1;
+        let avgDailyProfit = numAmount;
+
+        if (allocationSource === 'profit') {
+            if (selectedProfitDate === 'all') {
+                days = Math.max(1, availableDates.length);
+                avgDailyProfit = numAmount / days;
             }
+        } else {
+            days = manualStackDays;
+            avgDailyProfit = numAmount / days;
         }
 
-        return dailyDebt;
-    }, [amount, debtConfig, allocationSource, selectedProfitDate, availableDates.length]);
+        const isBelowThreshold = avgDailyProfit < debtConfig.safetyThreshold;
+        const perDayAmount = isBelowThreshold
+            ? avgDailyProfit * debtConfig.safetyRatio
+            : debtConfig.fixedAmount;
+
+        return {
+            amount: perDayAmount * days,
+            days,
+            isBelowThreshold,
+            perDayAmount
+        };
+    }, [amount, debtConfig, allocationSource, selectedProfitDate, availableDates.length, manualStackDays]);
+
+    const effectiveDebtAmount = effectiveDebt.amount;
 
     const debtProgress = debtConfig.targetAmount > 0
         ? (debtConfig.accumulatedAmount / debtConfig.targetAmount) * 100
@@ -775,7 +791,7 @@ export const AllocationStation: React.FC<AllocationStationProps> = ({ onAllocate
 
                         {/* ระบุเอง button - NOW SECOND */}
                         <button
-                            onClick={() => { setAllocationSource('manual'); setAmount(''); setShowPreview(false); }}
+                            onClick={() => { setAllocationSource('manual'); setAmount(''); setShowPreview(false); setManualStackDays(1); }}
                             className={`group relative p-5 rounded-2xl text-sm font-bold transition-all duration-300 flex flex-col items-center gap-4 ${allocationSource === 'manual'
                                 ? 'bg-gradient-to-br from-amber-50 to-orange-50 text-amber-900 shadow-xl shadow-amber-200/50 ring-2 ring-amber-300'
                                 : 'bg-stone-50 text-stone-500 hover:bg-amber-50 hover:shadow-lg hover:text-amber-700 border border-stone-200 hover:border-amber-200'
@@ -828,6 +844,17 @@ export const AllocationStation: React.FC<AllocationStationProps> = ({ onAllocate
                             </div>
                         </div>
 
+                        {allocationSource === 'manual' && debtConfig.isEnabled && numAmount > 0 && (
+                            <div className="mt-4 flex items-center justify-between bg-stone-50/80 p-3 rounded-xl border border-stone-200 border-dashed animate-in slide-in-from-top-2">
+                                <span className="text-xs font-bold text-stone-500 uppercase">สแตกหนี้กี่วัน?</span>
+                                <div className="flex items-center gap-2">
+                                    <button onClick={() => setManualStackDays(Math.max(1, manualStackDays - 1))} className="p-1 bg-white rounded-md border border-stone-200 shadow-sm text-stone-500 hover:bg-stone-50 hover:text-stone-700 transition-colors">-</button>
+                                    <span className="font-black text-stone-700 w-8 text-center">{manualStackDays}</span>
+                                    <button onClick={() => setManualStackDays(manualStackDays + 1)} className="p-1 bg-white rounded-md border border-stone-200 shadow-sm text-stone-500 hover:bg-stone-50 hover:text-stone-700 transition-colors">+</button>
+                                </div>
+                            </div>
+                        )}
+
                         {/* Debt Deduction Input (Editable) */}
                         {debtConfig.isEnabled && numAmount > 0 && effectiveDebtAmount > 0 && (
                             <div className="mt-4 animate-in slide-in-from-top-2">
@@ -838,11 +865,20 @@ export const AllocationStation: React.FC<AllocationStationProps> = ({ onAllocate
                                         </div>
                                         <div>
                                             <p className="text-xs font-bold text-rose-700">หักเข้ากองทุนหนี้</p>
-                                            <p className="text-[10px] text-rose-400">Fixed Priority (อัตโนมัติ)</p>
+                                            <p className="text-[10px] text-rose-400 font-medium">
+                                                {effectiveDebt.days > 1
+                                                    ? `ทบยอด ${effectiveDebt.days} วัน (${formatCurrency(effectiveDebt.perDayAmount)}/วัน)`
+                                                    : `หักรายวัน (${formatCurrency(effectiveDebt.perDayAmount)}/วัน)`}
+                                            </p>
                                         </div>
                                     </div>
                                     <div className="text-right">
-                                        <span className="text-lg font-black text-rose-600">-{formatCurrency(effectiveDebtAmount)}</span>
+                                        <div className="flex items-center justify-end gap-1">
+                                            {effectiveDebt.isBelowThreshold && (
+                                                <span className="text-[10px] font-bold text-rose-400 bg-rose-100 px-1.5 py-0.5 rounded-md">Safety {debtConfig.safetyRatio * 100}%</span>
+                                            )}
+                                            <span className="text-lg font-black text-rose-600">-{formatCurrency(effectiveDebtAmount)}</span>
+                                        </div>
                                     </div>
                                 </div>
 
