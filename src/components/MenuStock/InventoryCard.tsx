@@ -14,29 +14,35 @@ interface InventoryCardProps {
         producedQty: number;
         toShopQty: number;
         wasteQty: number;
+        eatQty: number;
+        giveawayQty: number;
         soldQty: number;
     };
     onProduce: (val: number) => void;
     onSend: (val: number) => void;
     onWaste: (val: number) => void;
+    onEat: (val: number) => void;
+    onGiveaway: (val: number) => void;
     dailyTarget?: number;
 }
 
 export const InventoryCard: React.FC<InventoryCardProps> = ({
-    item, stockYesterday, savedRecord, onProduce, onSend, onWaste, dailyTarget = 15
+    item, stockYesterday, savedRecord, onProduce, onSend, onWaste, onEat, onGiveaway, dailyTarget = 15
 }) => {
     // Local state for inline inputs
     const [prodInput, setProdInput] = useState('');
     const [sendInput, setSendInput] = useState('');
     const [wasteInput, setWasteInput] = useState('');
+    const [eatInput, setEatInput] = useState('');
+    const [giveawayInput, setGiveawayInput] = useState('');
 
     // 🧮 CRITICAL CALCULATION LOGIC (Preserved from Audit)
     const confirmedStock = stockYesterday + savedRecord.producedQty;
-    // สูตรหาของที่ส่งได้ = มีอยู่จริง - ส่งไปแล้ว - ของเสีย
-    const availableToSend = Math.max(0, confirmedStock - savedRecord.toShopQty - savedRecord.wasteQty);
+    // สูตรหาของที่ส่งได้ = มีอยู่จริง - ส่งไปแล้ว - ของเสีย - กิน - แจก
+    const availableToSend = Math.max(0, confirmedStock - savedRecord.toShopQty - savedRecord.wasteQty - savedRecord.eatQty - savedRecord.giveawayQty);
 
-    // สูตรหาของเหลือที่บ้าน = มีอยู่จริง - ส่งไปแล้ว - ของเสีย
-    const leftoverHome = confirmedStock - savedRecord.toShopQty - savedRecord.wasteQty;
+    // สูตรหาของเหลือที่บ้าน = มีอยู่จริง - ส่งไปแล้ว - ของเสีย - กิน - แจก
+    const leftoverHome = confirmedStock - savedRecord.toShopQty - savedRecord.wasteQty - savedRecord.eatQty - savedRecord.giveawayQty;
 
     const progressPercent = Math.min(100, Math.round((confirmedStock / dailyTarget) * 100));
 
@@ -67,6 +73,22 @@ export const InventoryCard: React.FC<InventoryCardProps> = ({
         if (val > 0) {
             onWaste(val);
             setWasteInput('');
+        }
+    };
+
+    const handleEat = () => {
+        const val = parseInt(eatInput);
+        if (val > 0) {
+            onEat(val);
+            setEatInput('');
+        }
+    };
+
+    const handleGiveaway = () => {
+        const val = parseInt(giveawayInput);
+        if (val > 0) {
+            onGiveaway(val);
+            setGiveawayInput('');
         }
     };
 
@@ -148,6 +170,26 @@ export const InventoryCard: React.FC<InventoryCardProps> = ({
                     onConfirm={handleWaste}
                     placeholder={`ทิ้ง (เสีย ${savedRecord.wasteQty})`}
                 />
+
+                {/* Eat Input */}
+                <InputRow
+                    icon={<span className="text-orange-500 text-sm leading-none pl-0.5" >🍽️</span>}
+                    color="orange"
+                    value={eatInput}
+                    onChange={setEatInput}
+                    onConfirm={handleEat}
+                    placeholder={`กินเอง (${savedRecord.eatQty})`}
+                />
+
+                {/* Giveaway Input */}
+                <InputRow
+                    icon={<span className="text-pink-500 text-sm leading-none pl-0.5" >🎁</span>}
+                    color="pink"
+                    value={giveawayInput}
+                    onChange={setGiveawayInput}
+                    onConfirm={handleGiveaway}
+                    placeholder={`แจกฟรี (${savedRecord.giveawayQty})`}
+                />
             </div>
         </div>
     );
@@ -158,13 +200,17 @@ const InputRow = ({ icon, color, value, onChange, onConfirm, placeholder, disabl
     const borderColors: any = {
         blue: 'focus-within:border-blue-400 focus-within:ring-blue-100',
         violet: 'focus-within:border-violet-400 focus-within:ring-violet-100',
-        red: 'focus-within:border-red-400 focus-within:ring-red-100'
+        red: 'focus-within:border-red-400 focus-within:ring-red-100',
+        orange: 'focus-within:border-orange-400 focus-within:ring-orange-100',
+        pink: 'focus-within:border-pink-400 focus-within:ring-pink-100'
     };
 
     const btnColors: any = {
         blue: 'bg-blue-500 hover:bg-blue-600',
         violet: 'bg-violet-500 hover:bg-violet-600',
-        red: 'bg-red-500 hover:bg-red-600'
+        red: 'bg-red-500 hover:bg-red-600',
+        orange: 'bg-orange-500 hover:bg-orange-600',
+        pink: 'bg-pink-500 hover:bg-pink-600'
     };
 
     return (

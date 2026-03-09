@@ -1,5 +1,5 @@
-import React from 'react';
-import { Search, Plus, ArrowRight, Settings, LayoutGrid, LayoutList } from 'lucide-react';
+import React, { useState } from 'react';
+import { Search, Plus, ArrowRight, Settings, LayoutGrid, LayoutList, Truck } from 'lucide-react';
 
 interface ActionBarProps {
     title?: string;
@@ -8,7 +8,7 @@ interface ActionBarProps {
     viewMode: 'grid' | 'list';
     onViewModeChange: (mode: 'grid' | 'list') => void;
     onBulkProduce: () => void;
-    onBulkSend: () => void;
+    onBulkSend: (maxPerItem?: number) => void;
     onSetTarget: () => void;
 }
 
@@ -22,6 +22,13 @@ export const ActionBar: React.FC<ActionBarProps> = ({
     onBulkSend,
     onSetTarget
 }) => {
+    const [sendMaxInput, setSendMaxInput] = useState('');
+
+    const handleBulkSend = () => {
+        const max = parseInt(sendMaxInput);
+        onBulkSend(max > 0 ? max : undefined);
+    };
+
     return (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 space-y-4">
             {/* Top Row: Title + Search + View Toggle */}
@@ -45,8 +52,8 @@ export const ActionBar: React.FC<ActionBarProps> = ({
                     <button
                         onClick={() => onViewModeChange('grid')}
                         className={`p-2.5 rounded-lg transition-all ${viewMode === 'grid'
-                                ? 'bg-white shadow-sm text-amber-600'
-                                : 'text-gray-400 hover:text-gray-600'
+                            ? 'bg-white shadow-sm text-amber-600'
+                            : 'text-gray-400 hover:text-gray-600'
                             }`}
                     >
                         <LayoutGrid size={20} />
@@ -54,8 +61,8 @@ export const ActionBar: React.FC<ActionBarProps> = ({
                     <button
                         onClick={() => onViewModeChange('list')}
                         className={`p-2.5 rounded-lg transition-all ${viewMode === 'list'
-                                ? 'bg-white shadow-sm text-amber-600'
-                                : 'text-gray-400 hover:text-gray-600'
+                            ? 'bg-white shadow-sm text-amber-600'
+                            : 'text-gray-400 hover:text-gray-600'
                             }`}
                     >
                         <LayoutList size={20} />
@@ -64,7 +71,7 @@ export const ActionBar: React.FC<ActionBarProps> = ({
             </div>
 
             {/* Bottom Row: Action Buttons */}
-            <div className="flex gap-3 overflow-x-auto pb-1">
+            <div className="flex flex-wrap gap-3 items-center pb-1">
                 <button
                     onClick={onBulkProduce}
                     className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-amber-100 to-orange-100 text-amber-700 rounded-xl font-medium hover:from-amber-200 hover:to-orange-200 transition-all shadow-sm whitespace-nowrap"
@@ -73,13 +80,26 @@ export const ActionBar: React.FC<ActionBarProps> = ({
                     ผลิตทั้งหมด
                 </button>
 
-                <button
-                    onClick={onBulkSend}
-                    className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-violet-100 to-purple-100 text-violet-700 rounded-xl font-medium hover:from-violet-200 hover:to-purple-200 transition-all shadow-sm whitespace-nowrap"
-                >
-                    <ArrowRight size={18} />
-                    ส่งทั้งหมด
-                </button>
+                {/* Send All with Max Per Item Input */}
+                <div className="flex items-center gap-0 bg-gradient-to-r from-violet-100 to-purple-100 rounded-xl shadow-sm overflow-hidden border border-violet-200/50">
+                    <button
+                        onClick={handleBulkSend}
+                        className="flex items-center gap-2 px-5 py-2.5 text-violet-700 font-medium hover:from-violet-200 hover:to-purple-200 transition-all whitespace-nowrap hover:bg-violet-200/50"
+                    >
+                        <Truck size={18} />
+                        ส่งทั้งหมด
+                    </button>
+                    <div className="w-px h-7 bg-violet-200/70" />
+                    <input
+                        type="number"
+                        value={sendMaxInput}
+                        onChange={(e) => setSendMaxInput(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === 'Enter') handleBulkSend(); }}
+                        placeholder="อย่างละ...ชิ้น"
+                        className="w-28 px-3 py-2.5 bg-transparent text-violet-700 text-sm font-medium placeholder:text-violet-400/60 focus:outline-none focus:bg-violet-50/50 transition-colors"
+                        min={1}
+                    />
+                </div>
 
                 <button
                     onClick={onSetTarget}

@@ -92,7 +92,7 @@ export const MenuStockPlannerV3: React.FC = () => {
     const handleSingleAction = async (
         productId: string,
         variantId: string,
-        updates: Partial<{ producedQty: number; toShopQty: number; wasteQty: number }>,
+        updates: Partial<{ producedQty: number; toShopQty: number; wasteQty: number; eatQty: number; giveawayQty: number }>,
         mode: 'add' | 'replace' = 'add'
     ) => {
         // Find the variant
@@ -114,6 +114,14 @@ export const MenuStockPlannerV3: React.FC = () => {
             ? (mode === 'add' ? saved.wasteQty + updates.wasteQty : updates.wasteQty)
             : saved.wasteQty;
 
+        const newEat = updates.eatQty !== undefined
+            ? (mode === 'add' ? saved.eatQty + updates.eatQty : updates.eatQty)
+            : saved.eatQty;
+
+        const newGiveaway = updates.giveawayQty !== undefined
+            ? (mode === 'add' ? saved.giveawayQty + updates.giveawayQty : updates.giveawayQty)
+            : saved.giveawayQty;
+
         // 🛡️ CRITICAL: Always preserve all fields
         await upsertDailyInventory({
             businessDate,
@@ -123,6 +131,8 @@ export const MenuStockPlannerV3: React.FC = () => {
             producedQty: newProduced,
             toShopQty: newToShop,
             wasteQty: newWaste,      // ✅ Preserved
+            eatQty: newEat,          // ✅ FIX: PRESERVED/UPDATED
+            giveawayQty: newGiveaway,// ✅ FIX: PRESERVED/UPDATED
             soldQty: saved.soldQty   // ✅ Always Preserved
         });
 
@@ -130,13 +140,15 @@ export const MenuStockPlannerV3: React.FC = () => {
     };
 
     // 6. Group Bulk Action - 🛡️ ZOMBIE CHECK & SILENT FETCH
-    const handleGroupBulkAction = async (productId: string, type: 'produce' | 'send' | 'target') => {
+    const handleGroupBulkAction = async (productId: string, type: 'produce' | 'send' | 'target', maxPerItem?: number) => {
         const group = groupedProducts.find(g => g.productId === productId);
         if (!group) return;
 
         const msgs: Record<string, string> = {
             produce: `ยืนยันผลิต "${group.productName}" ทั้งหมดตามเป้า?`,
-            send: `ยืนยันส่ง "${group.productName}" ที่มีทั้งหมดไปร้าน?`,
+            send: maxPerItem
+                ? `ยืนยันส่ง "${group.productName}" อย่างละไม่เกิน ${maxPerItem} ชิ้น?`
+                : `ยืนยันส่ง "${group.productName}" ที่มีทั้งหมดไปร้าน?`,
             target: `ตั้งเป้าสำหรับ "${group.productName}" ทุกรายการ?`
         };
 
@@ -164,18 +176,23 @@ export const MenuStockPlannerV3: React.FC = () => {
                         producedQty: saved.producedQty + needed,
                         toShopQty: saved.toShopQty,
                         wasteQty: saved.wasteQty,
+                        eatQty: saved.eatQty,
+                        giveawayQty: saved.giveawayQty,
                         soldQty: saved.soldQty
                     };
                 } else if (type === 'send') {
                     const totalStock = variant.stockYesterday + saved.producedQty;
-                    const available = Math.max(0, totalStock - saved.toShopQty - saved.wasteQty);
+                    const available = Math.max(0, totalStock - saved.toShopQty - saved.wasteQty - saved.eatQty - saved.giveawayQty);
+                    const sendQty = maxPerItem ? Math.min(available, Math.max(0, maxPerItem - saved.toShopQty)) : available;
 
-                    if (available <= 0) return null;
+                    if (sendQty <= 0) return null;
 
                     payload = {
                         producedQty: saved.producedQty,
-                        toShopQty: saved.toShopQty + available,
+                        toShopQty: saved.toShopQty + sendQty,
                         wasteQty: saved.wasteQty,
+                        eatQty: saved.eatQty,
+                        giveawayQty: saved.giveawayQty,
                         soldQty: saved.soldQty
                     };
                 }
@@ -202,10 +219,12 @@ export const MenuStockPlannerV3: React.FC = () => {
     };
 
     // 7. Global Bulk Action
-    const handleGlobalBulkAction = async (type: 'produce' | 'send' | 'target') => {
+    const handleGlobalBulkAction = async (type: 'produce' | 'send' | 'target', maxPerItem?: number) => {
         const msgs: Record<string, string> = {
             produce: 'ยืนยันผลิตทุกสินค้าตามเป้า?',
-            send: 'ยืนยันส่งของที่มีทั้งหมดไปร้าน?',
+            send: maxPerItem
+                ? `ยืนยันส่งของทั้งหมด อย่างละไม่เกิน ${maxPerItem} ชิ้น?`
+                : 'ยืนยันส่งของที่มีทั้งหมดไปร้าน?',
             target: 'ตั้งเป้าหมายสำหรับทุกสินค้า?'
         };
 
@@ -232,18 +251,23 @@ export const MenuStockPlannerV3: React.FC = () => {
                             producedQty: saved.producedQty + needed,
                             toShopQty: saved.toShopQty,
                             wasteQty: saved.wasteQty,
+                            eatQty: saved.eatQty,
+                            giveawayQty: saved.giveawayQty,
                             soldQty: saved.soldQty
                         };
                     } else if (type === 'send') {
                         const totalStock = variant.stockYesterday + saved.producedQty;
-                        const available = Math.max(0, totalStock - saved.toShopQty - saved.wasteQty);
+                        const available = Math.max(0, totalStock - saved.toShopQty - saved.wasteQty - saved.eatQty - saved.giveawayQty);
+                        const sendQty = maxPerItem ? Math.min(available, Math.max(0, maxPerItem - saved.toShopQty)) : available;
 
-                        if (available <= 0) return null;
+                        if (sendQty <= 0) return null;
 
                         payload = {
                             producedQty: saved.producedQty,
-                            toShopQty: saved.toShopQty + available,
+                            toShopQty: saved.toShopQty + sendQty,
                             wasteQty: saved.wasteQty,
+                            eatQty: saved.eatQty,
+                            giveawayQty: saved.giveawayQty,
                             soldQty: saved.soldQty
                         };
                     }
@@ -287,7 +311,7 @@ export const MenuStockPlannerV3: React.FC = () => {
                     viewMode={viewMode}
                     onViewModeChange={setViewMode}
                     onBulkProduce={() => handleGlobalBulkAction('produce')}
-                    onBulkSend={() => handleGlobalBulkAction('send')}
+                    onBulkSend={(maxPerItem) => handleGlobalBulkAction('send', maxPerItem)}
                     onSetTarget={() => handleGlobalBulkAction('target')}
                 />
 
@@ -308,8 +332,8 @@ export const MenuStockPlannerV3: React.FC = () => {
                                 productName={group.productName}
                                 category={group.category}
                                 variants={group.variants as any}
-                                onEat={() => { }}
-                                onGiveaway={() => { }}
+                                onEat={(variantId, val) => handleSingleAction(group.productId, variantId, { eatQty: val }, 'add')}
+                                onGiveaway={(variantId, val) => handleSingleAction(group.productId, variantId, { giveawayQty: val }, 'add')}
                                 onProduce={(variantId, val) => handleSingleAction(group.productId, variantId, { producedQty: val }, 'add')}
                                 onSend={(variantId, val) => handleSingleAction(group.productId, variantId, { toShopQty: val }, 'add')}
                                 onWaste={(variantId, val) => handleSingleAction(group.productId, variantId, { wasteQty: val }, 'add')}

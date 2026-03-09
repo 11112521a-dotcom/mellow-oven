@@ -101,7 +101,7 @@ export const MenuStockPlannerV2: React.FC = () => {
     // 6. Action Handlers (Single Item) - 🛡️ DATA PRESERVATION LOGIC
     const handleSingleAction = async (
         item: typeof inventoryItems[0],
-        updates: Partial<{ producedQty: number; toShopQty: number; wasteQty: number; soldQty: number }>,
+        updates: Partial<{ producedQty: number; toShopQty: number; wasteQty: number; eatQty: number; giveawayQty: number; soldQty: number }>,
         mode: 'add' | 'replace' = 'add'
     ) => {
         const saved = item.savedRecord;
@@ -119,6 +119,14 @@ export const MenuStockPlannerV2: React.FC = () => {
             ? (mode === 'add' ? saved.wasteQty + updates.wasteQty : updates.wasteQty)
             : saved.wasteQty;
 
+        const newEat = updates.eatQty !== undefined
+            ? (mode === 'add' ? saved.eatQty + updates.eatQty : updates.eatQty)
+            : saved.eatQty;
+
+        const newGiveaway = updates.giveawayQty !== undefined
+            ? (mode === 'add' ? saved.giveawayQty + updates.giveawayQty : updates.giveawayQty)
+            : saved.giveawayQty;
+
         // 🛡️ CRITICAL: Always preserve fields that aren't being updated
         await upsertDailyInventory({
             businessDate,
@@ -128,6 +136,8 @@ export const MenuStockPlannerV2: React.FC = () => {
             producedQty: newProduced,
             toShopQty: newToShop,
             wasteQty: newWaste,      // ✅ Preserved / Updated
+            eatQty: newEat,          // ✅ FIX: Preserved / Updated
+            giveawayQty: newGiveaway,// ✅ FIX: Preserved / Updated
             soldQty: saved.soldQty   // ✅ Always Preserved
         });
     };
@@ -170,12 +180,14 @@ export const MenuStockPlannerV2: React.FC = () => {
                         producedQty: saved.producedQty + needed, // Add needed
                         toShopQty: saved.toShopQty,
                         wasteQty: saved.wasteQty,
+                        eatQty: saved.eatQty,
+                        giveawayQty: saved.giveawayQty,
                         soldQty: saved.soldQty
                     };
                 } else if (type === 'send') {
                     // Logic: Send All Available
                     const totalStock = item.stockYesterday + saved.producedQty;
-                    const available = Math.max(0, totalStock - saved.toShopQty - saved.wasteQty);
+                    const available = Math.max(0, totalStock - saved.toShopQty - saved.wasteQty - saved.eatQty - saved.giveawayQty);
 
                     if (available <= 0) return Promise.resolve();
 
@@ -183,6 +195,8 @@ export const MenuStockPlannerV2: React.FC = () => {
                         producedQty: saved.producedQty,
                         toShopQty: saved.toShopQty + available, // Add available
                         wasteQty: saved.wasteQty,
+                        eatQty: saved.eatQty,
+                        giveawayQty: saved.giveawayQty,
                         soldQty: saved.soldQty
                     };
                 } else if (type === 'target') {
@@ -251,6 +265,8 @@ export const MenuStockPlannerV2: React.FC = () => {
                             onProduce={(val) => handleSingleAction(item, { producedQty: val }, 'add')}
                             onSend={(val) => handleSingleAction(item, { toShopQty: val }, 'add')}
                             onWaste={(val) => handleSingleAction(item, { wasteQty: val }, 'add')}
+                            onEat={(val) => handleSingleAction(item, { eatQty: val }, 'add')}
+                            onGiveaway={(val) => handleSingleAction(item, { giveawayQty: val }, 'add')}
                         />
                     ))}
                 </div>

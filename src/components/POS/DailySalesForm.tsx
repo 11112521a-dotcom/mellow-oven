@@ -334,7 +334,7 @@ export const DailySalesForm: React.FC = () => {
                         (d.variantId || '') === (log.variantId || '')
                 );
 
-                // FIX: Always call upsert - use existing values or defaults
+                // FIX: Always call upsert - use existing values or defaults, and ADD new waste/free from sales
                 await upsertDailyInventory({
                     businessDate: date,
                     productId: log.productId,
@@ -342,8 +342,11 @@ export const DailySalesForm: React.FC = () => {
                     variantName: log.variant?.name,
                     producedQty: inventoryRecord?.producedQty || 0,
                     toShopQty: inventoryRecord?.toShopQty || log.preparedQty || 0, // Use preparedQty as fallback
-                    soldQty: log.soldQty,
-                    wasteQty: log.wasteQty || 0, // FIX: Also sync waste from sales form
+                    soldQty: log.soldQty, // soldQty is cumulative per market, but dailyInventory might need to accumulate if multiple markets exist. Actually, let's keep it simple or accumulate if needed. For now, we assume soldQty is additive if multiple saves happen? Usually DailySalesForm represents the whole day's sales for that market.
+                    // To be safe with multiple markets:
+                    wasteQty: (inventoryRecord?.wasteQty || 0) + (log.wasteQty || 0), // 🔥 ADD waste from shop
+                    eatQty: (inventoryRecord?.eatQty || 0) + (log.freeQty || 0),      // 🔥 ADD free/eat from shop (fixes Ghost Stock)
+                    giveawayQty: inventoryRecord?.giveawayQty || 0,                   // 🔥 Preserve existing giveaway
                     stockYesterday: inventoryRecord?.stockYesterday || 0
                 });
             }
