@@ -204,11 +204,11 @@ export const AllocationStation: React.FC<AllocationStationProps> = ({ onAllocate
 
 
     const cogsData = useMemo(() => {
-        const targetDate = selectedProfitDate === 'all'
-            ? (availableDates[0] || new Date().toISOString().split('T')[0])
-            : selectedProfitDate;
+        const targetDates = selectedProfitDate === 'all'
+            ? (availableDates.length > 0 ? availableDates : [new Date().toISOString().split('T')[0]])
+            : [selectedProfitDate];
 
-        const dayInventory = dailyInventory.filter(d => d.businessDate === targetDate);
+        const dayInventory = dailyInventory.filter(d => targetDates.includes(d.businessDate));
 
         let totalCOGS = 0;
         let totalWasteCost = 0;
@@ -230,7 +230,19 @@ export const AllocationStation: React.FC<AllocationStationProps> = ({ onAllocate
             totalWasteCost += wasteQty * unitCost;
         });
 
-        return { targetDate, totalCOGS, totalWasteCost, total: totalCOGS + totalWasteCost };
+        // Determine display string for dates
+        let dateDisplayStr = '';
+        if (selectedProfitDate === 'all') {
+            if (targetDates.length > 1) {
+                dateDisplayStr = `สะสม (${targetDates.length} วัน)`;
+            } else {
+                dateDisplayStr = `วันที่ ${new Date(targetDates[0]).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })}`;
+            }
+        } else {
+            dateDisplayStr = `วันที่ ${new Date(selectedProfitDate).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })}`;
+        }
+
+        return { targetDates, dateDisplayStr, totalCOGS, totalWasteCost, total: totalCOGS + totalWasteCost };
     }, [selectedProfitDate, availableDates, dailyInventory, products]);
 
     const previewAmounts = useMemo(() => {
@@ -965,7 +977,7 @@ export const AllocationStation: React.FC<AllocationStationProps> = ({ onAllocate
                                     <div className="p-2.5 bg-gradient-to-br from-amber-100 to-orange-100 rounded-xl">
                                         <TrendingUp size={18} className="text-amber-600" />
                                     </div>
-                                    <h4 className="font-black text-amber-800">📊 ต้นทุนวันที่ {new Date(cogsData.targetDate).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })}</h4>
+                                    <h4 className="font-black text-amber-800">📊 ต้นทุน{cogsData.dateDisplayStr}</h4>
                                 </div>
 
                                 <div className="space-y-2">

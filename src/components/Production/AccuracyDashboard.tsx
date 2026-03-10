@@ -308,35 +308,6 @@ export const AccuracyDashboard: React.FC<Props> = ({ data, title }) => {
                 </div>
             )}
 
-            {/* AI Recommendations */}
-            {data.recommendations && data.recommendations.length > 0 && (
-                <div className="bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 p-[2px] rounded-2xl">
-                    <div className="bg-white rounded-2xl p-6">
-                        <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
-                            🤖 AI แนะนำการปรับปรุง
-                        </h3>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                            {data.recommendations.map((rec, idx) => (
-                                <div key={idx} className={`p-4 rounded-xl border ${rec.priority === 'high' ? 'bg-red-50 border-red-200' :
-                                    'bg-yellow-50 border-yellow-200'
-                                    }`}>
-                                    <div className="flex items-center gap-2 mb-2">
-                                        <span className="text-lg">
-                                            {rec.type === 'market' ? '📍' : rec.type === 'product' ? '📦' : '📅'}
-                                        </span>
-                                        <span className="font-bold text-gray-800">{rec.target}</span>
-                                        {rec.priority === 'high' && (
-                                            <span className="text-xs bg-red-200 text-red-700 px-2 py-0.5 rounded-full">สำคัญ</span>
-                                        )}
-                                    </div>
-                                    <p className="text-sm text-gray-600 mb-1">❌ {rec.issue}</p>
-                                    <p className="text-sm text-green-700 font-medium">💡 {rec.suggestion}</p>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                </div>
-            )}
 
             {/* Daily Comparisons with Date Selector */}
             <div className="flex flex-col md:flex-row items-center justify-between gap-4 mb-4">
