@@ -190,32 +190,24 @@ export const createInventorySlice: StateCreator<AppState, [], [], InventorySlice
 
     // 🔥 HOTFIXED: Upsert with Waste Preservation & Immutable History
     upsertDailyInventory: async (record) => {
-        const stockYesterday = record.stockYesterday ?? 0;
-        const produced = record.producedQty ?? 0;
-        const toShop = record.toShopQty ?? 0;
-        const sold = record.soldQty ?? 0;
-        const waste = record.wasteQty ?? 0;
-        const eat = record.eatQty ?? 0; // NEW
-        const giveaway = record.giveawayQty ?? 0; // NEW
+        // Check existence
+        let query = supabase.from('daily_inventory').select('*').eq('business_date', record.businessDate).eq('product_id', record.productId);
+        if (record.variantId) query = query.eq('variant_id', record.variantId);
+        else query = query.is('variant_id', null);
 
-        // Leftover calculation might need to be adjusted if eat/giveaway comes from home/shop
-        // Assuming eat/giveaway are tracked daily and reduce the available stock effectively like waste/sold
-        // If they are taken from "Leftover Home" or "Unsold Shop", we need to know WHERE they are taken from.
-        // For now, assuming they are just recorded and don't double-subtract if they are already accounted for in "stock checks".
-        // BUT, if we are calculating "Leftover", we usually do: Start + Produced - Out(Shop) - Waste - Eat - Giveaway = Leftover Home?
-        // OR is it: Start + Produced - ToShop = Leftover Home (strict movement).
-        // And ToShop - Sold - WasteShop - EatShop ... = Leftover Shop.
-        // The current logic: leftoverHome = stockYesterday + produced - toShop - waste;
-        // This implies waste is at Home? Or overall?
-        // Let's stick to the current pattern and just add the fields to DB for now without changing the core calculation logic unless specified.
-        // The generic "waste" seems to subtract from Home in this calculation?
-        // valid point: "waste" subtracts from Leftover Home in line 194.
-        // I will treat eat/giveaway similarly for now to be safe, or just not subtract them if they are "recorded" but not "deducted" from this specific calculated field.
-        // CHECK implementation_plan.md: "Update marketAnalysisUtils.ts to include eat/giveaway... exclude from waste".
-        // The plan didn't explicitly say to change `leftover_home` calculation formula here.
-        // I will add them to DB object.
+        const { data: existingData } = await query.single();
 
-        const leftoverHome = stockYesterday + produced - toShop - waste;
+        // 🛡️ MERGE WITH EXISTING DATA (Prevents Stale State Overwrites)
+        const stockYesterday = record.stockYesterday ?? existingData?.stock_yesterday ?? 0;
+        const produced = record.producedQty ?? existingData?.produced_qty ?? 0;
+        const toShop = record.toShopQty ?? existingData?.to_shop_qty ?? 0;
+        const sold = record.soldQty ?? existingData?.sold_qty ?? 0;
+        const waste = record.wasteQty ?? existingData?.waste_qty ?? 0;
+        const eat = record.eatQty ?? existingData?.eat_qty ?? 0; 
+        const giveaway = record.giveawayQty ?? existingData?.giveaway_qty ?? 0; 
+
+        // 🛡️ FIX: Leftover Home must subtract eat and giveaway to prevent Ghost Stock carry-over
+        const leftoverHome = stockYesterday + produced - toShop - waste - eat - giveaway;
         const unsoldShop = toShop - sold;
 
         const dbRecord: Record<string, unknown> = {
@@ -225,8 +217,8 @@ export const createInventorySlice: StateCreator<AppState, [], [], InventorySlice
             to_shop_qty: toShop,
             sold_qty: sold,
             waste_qty: waste,
-            eat_qty: eat, // NEW
-            giveaway_qty: giveaway, // NEW
+            eat_qty: eat,
+            giveaway_qty: giveaway,
             stock_yesterday: stockYesterday,
             leftover_home: leftoverHome,
             unsold_shop: unsoldShop
@@ -234,13 +226,6 @@ export const createInventorySlice: StateCreator<AppState, [], [], InventorySlice
 
         if (record.variantId) dbRecord.variant_id = record.variantId;
         if (record.variantName) dbRecord.variant_name = record.variantName;
-
-        // Check existence
-        let query = supabase.from('daily_inventory').select('id').eq('business_date', record.businessDate).eq('product_id', record.productId);
-        if (record.variantId) query = query.eq('variant_id', record.variantId);
-        else query = query.is('variant_id', null);
-
-        const { data: existingData } = await query.single();
         let resultData;
 
         if (existingData?.id) {

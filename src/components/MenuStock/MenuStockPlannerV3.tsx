@@ -131,9 +131,7 @@ export const MenuStockPlannerV3: React.FC = () => {
             producedQty: newProduced,
             toShopQty: newToShop,
             wasteQty: newWaste,      // ✅ Preserved
-            eatQty: newEat,          // ✅ FIX: PRESERVED/UPDATED
-            giveawayQty: newGiveaway,// ✅ FIX: PRESERVED/UPDATED
-            soldQty: saved.soldQty   // ✅ Always Preserved
+            giveawayQty: newGiveaway
         });
 
         await fetchDailyInventory(businessDate);
@@ -177,8 +175,7 @@ export const MenuStockPlannerV3: React.FC = () => {
                         toShopQty: saved.toShopQty,
                         wasteQty: saved.wasteQty,
                         eatQty: saved.eatQty,
-                        giveawayQty: saved.giveawayQty,
-                        soldQty: saved.soldQty
+                        giveawayQty: saved.giveawayQty
                     };
                 } else if (type === 'send') {
                     const totalStock = variant.stockYesterday + saved.producedQty;
@@ -192,8 +189,7 @@ export const MenuStockPlannerV3: React.FC = () => {
                         toShopQty: saved.toShopQty + sendQty,
                         wasteQty: saved.wasteQty,
                         eatQty: saved.eatQty,
-                        giveawayQty: saved.giveawayQty,
-                        soldQty: saved.soldQty
+                        giveawayQty: saved.giveawayQty
                     };
                 }
 
@@ -252,8 +248,7 @@ export const MenuStockPlannerV3: React.FC = () => {
                             toShopQty: saved.toShopQty,
                             wasteQty: saved.wasteQty,
                             eatQty: saved.eatQty,
-                            giveawayQty: saved.giveawayQty,
-                            soldQty: saved.soldQty
+                            giveawayQty: saved.giveawayQty
                         };
                     } else if (type === 'send') {
                         const totalStock = variant.stockYesterday + saved.producedQty;
@@ -267,8 +262,7 @@ export const MenuStockPlannerV3: React.FC = () => {
                             toShopQty: saved.toShopQty + sendQty,
                             wasteQty: saved.wasteQty,
                             eatQty: saved.eatQty,
-                            giveawayQty: saved.giveawayQty,
-                            soldQty: saved.soldQty
+                            giveawayQty: saved.giveawayQty
                         };
                     }
 

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
     ChevronDown, ChevronUp, Flame, Truck, Target, Clock,
-    Settings, Package, Trash2, Ban, BarChart3, Check, Utensils, Gift
+    Settings, Package, Trash2, Ban, BarChart3, Check, Utensils, Gift, Edit2, X
 } from 'lucide-react';
 
 // Types
@@ -35,6 +35,7 @@ interface ProductGroupProps {
     onBulkProduce: (productId: string) => void;
     onBulkSend: (productId: string) => void;
     onBulkTarget: (productId: string) => void;
+    onEditValues?: (variantId: string, updates: Partial<{ producedQty: number; toShopQty: number; wasteQty: number; eatQty: number; giveawayQty: number }>) => void;
 }
 
 // Get product emoji based on name
@@ -61,15 +62,26 @@ const VariantRow: React.FC<{
     onWaste: (val: number) => void;
     onEat: (val: number) => void;
     onGiveaway: (val: number) => void;
-}> = ({ variant, onProduce, onSend, onWaste, onEat, onGiveaway }) => {
+    onEditValues?: (updates: Partial<{ producedQty: number; toShopQty: number; wasteQty: number; eatQty: number; giveawayQty: number }>) => void;
+}> = ({ variant, onProduce, onSend, onWaste, onEat, onGiveaway, onEditValues }) => {
     const [prodInput, setProdInput] = useState('');
     const [sendInput, setSendInput] = useState('');
     const [wasteInput, setWasteInput] = useState('');
     const [eatInput, setEatInput] = useState('');
     const [giveawayInput, setGiveawayInput] = useState('');
-    const [expandedAction, setExpandedAction] = useState<'produce' | 'send' | 'waste' | 'eat' | 'giveaway' | null>(null);
+    const [expandedAction, setExpandedAction] = useState<'produce' | 'send' | 'waste' | 'eat' | 'giveaway' | 'edit' | null>(null);
 
     const saved = variant.savedRecord;
+
+    // Edit state corresponding to what's already saved
+    const [editForm, setEditForm] = useState({
+        producedQty: saved.producedQty,
+        toShopQty: saved.toShopQty,
+        eatQty: saved.eatQty,
+        giveawayQty: saved.giveawayQty,
+        wasteQty: saved.wasteQty
+    });
+
     const confirmedStock = variant.stockYesterday + saved.producedQty;
     // Calculation: Leftover = StockYesterday + Produced - ToShop - Waste - Eat - Giveaway
     const leftover = confirmedStock - saved.toShopQty - saved.wasteQty - saved.eatQty - saved.giveawayQty;
@@ -102,6 +114,24 @@ const VariantRow: React.FC<{
     const handleGiveaway = () => {
         const val = parseInt(giveawayInput);
         if (val > 0) { onGiveaway(val); setGiveawayInput(''); setExpandedAction(null); }
+    };
+
+    const handleSaveEdit = () => {
+        if (onEditValues) {
+            onEditValues(editForm);
+            setExpandedAction(null);
+        }
+    };
+
+    const openEditMode = () => {
+        setEditForm({
+            producedQty: saved.producedQty,
+            toShopQty: saved.toShopQty,
+            eatQty: saved.eatQty,
+            giveawayQty: saved.giveawayQty,
+            wasteQty: saved.wasteQty
+        });
+        setExpandedAction(expandedAction === 'edit' ? null : 'edit');
     };
 
     return (
@@ -184,11 +214,20 @@ const VariantRow: React.FC<{
                     >
                         <Trash2 size={16} />
                     </button>
+                    {onEditValues && (
+                        <button
+                            onClick={openEditMode}
+                            className={`p-2 rounded-lg transition-colors ml-1 ${expandedAction === 'edit' ? 'bg-slate-700 text-white' : 'bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-gray-700'}`}
+                            title="แก้ไขข้อมูล (แทนที่)"
+                        >
+                            <Edit2 size={16} />
+                        </button>
+                    )}
                 </div>
             </div>
 
             {/* Expanded Input */}
-            {expandedAction && (
+            {expandedAction && expandedAction !== 'edit' && (
                 <div className={`px-4 pb-3 animate-in slide-in-from-top-1`}>
                     <div className={`flex items-center gap-2 p-2 rounded-lg ${expandedAction === 'produce' ? 'bg-blue-50' :
                             expandedAction === 'send' ? 'bg-violet-50' :
@@ -198,6 +237,7 @@ const VariantRow: React.FC<{
                         }`}>
                         <input
                             type="number"
+                            min="1"
                             value={
                                 expandedAction === 'produce' ? prodInput :
                                     expandedAction === 'send' ? sendInput :
@@ -222,11 +262,11 @@ const VariantRow: React.FC<{
                                 }
                             }}
                             placeholder={
-                                expandedAction === 'produce' ? 'จำนวนที่ต้องการผลิต...' :
-                                    expandedAction === 'send' ? 'จำนวนที่ส่งไปร้าน...' :
-                                        expandedAction === 'eat' ? 'จำนวนที่กินเอง...' :
-                                            expandedAction === 'giveaway' ? 'จำนวนที่แจกฟรี...' :
-                                                'จำนวนที่เสียหาย...'
+                                expandedAction === 'produce' ? 'จำนวนที่ต้องการผลิตเพิ่ม...' :
+                                    expandedAction === 'send' ? 'จำนวนที่ต้องการส่งเพิ่ม...' :
+                                        expandedAction === 'eat' ? 'จำนวนที่กินเพิ่ม...' :
+                                            expandedAction === 'giveaway' ? 'จำนวนที่แจกเพิ่ม...' :
+                                                'จำนวนของเสียเพิ่ม...'
                             }
                             className="flex-1 px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-amber-400"
                             autoFocus
@@ -251,6 +291,82 @@ const VariantRow: React.FC<{
                     </div>
                 </div>
             )}
+
+            {/* Edit Mode Full Row */}
+            {expandedAction === 'edit' && (
+                <div className="px-4 pb-4 animate-in slide-in-from-top-1">
+                    <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
+                        <div className="flex items-center justify-between mb-3 border-b border-slate-200 pb-2 text-slate-700">
+                            <h4 className="font-bold text-sm flex items-center gap-2">
+                                <Edit2 size={14} className="text-slate-500" />
+                                แก้ไขตัวเลขที่บันทึกไว้ (เซฟทับ)
+                            </h4>
+                            <span className="text-xs text-slate-500">กรอกค่าที่ถูกต้องลงไปแทนที่อันเก่าได้เลย</span>
+                        </div>
+                        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-4">
+                            <div>
+                                <label className="text-[10px] font-bold text-blue-600 uppercase mb-1 block">ผลิต</label>
+                                <input
+                                    type="number" min="0"
+                                    value={editForm.producedQty}
+                                    onChange={(e) => setEditForm({ ...editForm, producedQty: Math.max(0, parseInt(e.target.value) || 0) })}
+                                    className="w-full text-center px-2 py-1.5 bg-white border border-slate-300 rounded text-sm font-bold focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                                />
+                            </div>
+                            <div>
+                                <label className="text-[10px] font-bold text-violet-600 uppercase mb-1 block">ส่งร้าน</label>
+                                <input
+                                    type="number" min="0"
+                                    value={editForm.toShopQty}
+                                    onChange={(e) => setEditForm({ ...editForm, toShopQty: Math.max(0, parseInt(e.target.value) || 0) })}
+                                    className="w-full text-center px-2 py-1.5 bg-white border border-slate-300 rounded text-sm font-bold focus:border-violet-500 focus:ring-1 focus:ring-violet-500"
+                                />
+                            </div>
+                            <div>
+                                <label className="text-[10px] font-bold text-orange-600 uppercase mb-1 block">กินเอง</label>
+                                <input
+                                    type="number" min="0"
+                                    value={editForm.eatQty}
+                                    onChange={(e) => setEditForm({ ...editForm, eatQty: Math.max(0, parseInt(e.target.value) || 0) })}
+                                    className="w-full text-center px-2 py-1.5 bg-white border border-slate-300 rounded text-sm font-bold focus:border-orange-500 focus:ring-1 focus:ring-orange-500"
+                                />
+                            </div>
+                            <div>
+                                <label className="text-[10px] font-bold text-pink-600 uppercase mb-1 block">แจกฟรี</label>
+                                <input
+                                    type="number" min="0"
+                                    value={editForm.giveawayQty}
+                                    onChange={(e) => setEditForm({ ...editForm, giveawayQty: Math.max(0, parseInt(e.target.value) || 0) })}
+                                    className="w-full text-center px-2 py-1.5 bg-white border border-slate-300 rounded text-sm font-bold focus:border-pink-500 focus:ring-1 focus:ring-pink-500"
+                                />
+                            </div>
+                            <div>
+                                <label className="text-[10px] font-bold text-red-600 uppercase mb-1 block">เสีย</label>
+                                <input
+                                    type="number" min="0"
+                                    value={editForm.wasteQty}
+                                    onChange={(e) => setEditForm({ ...editForm, wasteQty: Math.max(0, parseInt(e.target.value) || 0) })}
+                                    className="w-full text-center px-2 py-1.5 bg-white border border-slate-300 rounded text-sm font-bold focus:border-red-500 focus:ring-1 focus:ring-red-500"
+                                />
+                            </div>
+                        </div>
+                        <div className="flex gap-2">
+                            <button
+                                onClick={handleSaveEdit}
+                                className="flex-1 bg-slate-800 hover:bg-slate-900 text-white text-sm font-medium py-2 rounded flex items-center justify-center gap-2 transition-colors"
+                            >
+                                <Check size={16} /> บันทึกการแก้ไข
+                            </button>
+                            <button
+                                onClick={() => setExpandedAction(null)}
+                                className="px-4 bg-slate-200 hover:bg-slate-300 text-slate-700 text-sm font-medium py-2 rounded transition-colors"
+                            >
+                                <X size={16} />
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
@@ -269,7 +385,8 @@ export const ProductGroup: React.FC<ProductGroupProps> = ({
     onGiveaway,
     onBulkProduce,
     onBulkSend,
-    onBulkTarget
+    onBulkTarget,
+    onEditValues
 }) => {
     const [isExpanded, setIsExpanded] = useState(true);
 
@@ -370,6 +487,7 @@ export const ProductGroup: React.FC<ProductGroupProps> = ({
                             onWaste={(val) => onWaste(variant.variantId, val)}
                             onEat={(val) => onEat(variant.variantId, val)}
                             onGiveaway={(val) => onGiveaway(variant.variantId, val)}
+                            onEditValues={onEditValues ? (updates) => onEditValues(variant.variantId, updates) : undefined}
                         />
                     ))}
                 </div>

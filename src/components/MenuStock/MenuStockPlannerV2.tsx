@@ -137,8 +137,7 @@ export const MenuStockPlannerV2: React.FC = () => {
             toShopQty: newToShop,
             wasteQty: newWaste,      // ✅ Preserved / Updated
             eatQty: newEat,          // ✅ FIX: Preserved / Updated
-            giveawayQty: newGiveaway,// ✅ FIX: Preserved / Updated
-            soldQty: saved.soldQty   // ✅ Always Preserved
+            giveawayQty: newGiveaway // ✅ FIX: Preserved / Updated
         });
     };
 
@@ -181,8 +180,7 @@ export const MenuStockPlannerV2: React.FC = () => {
                         toShopQty: saved.toShopQty,
                         wasteQty: saved.wasteQty,
                         eatQty: saved.eatQty,
-                        giveawayQty: saved.giveawayQty,
-                        soldQty: saved.soldQty
+                        giveawayQty: saved.giveawayQty
                     };
                 } else if (type === 'send') {
                     // Logic: Send All Available
@@ -196,8 +194,7 @@ export const MenuStockPlannerV2: React.FC = () => {
                         toShopQty: saved.toShopQty + available, // Add available
                         wasteQty: saved.wasteQty,
                         eatQty: saved.eatQty,
-                        giveawayQty: saved.giveawayQty,
-                        soldQty: saved.soldQty
+                        giveawayQty: saved.giveawayQty
                     };
                 } else if (type === 'target') {
                     // Just a placeholder if we had a "Set Target" API
