@@ -334,6 +334,7 @@ export const MenuStockPlannerV3: React.FC = () => {
                                 onBulkProduce={(productId) => handleGroupBulkAction(productId, 'produce')}
                                 onBulkSend={(productId) => handleGroupBulkAction(productId, 'send')}
                                 onBulkTarget={(productId) => handleGroupBulkAction(productId, 'target')}
+                                onEditValues={(variantId, updates) => handleSingleAction(group.productId, variantId, updates, 'replace')}
                             />
                         ))}
                     </div>
