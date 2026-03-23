@@ -1007,9 +1007,11 @@ export const MenuStockPlanner: React.FC = () => {
                 const saved = getSavedRecord(item);
                 const stockYesterday = saved.stockYesterday ?? getYesterdayForItem(item);
                 const currentStock = stockYesterday + (saved.producedQty || 0);
+                const waste = (saved.wasteQty || 0) + (saved.eatQty || 0) + (saved.giveawayQty || 0);
+                const actualStock = currentStock - waste;
 
                 // Calculate how much more we need to reach target
-                const needed = Math.max(0, targetValue - currentStock);
+                const needed = Math.max(0, targetValue - actualStock);
 
                 if (needed > 0) {
                     // TODO: Refactor to Atomic Update or RPC to prevent Race Condition

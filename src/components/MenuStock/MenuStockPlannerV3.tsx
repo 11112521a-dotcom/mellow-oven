@@ -162,7 +162,7 @@ export const MenuStockPlannerV3: React.FC = () => {
                 let payload: any = null;
 
                 if (type === 'produce') {
-                    const waste = saved.wasteQty;
+                    const waste = (saved.wasteQty || 0) + (saved.eatQty || 0) + (saved.giveawayQty || 0);
                     const currentStock = variant.stockYesterday + saved.producedQty;
                     const actualStock = currentStock - waste;
                     const target = variant.dailyTarget;
