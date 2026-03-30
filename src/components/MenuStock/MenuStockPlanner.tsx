@@ -1142,24 +1142,37 @@ export const MenuStockPlanner: React.FC = () => {
                         </button>
                     </div>
 
-                    {/* Transfer */}
-                    <div className="flex items-center gap-1 bg-violet-50 rounded-lg px-2 py-1 flex-1 min-w-[140px]">
-                        <Truck size={14} className="text-violet-500" />
-                        <span className="text-xs text-violet-700">ส่ง</span>
-                        {confirmedTransfer > 0 && <span className="text-xs text-violet-600">+{confirmedTransfer}</span>}
-                        <input
-                            type="number"
-                            className="w-12 text-center text-sm font-bold bg-white border border-violet-200 rounded ml-auto"
-                            value={pendingTrans || ''}
-                            onChange={e => setPendingTransfer(prev => ({ ...prev, [item.id]: Math.max(0, parseInt(e.target.value) || 0) }))}
-                            placeholder="0"
-                        />
+                    {/* Transfer & Send All */}
+                    <div className="flex items-center gap-1 flex-1 min-w-[140px]">
+                        <div className="flex items-center gap-1 bg-violet-50 rounded-lg px-2 py-1 flex-1">
+                            <Truck size={14} className="text-violet-500" />
+                            <span className="text-xs text-violet-700">ส่ง</span>
+                            {confirmedTransfer > 0 && <span className="text-xs text-violet-600">+{confirmedTransfer}</span>}
+                            <input
+                                type="number"
+                                className="w-12 text-center text-sm font-bold bg-white border border-violet-200 rounded ml-auto"
+                                value={pendingTrans || ''}
+                                onChange={e => setPendingTransfer(prev => ({ ...prev, [item.id]: Math.max(0, parseInt(e.target.value) || 0) }))}
+                                placeholder="0"
+                            />
+                            <button
+                                onClick={() => handleTransferConfirm(item, pendingTrans)}
+                                disabled={pendingTrans <= 0}
+                                className="p-1 bg-violet-500 text-white rounded disabled:opacity-50"
+                            >
+                                <Check size={14} />
+                            </button>
+                        </div>
                         <button
-                            onClick={() => handleTransferConfirm(item, pendingTrans)}
-                            disabled={pendingTrans <= 0}
-                            className="p-1 bg-violet-500 text-white rounded disabled:opacity-50"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                openSendAllModal(item.productId, item.name, [item]);
+                            }}
+                            className="flex items-center gap-1 px-3 py-1.5 bg-gradient-to-r from-violet-500 to-purple-600 text-white text-xs rounded-lg font-medium hover:shadow-md transition-all whitespace-nowrap self-stretch"
+                            title="ส่งของที่เหลือทั้งหมด"
                         >
-                            <Check size={14} />
+                            <Truck size={14} />
+                            ส่งทั้งหมด
                         </button>
                     </div>
 
