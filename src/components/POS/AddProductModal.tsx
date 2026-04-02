@@ -59,7 +59,7 @@ export const AddProductModal: React.FC<AddProductModalProps> = ({ isOpen, onClos
                         animate={{ opacity: 1, scale: 1, y: 0 }}
                         exit={{ opacity: 0, scale: 0.95, y: 20 }}
                         transition={{ type: "spring", damping: 25, stiffness: 300 }}
-                        className="fixed inset-0 m-auto w-full max-w-2xl h-fit max-h-[90vh] bg-white rounded-3xl shadow-2xl z-[101] overflow-hidden flex flex-col"
+                        className="fixed inset-0 m-auto w-[95%] md:w-full max-w-2xl h-fit max-h-[90dvh] md:max-h-[85vh] bg-white rounded-3xl shadow-2xl z-[101] overflow-hidden flex flex-col"
                     >
                         {/* Header */}
                         <div className="p-6 border-b flex justify-between items-center bg-gradient-to-r from-cafe-50 to-emerald-50 relative overflow-hidden">
@@ -80,11 +80,11 @@ export const AddProductModal: React.FC<AddProductModalProps> = ({ isOpen, onClos
                         </div>
 
                         {/* Content */}
-                        <div className="p-8 overflow-y-auto flex-1 font-sans">
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                        <div className="p-5 md:p-8 overflow-y-auto flex-1 font-sans">
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8">
                                 {/* Left Col - Image Upload Placeholder */}
                                 <div className="md:col-span-1">
-                                    <div className="aspect-square bg-slate-50 border-2 border-dashed border-slate-200 rounded-2xl flex flex-col items-center justify-center text-slate-400 group hover:bg-slate-100 hover:border-cafe-300 transition-colors cursor-pointer">
+                                    <div className="h-40 md:h-auto md:aspect-square bg-slate-50 border-2 border-dashed border-slate-200 rounded-2xl flex flex-col items-center justify-center text-slate-400 group hover:bg-slate-100 hover:border-cafe-300 transition-colors cursor-pointer">
                                         <div className="w-16 h-16 bg-white rounded-full shadow-sm flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
                                             <ImageIcon size={28} className="text-slate-300 group-hover:text-cafe-500" />
                                         </div>
@@ -178,7 +178,7 @@ export const AddProductModal: React.FC<AddProductModalProps> = ({ isOpen, onClos
                         </div>
 
                         {/* Footer */}
-                        <div className="p-6 border-t bg-gray-50 flex justify-end gap-3 flex-shrink-0">
+                        <div className="p-4 md:p-6 border-t bg-gray-50 flex justify-end gap-3 flex-shrink-0">
                             <button
                                 onClick={onClose}
                                 className="px-6 py-2.5 rounded-xl font-bold text-gray-500 hover:text-gray-700 hover:bg-gray-200/50 transition-colors"
