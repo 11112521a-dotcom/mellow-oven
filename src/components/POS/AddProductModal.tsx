@@ -43,14 +43,14 @@ export const AddProductModal: React.FC<AddProductModalProps> = ({ isOpen, onClos
     return (
         <AnimatePresence>
             {isOpen && (
-                <>
+                <div className="fixed inset-0 z-[101] flex items-center justify-center p-4 pointer-events-none">
                     {/* Backdrop */}
                     <motion.div
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
                         onClick={onClose}
-                        className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[100] flex items-center justify-center p-4"
+                        className="absolute inset-0 bg-black/40 backdrop-blur-sm pointer-events-auto"
                     />
 
                     {/* Modal */}
@@ -59,7 +59,7 @@ export const AddProductModal: React.FC<AddProductModalProps> = ({ isOpen, onClos
                         animate={{ opacity: 1, scale: 1, y: 0 }}
                         exit={{ opacity: 0, scale: 0.95, y: 20 }}
                         transition={{ type: "spring", damping: 25, stiffness: 300 }}
-                        className="fixed inset-0 m-auto w-[95%] md:w-full max-w-2xl h-fit max-h-[90dvh] md:max-h-[85vh] bg-white rounded-3xl shadow-2xl z-[101] overflow-hidden flex flex-col"
+                        className="relative w-full max-w-2xl max-h-[95dvh] md:max-h-[85vh] bg-white rounded-3xl shadow-2xl overflow-hidden flex flex-col z-10 pointer-events-auto"
                     >
                         {/* Header */}
                         <div className="p-6 border-b flex justify-between items-center bg-gradient-to-r from-cafe-50 to-emerald-50 relative overflow-hidden">
@@ -80,7 +80,7 @@ export const AddProductModal: React.FC<AddProductModalProps> = ({ isOpen, onClos
                         </div>
 
                         {/* Content */}
-                        <div className="p-5 md:p-8 overflow-y-auto flex-1 font-sans">
+                        <div className="p-5 md:p-8 overflow-y-auto flex-1 min-h-0 font-sans">
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8">
                                 {/* Left Col - Image Upload Placeholder */}
                                 <div className="md:col-span-1">
@@ -198,7 +198,7 @@ export const AddProductModal: React.FC<AddProductModalProps> = ({ isOpen, onClos
                             </button>
                         </div>
                     </motion.div>
-                </>
+                </div>
             )}
         </AnimatePresence>
     );
