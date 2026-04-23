@@ -154,15 +154,24 @@ export const createInventorySlice: StateCreator<AppState, [], [], InventorySlice
             .from('daily_inventory')
             .select('*')
             .lte('business_date', date)
-            .gte('business_date', pastDateStr);
+            .gte('business_date', pastDateStr)
+            .order('created_at', { ascending: false }); // 🛡️ FIX: Always get newest first to prevent ghost data
 
         if (!error && data) {
             const mapped = data.map(mapDailyInventory);
+            
+            // 🛡️ DEDUPLICATE: Prevent race-condition duplicates from breaking the UI
+            const uniqueMapped = Array.from(mapped.reduce((acc, curr) => {
+                const key = `${curr.businessDate}-${curr.productId}-${curr.variantId || 'null'}`;
+                if (!acc.has(key)) acc.set(key, curr); // Keep the first (newest) one
+                return acc;
+            }, new Map()).values());
+
             set(state => {
                 const existingOutsideRange = state.dailyInventory.filter(d =>
                     d.businessDate > date || d.businessDate < pastDateStr
                 );
-                return { dailyInventory: [...existingOutsideRange, ...mapped] };
+                return { dailyInventory: [...existingOutsideRange, ...uniqueMapped] };
             });
         }
     },
@@ -174,16 +183,25 @@ export const createInventorySlice: StateCreator<AppState, [], [], InventorySlice
             .select('*')
             .gte('business_date', startDate)
             .lte('business_date', endDate)
-            .order('business_date', { ascending: true }); // Ensure ordered by date
+            .order('business_date', { ascending: true }) // Ensure ordered by date
+            .order('created_at', { ascending: false }); // 🛡️ FIX: Put newest duplicate first
 
         if (!error && data) {
             const mapped = data.map(mapDailyInventory);
+            
+            // 🛡️ DEDUPLICATE: Prevent race-condition duplicates from breaking the UI
+            const uniqueMapped = Array.from(mapped.reduce((acc, curr) => {
+                const key = `${curr.businessDate}-${curr.productId}-${curr.variantId || 'null'}`;
+                if (!acc.has(key)) acc.set(key, curr); // Keep the first (newest) one
+                return acc;
+            }, new Map()).values());
+
             set(state => {
                 // Remove existing records in this range to avoid duplicates before merging
                 const existingOutsideRange = state.dailyInventory.filter(d =>
                     d.businessDate < startDate || d.businessDate > endDate
                 );
-                return { dailyInventory: [...existingOutsideRange, ...mapped] };
+                return { dailyInventory: [...existingOutsideRange, ...uniqueMapped] };
             });
         }
     },
@@ -195,7 +213,9 @@ export const createInventorySlice: StateCreator<AppState, [], [], InventorySlice
         if (record.variantId) query = query.eq('variant_id', record.variantId);
         else query = query.is('variant_id', null);
 
-        const { data: existingData } = await query.single();
+        // 🛡️ FIX: Use .limit(1) instead of .single() to gracefully handle race-condition duplicates in DB
+        const { data: existingRecords } = await query.order('created_at', { ascending: false }).limit(1);
+        const existingData = existingRecords?.[0];
 
         // 🛡️ MERGE WITH EXISTING DATA (Prevents Stale State Overwrites)
         const stockYesterday = record.stockYesterday ?? existingData?.stock_yesterday ?? 0;
