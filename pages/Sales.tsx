@@ -31,35 +31,41 @@ const Sales: React.FC = () => {
                     </div>
 
                     {/* Mode Switcher */}
-                    <div className="flex bg-white/80 backdrop-blur-sm p-1.5 rounded-2xl border border-amber-100 shadow-sm">
+                    <div className="flex bg-white/80 backdrop-blur-sm p-1 rounded-2xl border border-amber-100 shadow-sm gap-1">
                         <button
                             onClick={() => setMode('LOG')}
-                            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 ${mode === 'LOG'
+                            className={`flex items-center justify-center gap-2 px-4 py-3 sm:py-2.5 rounded-xl text-sm font-medium transition-all duration-200 min-h-[44px] sm:min-h-0 ${mode === 'LOG'
                                 ? 'bg-amber-500 text-white shadow-md shadow-amber-200'
                                 : 'text-stone-500 hover:bg-amber-50 hover:text-stone-700'
                                 }`}
+                            title="บันทึกยอดขายรายวัน"
+                            aria-label="บันทึกยอดขายรายวัน"
                         >
-                            <ClipboardList size={16} />
+                            <ClipboardList size={18} />
                             <span className="hidden sm:inline">บันทึกยอด</span>
                         </button>
                         <button
                             onClick={() => setMode('MENU')}
-                            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 ${mode === 'MENU'
+                            className={`flex items-center justify-center gap-2 px-4 py-3 sm:py-2.5 rounded-xl text-sm font-medium transition-all duration-200 min-h-[44px] sm:min-h-0 ${mode === 'MENU'
                                 ? 'bg-amber-500 text-white shadow-md shadow-amber-200'
                                 : 'text-stone-500 hover:bg-amber-50 hover:text-stone-700'
                                 }`}
+                            title="จัดการเมนูและสูตรผลิต"
+                            aria-label="จัดการเมนูและสูตรผลิต"
                         >
-                            <Settings size={16} />
+                            <Settings size={18} />
                             <span className="hidden sm:inline">จัดการเมนู</span>
                         </button>
                         <button
                             onClick={() => setMode('MARKET')}
-                            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 ${mode === 'MARKET'
+                            className={`flex items-center justify-center gap-2 px-4 py-3 sm:py-2.5 rounded-xl text-sm font-medium transition-all duration-200 min-h-[44px] sm:min-h-0 ${mode === 'MARKET'
                                 ? 'bg-amber-500 text-white shadow-md shadow-amber-200'
                                 : 'text-stone-500 hover:bg-amber-50 hover:text-stone-700'
                                 }`}
+                            title="จัดการตลาดและช่องทางการขาย"
+                            aria-label="จัดการตลาดและช่องทางการขาย"
                         >
-                            <Store size={16} />
+                            <Store size={18} />
                             <span className="hidden sm:inline">จัดการตลาด</span>
                         </button>
                     </div>

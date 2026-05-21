@@ -286,5 +286,22 @@ export const createProductsSlice: StateCreator<AppState, [], [], ProductsSlice> 
             console.error('Error in deleteForecastsByDate:', error);
             throw error;
         }
+    },
+
+    generateAutoForecasts: async (targetDate) => {
+        // Logic to be executed by a background worker or App.tsx
+        // Here we just prepare the stub. The actual logic will be called in a component or we can dynamic import the forecast module to avoid circular dependency.
+        const store = get();
+        // Skip if no target date provided, default to tomorrow
+        if (!targetDate) {
+            const tmr = new Date();
+            tmr.setDate(tmr.getDate() + 1);
+            targetDate = tmr.toISOString().split('T')[0];
+        }
+        
+        // Let the UI/Background component handle the heavy forecasting logic 
+        // using the store's saveForecast and marketSchedules to avoid circular imports 
+        // of fetchWeatherForecast etc. inside the store.
+        console.log(`[AutoForecast] Target date: ${targetDate}`);
     }
 });

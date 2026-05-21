@@ -322,12 +322,12 @@ const DetailModal: React.FC<DetailModalProps> = ({
                     {/* Backdrop */}
                     <div
                         onClick={onClose}
-                        className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[100] flex items-center justify-center p-4 transition-opacity"
+                        className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[100] flex items-end md:items-center justify-center p-0 md:p-4 transition-opacity"
                     />
 
                     {/* Modal */}
                     <div
-                        className="fixed inset-0 m-auto w-full max-w-xl h-fit max-h-[90vh] bg-white rounded-3xl shadow-2xl z-[101] overflow-hidden flex flex-col"
+                        className="fixed inset-x-0 bottom-0 md:inset-0 m-auto w-full md:max-w-xl h-[85vh] md:h-fit md:max-h-[90vh] bg-white rounded-t-3xl md:rounded-3xl shadow-2xl z-[101] overflow-hidden flex flex-col animate-in slide-in-from-bottom-10 md:zoom-in-95 duration-200"
                     >
                         {/* Header */}
                         <div className="p-6 border-b flex justify-between items-center bg-gradient-to-r from-cafe-50 to-amber-50 flex-shrink-0">
@@ -350,7 +350,7 @@ const DetailModal: React.FC<DetailModalProps> = ({
                             </div>
                             <button
                                 onClick={onClose}
-                                className="p-2 hover:bg-white rounded-full border shadow-sm transition-colors"
+                                className="p-2.5 min-w-[44px] min-h-[44px] hover:bg-white rounded-full border shadow-sm transition-colors flex items-center justify-center"
                                 aria-label="ปิด"
                             >
                                 <X size={20} />
@@ -358,7 +358,7 @@ const DetailModal: React.FC<DetailModalProps> = ({
                         </div>
 
                         {/* Tabs Navigation */}
-                        <div className="flex border-b px-6 gap-6 flex-shrink-0">
+                        <div className="flex border-b px-4 md:px-6 gap-2 md:gap-6 overflow-x-auto scrollbar-none flex-shrink-0">
                             {[
                                 { id: 'info' as const, icon: Info, label: 'ข้อมูลทั่วไป' },
                                 { id: 'variants' as const, icon: Layers, label: 'ตัวเลือกสินค้า' },
@@ -367,7 +367,7 @@ const DetailModal: React.FC<DetailModalProps> = ({
                                 <button
                                     key={tab.id}
                                     onClick={() => setActiveTab(tab.id)}
-                                    className={`py-4 text-sm font-medium flex items-center gap-2 border-b-2 transition-colors ${activeTab === tab.id
+                                    className={`py-4 text-sm font-medium flex items-center gap-2 border-b-2 transition-colors flex-shrink-0 ${activeTab === tab.id
                                         ? 'border-cafe-600 text-cafe-600'
                                         : 'border-transparent text-gray-400 hover:text-gray-600'
                                         }`}
@@ -391,17 +391,17 @@ const DetailModal: React.FC<DetailModalProps> = ({
                                             type="text"
                                             value={name}
                                             onChange={(e) => { setName(e.target.value); setHasChanges(true); }}
-                                            className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-cafe-500 focus:border-cafe-500 outline-none"
+                                            className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-cafe-500 focus:border-cafe-500 outline-none text-base md:text-sm"
                                         />
                                     </div>
-                                    <div className="grid grid-cols-2 gap-4">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                         <div>
                                             <label className="block text-sm font-medium text-gray-700 mb-1">ราคาขาย</label>
                                             <input
                                                 type="number"
                                                 value={price}
                                                 onChange={(e) => { setPrice(e.target.value); setHasChanges(true); }}
-                                                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-cafe-500 focus:border-cafe-500 outline-none"
+                                                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-cafe-500 focus:border-cafe-500 outline-none text-base md:text-sm"
                                             />
                                         </div>
                                         <div>
@@ -411,18 +411,18 @@ const DetailModal: React.FC<DetailModalProps> = ({
                                                 value={recipe ? recipe.costPerUnit.toFixed(2) : cost}
                                                 readOnly={!!recipe}
                                                 onChange={(e) => { setCost(e.target.value); setHasChanges(true); }}
-                                                className={`w-full px-4 py-2.5 border border-gray-200 rounded-xl outline-none ${recipe ? 'bg-gray-100 text-gray-500' : 'focus:ring-2 focus:ring-cafe-500 focus:border-cafe-500'}`}
+                                                className={`w-full px-4 py-2.5 border border-gray-200 rounded-xl outline-none text-base md:text-sm ${recipe ? 'bg-gray-100 text-gray-500' : 'focus:ring-2 focus:ring-cafe-500 focus:border-cafe-500'}`}
                                             />
                                         </div>
                                     </div>
-                                    <div className="grid grid-cols-2 gap-4">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                         <div>
                                             <label className="block text-sm font-medium text-gray-700 mb-1">หมวดหมู่</label>
                                             <input
                                                 type="text"
                                                 value={category}
                                                 onChange={(e) => { setCategory(e.target.value); setHasChanges(true); }}
-                                                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-cafe-500 focus:border-cafe-500 outline-none"
+                                                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-cafe-500 focus:border-cafe-500 outline-none text-base md:text-sm"
                                                 placeholder="Cake, Bakery, Coffee..."
                                             />
                                         </div>
@@ -432,7 +432,7 @@ const DetailModal: React.FC<DetailModalProps> = ({
                                                 type="text"
                                                 value={flavor}
                                                 onChange={(e) => { setFlavor(e.target.value); setHasChanges(true); }}
-                                                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-cafe-500 focus:border-cafe-500 outline-none"
+                                                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-cafe-500 focus:border-cafe-500 outline-none text-base md:text-sm"
                                                 placeholder="Chocolate, Plain..."
                                             />
                                         </div>
@@ -455,12 +455,12 @@ const DetailModal: React.FC<DetailModalProps> = ({
                                     {localVariants.map((variant) => (
                                         <div
                                             key={variant.id}
-                                            className={`flex items-center justify-between p-4 rounded-2xl border transition-all ${variant.isActive !== false
+                                            className={`flex flex-col sm:flex-row sm:items-center justify-between p-3.5 sm:p-4 rounded-2xl border gap-3 sm:gap-4 transition-all ${variant.isActive !== false
                                                 ? 'border-gray-100 bg-white'
                                                 : 'border-gray-50 bg-gray-50/50 opacity-70'
                                                 }`}
                                         >
-                                            <div className="flex items-center gap-4">
+                                            <div className="flex items-center gap-3 sm:gap-4">
                                                 <div className={`p-2 rounded-full ${variant.isActive !== false
                                                     ? 'text-emerald-500 bg-emerald-50'
                                                     : 'text-gray-300 bg-gray-100'
@@ -479,45 +479,47 @@ const DetailModal: React.FC<DetailModalProps> = ({
                                                     </p>
                                                 </div>
                                             </div>
-                                            <div className="flex items-center gap-4">
-                                                <button className="text-[10px] font-bold text-cafe-600 hover:underline">
+                                            <div className="flex items-center justify-between sm:justify-end gap-4 w-full sm:w-auto border-t border-dashed border-gray-100 pt-3 sm:pt-0 sm:border-0">
+                                                <button className="text-xs sm:text-[10px] font-bold text-cafe-600 hover:underline min-h-[36px] flex items-center">
                                                     {variant.recipe ? 'แก้ไขสูตร' : 'สร้างสูตร'}
                                                 </button>
-                                                <ToggleSwitch
-                                                    active={variant.isActive !== false}
-                                                    onToggle={() => handleLocalToggleVariant(variant.id)}
-                                                    size="sm"
-                                                />
-                                                <button
-                                                    onClick={() => handleRemoveVariant(variant.id)}
-                                                    className="text-gray-300 hover:text-red-400"
-                                                    aria-label={`ลบ ${variant.name}`}
-                                                >
-                                                    <Trash2 size={16} />
-                                                </button>
+                                                <div className="flex items-center gap-3">
+                                                    <ToggleSwitch
+                                                        active={variant.isActive !== false}
+                                                        onToggle={() => handleLocalToggleVariant(variant.id)}
+                                                        size="sm"
+                                                    />
+                                                    <button
+                                                        onClick={() => handleRemoveVariant(variant.id)}
+                                                        className="text-gray-300 hover:text-red-400 p-2 min-h-[40px] min-w-[40px] flex items-center justify-center hover:bg-red-50 rounded-lg transition-colors"
+                                                        aria-label={`ลบ ${variant.name}`}
+                                                    >
+                                                        <Trash2 size={16} />
+                                                    </button>
+                                                </div>
                                             </div>
                                         </div>
                                     ))}
 
                                     {/* Add New Variant */}
-                                    <div className="flex gap-2 mt-4">
+                                    <div className="flex flex-col sm:flex-row gap-2 mt-4">
                                         <input
                                             type="text"
                                             value={newVariantName}
                                             onChange={(e) => setNewVariantName(e.target.value)}
                                             placeholder="ชื่อตัวเลือก (เช่น ส้ม)"
-                                            className="flex-1 px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-cafe-500 focus:border-cafe-500 outline-none"
+                                            className="flex-1 px-4 py-2.5 border border-gray-200 rounded-xl text-base md:text-sm focus:ring-2 focus:ring-cafe-500 focus:border-cafe-500 outline-none"
                                         />
                                         <input
                                             type="number"
                                             value={newVariantPrice}
                                             onChange={(e) => setNewVariantPrice(e.target.value)}
                                             placeholder="ราคา"
-                                            className="w-24 px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-cafe-500 focus:border-cafe-500 outline-none"
+                                            className="w-full sm:w-28 px-4 py-2.5 border border-gray-200 rounded-xl text-base md:text-sm focus:ring-2 focus:ring-cafe-500 focus:border-cafe-500 outline-none"
                                         />
                                         <button
                                             onClick={handleAddVariant}
-                                            className="px-5 py-2.5 bg-cafe-600 text-white rounded-xl text-sm font-bold hover:bg-cafe-700 transition-colors"
+                                            className="px-5 py-3 sm:py-2.5 bg-cafe-600 text-white rounded-xl text-base md:text-sm font-bold hover:bg-cafe-700 transition-colors w-full sm:w-auto"
                                         >
                                             เพิ่ม
                                         </button>
@@ -639,7 +641,7 @@ export const MenuManager2: React.FC = () => {
     return (
         <div className="min-h-full bg-gradient-to-br from-slate-50 to-stone-100 pb-20">
             {/* Header */}
-            <header className="bg-white border-b px-6 py-4 sticky top-0 z-50 shadow-sm">
+            <header className="bg-white border-b px-4 md:px-6 py-4 sticky top-[56px] md:top-0 z-40 shadow-sm bg-white/95 backdrop-blur-sm">
                 <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div>
                         <h1 className="text-2xl font-black tracking-tight text-slate-800 flex items-center gap-2">
@@ -649,14 +651,14 @@ export const MenuManager2: React.FC = () => {
                         <p className="text-xs text-slate-400 mt-0.5">บริหารจัดการเมนูและตัวเลือกสินค้าทั้งหมดของคุณ</p>
                     </div>
 
-                    <div className="flex gap-3">
+                    <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
                         {/* Search */}
-                        <div className="relative">
+                        <div className="relative w-full sm:w-64">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                             <input
                                 type="text"
                                 placeholder="ค้นหาเมนู..."
-                                className="pl-10 pr-4 py-2.5 bg-slate-100 border-transparent rounded-xl text-sm focus:bg-white focus:ring-2 focus:ring-cafe-500/20 focus:border-cafe-500 w-full md:w-64 transition-all outline-none"
+                                className="pl-10 pr-4 py-2.5 bg-slate-100 border-transparent rounded-xl text-base md:text-sm focus:bg-white focus:ring-2 focus:ring-cafe-500/20 focus:border-cafe-500 w-full transition-all outline-none"
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
                             />
@@ -664,7 +666,7 @@ export const MenuManager2: React.FC = () => {
                         {/* Add Button */}
                         <button
                             onClick={() => setShowAddModal(true)}
-                            className="flex items-center gap-2 bg-cafe-600 text-white px-5 py-2.5 rounded-xl text-sm font-bold shadow-lg shadow-cafe-100 hover:bg-cafe-700 transition-all active:scale-95"
+                            className="flex items-center justify-center gap-2 bg-cafe-600 text-white px-5 py-2.5 rounded-xl text-base md:text-sm font-bold shadow-lg shadow-cafe-100 hover:bg-cafe-700 transition-all active:scale-95 w-full sm:w-auto"
                         >
                             <Plus size={18} /> เพิ่มเมนูใหม่
                         </button>

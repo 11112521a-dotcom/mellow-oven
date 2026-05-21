@@ -5,6 +5,7 @@ import { calculateWeatherImpact, applyWeatherAdjustment, WeatherCondition } from
 import { calculateOptimalQuantity, NewsvendorParams, DistributionParams } from './newsvendorModel';
 import { poissonCDF, calculateMean, calculateVariance, negativeBinomialCDF } from './statisticalUtils';
 import { calculateSeasonalityFactors, applySeasonalityFactors, SeasonalityFactors } from './autoSeasonality';
+import { buildMarketProfile } from './marketProfile';
 export { calculateDailyProduction, runBatchCalculatorTests, calculateStockTransfer, runStockTransferTests, runAllProductionTests } from './batchCalculator';
 export type { BatchCalculationInput, BatchCalculationResult, StockTransferInput, StockTransferResult } from './batchCalculator';
 
@@ -141,25 +142,56 @@ export async function calculateOptimalProduction(
             };
         }
 
-        // STEP 2: Baseline Forecast
-        // NEW: Prefer same-day average if available, else use Holt-Winters on all data
+        // STEP 2: Baseline Forecast (God-Tier AI: Bayesian + Ensemble Model)
         let baselineForecast: number;
-        if (sameDayData.length >= 2) {
-            // Use same-day-of-week average (more relevant for weekly patterns)
-            baselineForecast = stats.sameDayAverage;
-        } else if (cleanedData.length >= 3) {
-            // Use Holt-Winters for smoothing
-            baselineForecast = calculateBaselineForecast(cleanedData);
+        
+        // 1. Bayesian Prior (Global Average or Safe Default)
+        const priorMean = stats.averageSales > 0 ? stats.averageSales : 10;
+        const priorWeight = 2; // Equivalent to 2 days of prior confidence
+        
+        // 2. Bayesian Posterior (Specific Day)
+        let bayesianForecast = priorMean;
+        if (sameDayData.length > 0) {
+            const sumObservations = sameDayData.reduce((sum, d) => sum + d.qtyCleaned, 0);
+            bayesianForecast = (priorMean * priorWeight + sumObservations) / (priorWeight + sameDayData.length);
+        }
+        
+        // 3. Holt-Winters (Trend/Momentum)
+        let holtWintersForecast = bayesianForecast;
+        if (cleanedData.length >= 3) {
+            holtWintersForecast = calculateBaselineForecast(cleanedData);
+        }
+        
+        // 4. Ensemble Voting System
+        if (sameDayData.length >= 3 && cleanedData.length >= 7) {
+            // Lots of data: 60% Bayesian (Day Specific), 40% Holt-Winters (Recent Trend)
+            baselineForecast = (bayesianForecast * 0.6) + (holtWintersForecast * 0.4);
+        } else if (sameDayData.length >= 1) {
+            // Moderate data: Lean heavily on Bayesian to prevent wild swings
+            baselineForecast = (bayesianForecast * 0.8) + (holtWintersForecast * 0.2);
         } else {
-            // Simple average for 1-2 data points
-            baselineForecast = stats.averageSales;
+            // No same-day data: Trust the general trend
+            baselineForecast = holtWintersForecast;
         }
 
+        // Build market profile to extract dynamically learned weather factors as a fallback
+        const marketProfile = buildMarketProfile(
+            input.marketId,
+            input.marketName || '',
+            input.productSales
+        );
+        const marketWeatherFactors = marketProfile.weatherFactors;
+
         // STEP 3: Weather Adjustment
-        const weatherImpact = cleanedData.length >= 3 ? calculateWeatherImpact(cleanedData) : null;
+        const weatherImpact = cleanedData.length >= 3 
+            ? calculateWeatherImpact(cleanedData, marketWeatherFactors) 
+            : null;
         const weatherAdjustedForecast = weatherImpact
             ? applyWeatherAdjustment(baselineForecast, input.weatherForecast, weatherImpact)
-            : baselineForecast * (input.weatherForecast === 'rain' ? 0.7 : input.weatherForecast === 'storm' ? 0.4 : 1.0);
+            : baselineForecast * (
+                marketWeatherFactors?.[input.weatherForecast] ?? 
+                (input.weatherForecast === 'rain' ? 0.7 : input.weatherForecast === 'storm' ? 0.4 : 1.0)
+            );
 
         // 🆕 STEP 4: Auto-Seasonality (Self-Learning Multipliers)
         // Calculate dynamic factors from historical data
@@ -305,7 +337,8 @@ export async function calculateOptimalProduction(
                 expectedCost,
                 expectedProfit
             },
-            cleaningStats: stats
+            cleaningStats: stats,
+            seasonalityFactors
         };
 
     } catch (error) {

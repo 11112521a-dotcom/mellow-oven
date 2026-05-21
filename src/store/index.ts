@@ -78,6 +78,10 @@ export const useStore = create<AppState>()(
                 const { data: bundleItemsData } = await supabase.from('bundle_items').select('*');
                 const { data: specialOrdersData } = await supabase.from('special_orders').select('*').order('delivery_date', { ascending: false });
                 const { data: specialOrderItemsData } = await supabase.from('special_order_items').select('*');
+                const { data: marketSchedulesData } = await supabase.from('market_schedules').select('*');
+                const { data: quotationsData } = await supabase.from('quotations').select('*').order('created_at', { ascending: false });
+                const { data: invoicesData } = await supabase.from('invoices').select('*').order('created_at', { ascending: false });
+                const { data: receiptsData } = await supabase.from('receipts').select('*').order('created_at', { ascending: false });
 
                 // Map snake_case from DB to camelCase for App
                 const mappedIngredients = ingredients?.map(i => ({
@@ -248,6 +252,74 @@ export const useStore = create<AppState>()(
                         }))
                 }));
 
+                // Map Market Schedules, Quotations, Invoices, and Receipts
+                const mappedMarketSchedules = marketSchedulesData?.map(s => ({
+                    id: s.id,
+                    marketId: s.market_id,
+                    dayOfWeek: s.day_of_week,
+                    isActive: s.is_active,
+                    createdAt: s.created_at
+                })) || [];
+
+                const mappedQuotations = quotationsData?.map(row => ({
+                    id: row.id,
+                    quotationNumber: row.quotation_number || '',
+                    customerName: row.customer_name || '',
+                    customerAddress: row.customer_address || '',
+                    customerContact: row.customer_contact || '',
+                    customerPhone: row.customer_phone || '',
+                    orderId: row.order_id || null,
+                    items: row.items || [],
+                    subtotal: parseFloat(row.subtotal) || 0,
+                    discountAmount: parseFloat(row.discount_amount) || 0,
+                    discountNote: row.discount_note || '',
+                    totalPrice: parseFloat(row.total_price) || 0,
+                    totalPriceText: row.total_price_text || '',
+                    validityDays: row.validity_days || 30,
+                    conditions: row.conditions || '',
+                    status: row.status || 'draft',
+                    createdAt: row.created_at,
+                    updatedAt: row.updated_at
+                })) || [];
+
+                const mappedInvoices = invoicesData?.map(row => ({
+                    id: row.id,
+                    invoiceNumber: row.invoice_number,
+                    quotationId: row.quotation_id,
+                    customerName: row.customer_name,
+                    customerAddress: row.customer_address || '',
+                    customerContact: row.customer_contact || '',
+                    customerPhone: row.customer_phone || '',
+                    items: row.items || [],
+                    subtotal: parseFloat(row.subtotal) || 0,
+                    discountAmount: parseFloat(row.discount_amount) || 0,
+                    discountNote: row.discount_note || '',
+                    totalPrice: parseFloat(row.total_price) || 0,
+                    dueDate: row.due_date,
+                    paymentTerms: row.payment_terms || '',
+                    notes: row.notes || '',
+                    status: row.status,
+                    createdAt: row.created_at,
+                    updatedAt: row.updated_at
+                })) || [];
+
+                const mappedReceipts = receiptsData?.map(row => ({
+                    id: row.id,
+                    receiptNumber: row.receipt_number,
+                    quotationId: row.quotation_id,
+                    invoiceId: row.invoice_id,
+                    customerName: row.customer_name,
+                    customerAddress: row.customer_address || '',
+                    customerPhone: row.customer_phone || '',
+                    items: row.items || [],
+                    totalPrice: parseFloat(row.total_price) || 0,
+                    paymentMethod: row.payment_method,
+                    paymentDate: row.payment_date,
+                    paymentNote: row.payment_note || '',
+                    receivedBy: row.received_by || '',
+                    createdAt: row.created_at
+                })) || [];
+
                 // Find default profile ID from Supabase
                 const defaultProfile = allocationProfilesData?.find(p => p.is_default);
                 const dbDefaultProfileId = defaultProfile?.id || null;
@@ -313,6 +385,10 @@ export const useStore = create<AppState>()(
                         promotions: mappedPromotions,
                         bundles: mappedBundles,
                         specialOrders: mappedSpecialOrders,
+                        quotations: mappedQuotations,
+                        invoices: mappedInvoices,
+                        receipts: mappedReceipts,
+                        marketSchedules: mappedMarketSchedules,
                         jars: state.jars.map(jar => ({
                             ...jar,
                             balance: calculatedBalances[jar.id] || 0

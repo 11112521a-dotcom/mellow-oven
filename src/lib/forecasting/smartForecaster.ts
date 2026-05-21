@@ -51,6 +51,7 @@ export interface SmartForecastInput {
     historicalForecasts?: Array<{ productId: string; productName: string; marketId: string; forecastForDate: string; optimalQuantity: number; weatherForecast?: string }>;
     autoFetchWeather?: boolean;
     location?: string; // For weather API
+    weatherCondition?: WeatherCondition; // Custom override weather
 }
 
 export interface SmartForecastOutput extends ForecastOutput {
@@ -123,22 +124,31 @@ export async function calculateSmartForecast(
     const targetDayOfWeek = new Date(targetDate).getDay();
 
     // 1. Get base forecast from existing system
-    let weather: WeatherCondition = 'sunny';
+    let weather: WeatherCondition = input.weatherCondition || 'sunny';
     let weatherForecast: WeatherForecast | undefined;
 
-    // Optionally auto-fetch weather
-    if (autoFetchWeather) {
-        try {
-            const fetchedWeather = await fetchWeatherForecast(targetDate, location);
-            if (fetchedWeather) {
-                weatherForecast = fetchedWeather;
+    // Optionally auto-fetch weather, or retrieve ensemble metadata if overridden
+    try {
+        const fetchedWeather = await fetchWeatherForecast(targetDate, location);
+        if (fetchedWeather) {
+            weatherForecast = fetchedWeather;
+            if (!input.weatherCondition) {
                 weather = fetchedWeather.condition;
-                explanation.push(`🌤️ สภาพอากาศ: ${fetchedWeather.description} (${getWeatherEmoji(weather)})`);
+            } else if (fetchedWeather.condition !== input.weatherCondition) {
+                // Keep the fetched forecast details but override the specific condition for display
+                weatherForecast = {
+                    ...fetchedWeather,
+                    condition: input.weatherCondition,
+                    description: `ผู้ใช้ปรับสภาพอากาศเป็น: ${getWeatherEmoji(input.weatherCondition)} (${input.weatherCondition.toUpperCase()})`
+                };
             }
-        } catch (e) {
-            console.warn('Failed to fetch weather, using default');
         }
+    } catch (e) {
+        console.warn('[SmartForecaster] Failed to fetch ensemble weather forecast:', e);
     }
+
+    // Add weather explanation
+    explanation.push(`🌤️ สภาพอากาศ: ${weatherForecast?.description || weather} (${getWeatherEmoji(weather)})`);
 
     const baseForecastInput: ForecastInput = {
         product,
@@ -225,11 +235,14 @@ export async function calculateSmartForecast(
 
     // 5. Apply Market Profile adjustments
     const marketProfile = buildMarketProfile(marketId, marketName, productSales);
+    const isSeasonalityApplied = !!(baseForecast.seasonalityFactors && baseForecast.seasonalityFactors.confidence > 0.5);
     const marketAdj = getMarketAdjustment(
         smartQty,
         marketProfile,
         targetDayOfWeek,
-        calendarInfo.isPayday
+        calendarInfo.isPayday,
+        !isSeasonalityApplied, // applyWeekday
+        !isSeasonalityApplied  // applyPayday
     );
 
     const marketAdjustment = marketAdj.adjustedQty - smartQty;
@@ -254,9 +267,10 @@ export async function calculateSmartForecast(
 
     return {
         ...baseForecast,
+        optimalQuantity: smartQty, // Overwrite with smart adjusted quantity for seamless UI/DB saving integration
         smartAdjustedQuantity: smartQty,
         weatherForecast,
-        weatherFactor: getWeatherFactor(weather),
+        weatherFactor: marketProfile.weatherFactors?.[weather] ?? getWeatherFactor(weather),
         calendarFactors,
         upcomingEvents,
         seasonalityFactor,

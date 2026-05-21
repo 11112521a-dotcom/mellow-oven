@@ -60,17 +60,17 @@ const MarketCard: React.FC<MarketCardProps> = ({ market, stats, onEdit, onDelete
                     </div>
 
                     {/* Action Buttons - always visible on mobile, hover on desktop */}
-                    <div className="flex gap-1 opacity-100 sm:opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="flex gap-2 opacity-100 sm:opacity-0 group-hover:opacity-100 transition-opacity">
                         <button
                             onClick={() => onEdit(market)}
-                            className="p-2 bg-stone-50 text-stone-500 hover:bg-blue-50 hover:text-blue-600 rounded-lg transition-colors"
+                            className="p-2.5 min-w-[40px] min-h-[40px] flex items-center justify-center bg-stone-50 text-stone-500 hover:bg-blue-50 hover:text-blue-600 rounded-lg transition-colors"
                             title="แก้ไข"
                         >
                             <Edit2 size={15} />
                         </button>
                         <button
                             onClick={() => onDelete(market)}
-                            className="p-2 bg-stone-50 text-stone-500 hover:bg-red-50 hover:text-red-500 rounded-lg transition-colors"
+                            className="p-2.5 min-w-[40px] min-h-[40px] flex items-center justify-center bg-stone-50 text-stone-500 hover:bg-red-50 hover:text-red-500 rounded-lg transition-colors"
                             title="ลบ"
                         >
                             <Trash2 size={15} />
@@ -273,7 +273,7 @@ export const MarketManager: React.FC = () => {
     return (
         <div className="min-h-full pb-20">
             {/* ======= HEADER ======= */}
-            <header className="bg-white border-b border-stone-200 px-6 py-5 sticky top-0 z-40 shadow-sm">
+            <header className="bg-white border-b border-stone-200 px-4 md:px-6 py-5 sticky top-[56px] md:top-0 z-30 shadow-sm bg-white/95 backdrop-blur-sm">
                 <div className="max-w-7xl mx-auto">
                     <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                         <div className="flex items-center gap-4">
@@ -291,22 +291,22 @@ export const MarketManager: React.FC = () => {
                             </div>
                         </div>
 
-                        <div className="flex gap-3">
+                        <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
                             {/* Search */}
-                            <div className="relative">
+                            <div className="relative w-full sm:w-56">
                                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" size={16} />
                                 <input
                                     type="text"
                                     placeholder="ค้นหาตลาด..."
                                     value={searchQuery}
                                     onChange={e => setSearchQuery(e.target.value)}
-                                    className="pl-9 pr-4 py-2.5 bg-stone-100 border-transparent rounded-xl text-sm focus:bg-white focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 w-full md:w-56 transition-all outline-none"
+                                    className="pl-9 pr-4 py-2.5 bg-stone-100 border-transparent rounded-xl text-base md:text-sm focus:bg-white focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 w-full transition-all outline-none"
                                 />
                             </div>
                             {/* Add Button */}
                             <button
                                 onClick={handleOpenAdd}
-                                className="flex items-center gap-2 bg-gradient-to-r from-violet-500 to-purple-600 text-white px-5 py-2.5 rounded-xl text-sm font-bold shadow-lg shadow-violet-100 hover:shadow-xl hover:-translate-y-0.5 transition-all active:translate-y-0"
+                                className="flex items-center justify-center gap-2 bg-gradient-to-r from-violet-500 to-purple-600 text-white px-5 py-2.5 rounded-xl text-base md:text-sm font-bold shadow-lg shadow-violet-100 hover:shadow-xl hover:-translate-y-0.5 transition-all active:translate-y-0 w-full sm:w-auto"
                             >
                                 <Plus size={18} />
                                 เพิ่มตลาดใหม่
@@ -420,7 +420,7 @@ export const MarketManager: React.FC = () => {
                             required
                             value={formData.name}
                             onChange={e => setFormData({ ...formData, name: e.target.value })}
-                            className="w-full p-3 border border-stone-200 rounded-xl focus:ring-2 focus:ring-violet-500 focus:border-violet-500 outline-none text-stone-800 font-medium"
+                            className="w-full p-3 border border-stone-200 rounded-xl focus:ring-2 focus:ring-violet-500 focus:border-violet-500 outline-none text-stone-800 font-medium text-base md:text-sm"
                             placeholder="เช่น ตลาดนัดรถไฟ, ตลาดเช้า..."
                         />
                     </div>
@@ -432,7 +432,7 @@ export const MarketManager: React.FC = () => {
                         <input
                             value={formData.location}
                             onChange={e => setFormData({ ...formData, location: e.target.value })}
-                            className="w-full p-3 border border-stone-200 rounded-xl focus:ring-2 focus:ring-violet-500 focus:border-violet-500 outline-none text-stone-800 font-medium"
+                            className="w-full p-3 border border-stone-200 rounded-xl focus:ring-2 focus:ring-violet-500 focus:border-violet-500 outline-none text-stone-800 font-medium text-base md:text-sm"
                             placeholder="เช่น หลังห้างโลตัส, ถนนเจริญกรุง..."
                         />
                     </div>
@@ -441,7 +441,7 @@ export const MarketManager: React.FC = () => {
                         <textarea
                             value={formData.description}
                             onChange={e => setFormData({ ...formData, description: e.target.value })}
-                            className="w-full p-3 border border-stone-200 rounded-xl focus:ring-2 focus:ring-violet-500 focus:border-violet-500 outline-none text-stone-800"
+                            className="w-full p-3 border border-stone-200 rounded-xl focus:ring-2 focus:ring-violet-500 focus:border-violet-500 outline-none text-stone-800 text-base md:text-sm"
                             placeholder="เช่น ขายดีช่วงเย็น, เปิดเฉพาะวันเสาร์-อาทิตย์..."
                             rows={2}
                         />
@@ -451,13 +451,13 @@ export const MarketManager: React.FC = () => {
                             <Palette size={14} />
                             สีประจำตลาด (สำหรับกราฟ)
                         </label>
-                        <div className="grid grid-cols-8 gap-2 p-3 bg-stone-50 rounded-xl">
+                        <div className="grid grid-cols-6 sm:grid-cols-8 gap-2.5 p-3 bg-stone-50 rounded-xl">
                             {colorOptions.map(({ color, name }) => (
                                 <button
                                     key={color}
                                     type="button"
                                     onClick={() => setFormData({ ...formData, color })}
-                                    className={`w-8 h-8 rounded-lg border-2 transition-all hover:scale-110 ${formData.color === color ? 'border-stone-800 scale-110 shadow-lg ring-2 ring-offset-1 ring-stone-400' : 'border-white/50'}`}
+                                    className={`w-9 h-9 sm:w-8 sm:h-8 rounded-lg border-2 transition-all hover:scale-110 ${formData.color === color ? 'border-stone-800 scale-110 shadow-lg ring-2 ring-offset-1 ring-stone-400' : 'border-white/50'}`}
                                     style={{ backgroundColor: color }}
                                     title={name}
                                 />

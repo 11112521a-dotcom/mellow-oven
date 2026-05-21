@@ -352,34 +352,42 @@ export function calculateEnhancedMarketData(
         };
     });
 
+    const resultMetrics = {
+        revenue: marketRevenue,
+        profit: marketProfit,
+        cost: marketCost,
+        soldQty: marketSoldQty,
+        margin: avgMargin,
+        transactionCount: marketSales.length,
+        revenuePerDay: activeDays > 0 ? marketRevenue / activeDays : 0,
+        profitPerDay: activeDays > 0 ? marketProfit / activeDays : 0,
+        activeDays,
+        itemsPerTransaction: itemsPerTx,
+        uniqueProductCount: allProducts.length,
+        marketName: marketName,
+        marketContribution: totalRevenue > 0 ? (marketRevenue / totalRevenue) * 100 : 0,
+        marketId: marketId,
+        avgTransactionValue: marketSales.length > 0 ? marketRevenue / marketSales.length : 0
+    };
+
+    const resultIntelligence = {
+        topProducts: allProducts.slice(0, 5),
+        lowMarginProducts: allProducts.filter(p => p.margin < 20).sort((a, b) => a.margin - b.margin),
+        highMarginStars: allProducts.filter(p => p.margin > 40),
+        allProducts
+    };
+
+    const smartInsights = generateMarketInsights(resultMetrics, resultIntelligence, dayOfWeekAnalysis, dailyBreakdown);
+    const combinedInsights = [...insights, ...smartInsights];
+    const uniqueInsights = Array.from(new Map(combinedInsights.map(item => [item.id, item])).values());
+
     return {
-        metrics: {
-            revenue: marketRevenue,
-            profit: marketProfit,
-            cost: marketCost,
-            soldQty: marketSoldQty,
-            margin: avgMargin,
-            transactionCount: marketSales.length,
-            revenuePerDay: activeDays > 0 ? marketRevenue / activeDays : 0,
-            profitPerDay: activeDays > 0 ? marketProfit / activeDays : 0,
-            activeDays,
-            itemsPerTransaction: itemsPerTx,
-            uniqueProductCount: allProducts.length,
-            marketName: marketName,
-            marketContribution: totalRevenue > 0 ? (marketRevenue / totalRevenue) * 100 : 0,
-            marketId: marketId,
-            avgTransactionValue: marketSales.length > 0 ? marketRevenue / marketSales.length : 0
-        },
-        productIntelligence: {
-            topProducts: allProducts.slice(0, 5),
-            lowMarginProducts: allProducts.filter(p => p.margin < 20).sort((a, b) => a.margin - b.margin),
-            highMarginStars: allProducts.filter(p => p.margin > 40),
-            allProducts
-        },
+        metrics: resultMetrics,
+        productIntelligence: resultIntelligence,
         dailyBreakdown,
         dayOfWeekAnalysis,
         dateRange: { from: fromDate, to: toDate },
-        insights
+        insights: uniqueInsights
     };
 }
 

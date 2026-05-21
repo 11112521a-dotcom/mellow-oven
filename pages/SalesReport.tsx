@@ -561,11 +561,10 @@ export const SalesReport: React.FC = () => {
 
     const toggleExpand = (productId: string) => setExpandedProduct(expandedProduct === productId ? null : productId);
 
-    const handleExportPDF = () => {
+    const enhancedData = useMemo(() => {
         const marketName = selectedMarket === 'all' ? 'ทุกตลาด' : markets.find(m => m.id === selectedMarket)?.name || 'ตลาด';
         const totalRev = productSales.reduce((sum, s) => sum + s.totalRevenue, 0);
-
-        const data = calculateEnhancedMarketData(
+        return calculateEnhancedMarketData(
             productSales,
             selectedMarket,
             marketName,
@@ -574,8 +573,10 @@ export const SalesReport: React.FC = () => {
             totalRev,
             dailyInventory
         );
+    }, [productSales, selectedMarket, markets, startDate, endDate, dailyInventory]);
 
-        generateMarketPDFReport(data);
+    const handleExportPDF = () => {
+        generateMarketPDFReport(enhancedData);
     };
 
     return (
@@ -797,7 +798,50 @@ export const SalesReport: React.FC = () => {
                                 </div>
                                 <StatCard icon={<Activity size={28} />} label="กิน/แจกฟรี" value={`${summary.totalEatGiveaway} ชิ้น`} subValue={`-${formatCurrency(summary.totalEatGiveawayCost)}`} gradient="from-amber-500 to-yellow-600" delay={250} />
                                 <StatCard icon={<Calendar size={28} />} label="เฉลี่ย/วัน" value={formatCurrency(summary.avgRevenuePerDay)} subValue={`กำไร ${formatCurrency(summary.avgProfitPerDay)}`} gradient="from-teal-500 to-emerald-600" delay={300} />
+
+                                <StatCard icon={<ShoppingBag size={28} />} label="ชิ้น/รายการ" value={enhancedData.metrics.itemsPerTransaction.toFixed(1)} subValue="ชิ้นเฉลี่ยต่อบิล" gradient="from-sky-500 to-blue-600" delay={350} />
+                                <StatCard icon={<DollarSign size={28} />} label="มูลค่าเฉลี่ย/บิล" value={formatCurrency(enhancedData.metrics.avgTransactionValue)} subValue="ยอดขายเฉลี่ยต่อบิล" gradient="from-indigo-500 to-purple-600" delay={400} />
+                                <StatCard icon={<Calendar size={28} />} label="จำนวนวันขาย" value={`${enhancedData.metrics.activeDays} วัน`} subValue="วันที่มีการขายในระบบ" gradient="from-teal-500 to-emerald-600" delay={450} />
+                                <StatCard icon={<Package size={28} />} label="เมนูที่ขาย" value={`${enhancedData.metrics.uniqueProductCount} เมนู`} subValue="ประเภทสินค้าที่ทำเงิน" gradient="from-amber-500 to-orange-600" delay={500} />
                             </div>
+
+                            {/* Smart Insights Panel */}
+                            {enhancedData.insights && enhancedData.insights.length > 0 && (
+                                <div className="bg-gradient-to-br from-amber-50/50 via-orange-50/30 to-stone-50/50 rounded-2xl border border-amber-100 p-6 shadow-sm hover:shadow-md transition-all duration-300 mt-6">
+                                    <h3 className="text-lg font-bold text-stone-800 flex items-center gap-2 mb-4">
+                                        <Sparkles className="text-amber-500 animate-pulse" size={20} />
+                                        วิเคราะห์อัจฉริยะ (Smart Insights)
+                                    </h3>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                        {enhancedData.insights.map((insight) => {
+                                            let badgeClass = 'bg-stone-50 border-stone-200 text-stone-700';
+                                            let iconWrapperClass = 'bg-stone-100 text-stone-600';
+                                            if (insight.type === 'positive') {
+                                                badgeClass = 'bg-emerald-50/80 border-emerald-100 text-emerald-800 shadow-sm shadow-emerald-100/50';
+                                                iconWrapperClass = 'bg-emerald-100/80 text-emerald-700';
+                                            } else if (insight.type === 'warning' || insight.type === 'negative') {
+                                                badgeClass = 'bg-rose-50/80 border-rose-100 text-rose-800 shadow-sm shadow-rose-100/50';
+                                                iconWrapperClass = 'bg-rose-100/80 text-rose-700';
+                                            } else if (insight.type === 'neutral') {
+                                                badgeClass = 'bg-amber-50/80 border-amber-100 text-amber-800 shadow-sm shadow-amber-100/50';
+                                                iconWrapperClass = 'bg-amber-100/80 text-amber-700';
+                                            }
+
+                                            return (
+                                                <div key={insight.id} className={`flex items-start gap-4 p-4 rounded-xl border ${badgeClass} backdrop-blur-sm transition-all hover:scale-[1.02] duration-200`}>
+                                                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-xl shrink-0 ${iconWrapperClass}`}>
+                                                        {insight.icon}
+                                                    </div>
+                                                    <div>
+                                                        <h4 className="font-bold text-sm text-stone-800">{insight.title}</h4>
+                                                        <p className="text-xs text-stone-600 mt-1 leading-relaxed">{insight.description}</p>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            )}
 
                             {/* Oracle Card Removed from here */}
 
@@ -932,38 +976,120 @@ export const SalesReport: React.FC = () => {
                                 </div>
                             </div>
 
-                            {/* Bottom 5 Worst Selling Products */}
-                            {bottomProductsData.length > 0 && (
-                                <div className="bg-white rounded-2xl shadow-sm border border-orange-200 p-6 hover:shadow-lg transition-shadow">
-                                    <div className="flex justify-between items-center mb-4">
-                                        <h3 className="text-lg font-bold text-cafe-900 flex items-center gap-2">
-                                            <TrendingDown className="text-orange-500" size={20} />
-                                            ⚠️ Top 5 เมนูขายช้า
+                            {/* NEW: Margin Intelligence & Worst Sellers Grid */}
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+                                {/* Product Profitability & Margin Intelligence Panel */}
+                                <div className="bg-white rounded-2xl shadow-sm border border-cafe-100 p-6 hover:shadow-lg transition-shadow flex flex-col justify-between">
+                                    <div>
+                                        <h3 className="text-lg font-bold text-cafe-900 flex items-center gap-2 mb-1">
+                                            <Sparkles className="text-emerald-500 animate-pulse" size={20} />
+                                            วิเคราะห์อัตรากำไร (Margin Intelligence)
                                         </h3>
-                                        <span className="text-xs text-orange-600 bg-orange-100 px-3 py-1 rounded-full">ควรพิจารณา</span>
-                                    </div>
-                                    <p className="text-sm text-cafe-500 mb-4">เมนูที่ขายได้น้อยที่สุดในช่วงเวลา - พิจารณาปรับแผนการผลิตหรือยกเลิก</p>
-                                    <div className="space-y-3">
-                                        {bottomProductsData.map((product, index: number) => (
-                                            <div key={index} className="flex items-center justify-between p-3 bg-gradient-to-r from-orange-50 to-amber-50 rounded-xl border border-orange-100">
-                                                <div className="flex items-center gap-3">
-                                                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${index === 0 ? 'bg-red-500 text-white' : index === 1 ? 'bg-orange-500 text-white' : 'bg-amber-400 text-white'}`}>
-                                                        {index + 1}
-                                                    </div>
-                                                    <div>
-                                                        <div className="font-medium text-cafe-900">{product.productName}</div>
-                                                        <div className="text-xs text-cafe-500">{product.category}</div>
-                                                    </div>
+                                        <p className="text-sm text-cafe-500 mb-4">จัดอันดับสินค้าตามความคุ้มค่าและอัตรากำไรสุทธิ</p>
+                                        
+                                        <div className="space-y-4">
+                                            {/* Margin Stars */}
+                                            <div>
+                                                <div className="flex items-center justify-between mb-2">
+                                                    <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-md flex items-center gap-1">
+                                                        🌟 Margin Stars (&gt;40%)
+                                                    </span>
+                                                    <span className="text-xs text-cafe-500">{enhancedData.productIntelligence.highMarginStars.length} รายการ</span>
                                                 </div>
-                                                <div className="text-right">
-                                                    <div className="font-bold text-orange-700">{product.totalQuantity} ชิ้น</div>
-                                                    <div className="text-xs text-cafe-500">รายได้: {formatCurrency(product.totalRevenue)}</div>
-                                                </div>
+                                                {enhancedData.productIntelligence.highMarginStars.length === 0 ? (
+                                                    <p className="text-xs text-cafe-400 italic bg-cafe-50/50 p-3 rounded-xl border border-dashed border-cafe-100">ไม่มีสินค้าที่ได้ Margin สูงในช่วงเวลานี้</p>
+                                                ) : (
+                                                    <div className="space-y-2 max-h-[160px] overflow-y-auto pr-1">
+                                                        {enhancedData.productIntelligence.highMarginStars.slice(0, 3).map((product, idx) => (
+                                                            <div key={idx} className="flex flex-col p-2.5 bg-emerald-50/30 rounded-xl border border-emerald-100/50">
+                                                                <div className="flex justify-between items-center text-xs">
+                                                                    <span className="font-semibold text-stone-800">{product.productName}{product.variantName ? ` (${product.variantName})` : ''}</span>
+                                                                    <span className="font-bold text-emerald-600">{product.margin.toFixed(0)}% Margin</span>
+                                                                </div>
+                                                                <div className="w-full bg-emerald-100 h-1.5 rounded-full mt-1.5 overflow-hidden">
+                                                                    <div className="bg-emerald-500 h-full rounded-full" style={{ width: `${Math.min(product.margin, 100)}%` }} />
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                        {enhancedData.productIntelligence.highMarginStars.length > 3 && (
+                                                            <p className="text-[10px] text-center text-emerald-600 font-medium">+ อีก {enhancedData.productIntelligence.highMarginStars.length - 3} เมนูที่มีกำไรสูง</p>
+                                                        )}
+                                                    </div>
+                                                )}
                                             </div>
-                                        ))}
+
+                                            {/* Low Margin Warnings */}
+                                            <div>
+                                                <div className="flex items-center justify-between mb-2">
+                                                    <span className="text-xs font-bold text-rose-700 bg-rose-50 px-2.5 py-1 rounded-md flex items-center gap-1">
+                                                        ⚠️ Low Margin Warnings (&lt;20%)
+                                                    </span>
+                                                    <span className="text-xs text-cafe-500">{enhancedData.productIntelligence.lowMarginProducts.length} รายการ</span>
+                                                </div>
+                                                {enhancedData.productIntelligence.lowMarginProducts.length === 0 ? (
+                                                    <p className="text-xs text-cafe-400 italic bg-cafe-50/50 p-3 rounded-xl border border-dashed border-cafe-100">ยอดเยี่ยม! ไม่มีสินค้า Margin ต่ำกว่า 20%</p>
+                                                ) : (
+                                                    <div className="space-y-2 max-h-[160px] overflow-y-auto pr-1">
+                                                        {enhancedData.productIntelligence.lowMarginProducts.slice(0, 3).map((product, idx) => (
+                                                            <div key={idx} className="flex flex-col p-2.5 bg-rose-50/30 rounded-xl border border-rose-100/50">
+                                                                <div className="flex justify-between items-center text-xs">
+                                                                    <span className="font-semibold text-stone-800">{product.productName}{product.variantName ? ` (${product.variantName})` : ''}</span>
+                                                                    <span className="font-bold text-rose-600">{product.margin.toFixed(0)}% Margin</span>
+                                                                </div>
+                                                                <div className="w-full bg-rose-100 h-1.5 rounded-full mt-1.5 overflow-hidden">
+                                                                    <div className="bg-rose-500 h-full rounded-full" style={{ width: `${Math.min(product.margin, 100)}%` }} />
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                        {enhancedData.productIntelligence.lowMarginProducts.length > 3 && (
+                                                            <p className="text-[10px] text-center text-rose-600 font-medium">+ อีก {enhancedData.productIntelligence.lowMarginProducts.length - 3} เมนูที่มีกำไรค่อนข้างต่ำ</p>
+                                                        )}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div className="bg-amber-50/60 rounded-xl p-3.5 border border-amber-100 text-xs text-amber-800 leading-relaxed mt-4">
+                                        💡 <strong>คำแนะนำเชิงกลยุทธ์:</strong> ดันยอดขายของกลุ่ม <strong>Margin Stars</strong> โดยการทำเซ็ตคอมโบร่วมกับเครื่องดื่ม หรือจัดโปรโมชันป้ายหน้าร้าน และทบทวนราคาขายหรือสูตรของเมนูในกลุ่ม <strong>Low Margin Warnings</strong> เพื่อลดต้นทุนวัตถุดิบ
                                     </div>
                                 </div>
-                            )}
+
+                                {/* Top 5 Worst Selling Products */}
+                                {bottomProductsData.length > 0 && (
+                                    <div className="bg-white rounded-2xl shadow-sm border border-orange-200 p-6 hover:shadow-lg transition-shadow flex flex-col justify-between">
+                                        <div>
+                                            <div className="flex justify-between items-center mb-4">
+                                                <h3 className="text-lg font-bold text-cafe-900 flex items-center gap-2">
+                                                    <TrendingDown className="text-orange-500" size={20} />
+                                                    ⚠️ Top 5 เมนูขายช้า
+                                                </h3>
+                                                <span className="text-xs text-orange-600 bg-orange-100 px-3 py-1 rounded-full">ควรพิจารณา</span>
+                                            </div>
+                                            <p className="text-sm text-cafe-500 mb-4">เมนูที่ขายได้น้อยที่สุดในช่วงเวลา - พิจารณาปรับแผนการผลิตหรือยกเลิก</p>
+                                            <div className="space-y-3">
+                                                {bottomProductsData.map((product, index: number) => (
+                                                    <div key={index} className="flex items-center justify-between p-3 bg-gradient-to-r from-orange-50 to-amber-50 rounded-xl border border-orange-100">
+                                                        <div className="flex items-center gap-3">
+                                                            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${index === 0 ? 'bg-red-500 text-white' : index === 1 ? 'bg-orange-500 text-white' : 'bg-amber-400 text-white'}`}>
+                                                                {index + 1}
+                                                            </div>
+                                                            <div>
+                                                                <div className="font-medium text-cafe-900">{product.productName}</div>
+                                                                <div className="text-xs text-cafe-500">{product.category}</div>
+                                                            </div>
+                                                        </div>
+                                                        <div className="text-right">
+                                                            <div className="font-bold text-orange-700">{product.totalQuantity} ชิ้น</div>
+                                                            <div className="text-xs text-cafe-500">รายได้: {formatCurrency(product.totalRevenue)}</div>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
 
                             {/* NEW: Per-Market Product Breakdown */}
                             <div className="space-y-4 mb-6">
@@ -1035,6 +1161,116 @@ export const SalesReport: React.FC = () => {
                                             </div>
                                         </details>
                                     ))
+                                )}
+                            </div>
+
+                            {/* NEW: Interactive Daily Stock & Sales Breakdown Accordion */}
+                            <div className="space-y-4 mb-6">
+                                <h3 className="text-lg font-bold text-cafe-900 flex items-center gap-2">
+                                    <Calendar className="text-orange-500" size={20} />
+                                    รายละเอียดสต็อกและยอดขายรายวัน (Daily Stock & Sales Breakdown)
+                                </h3>
+                                {enhancedData.dailyBreakdown.length === 0 ? (
+                                    <div className="bg-white rounded-2xl p-8 text-center border border-cafe-100">
+                                        <p className="text-cafe-500">ไม่มีข้อมูลรายวันในช่วงเวลานี้</p>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-3">
+                                        {enhancedData.dailyBreakdown.map((day) => {
+                                            const totalEatQty = day.products.reduce((sum, p) => sum + (p.eatQty || 0), 0);
+                                            const totalGiveawayQty = day.products.reduce((sum, p) => sum + (p.giveawayQty || 0), 0);
+                                            const totalWasteQty = day.products.reduce((sum, p) => sum + (p.wasteQty || 0), 0);
+                                            const formattedDate = new Date(day.date).toLocaleDateString('th-TH', { 
+                                                day: 'numeric', 
+                                                month: 'long', 
+                                                year: 'numeric',
+                                                weekday: 'long' 
+                                            });
+
+                                            return (
+                                                <details key={day.date} className="group bg-white rounded-2xl shadow-sm border border-cafe-100 overflow-hidden [&_summary::-webkit-details-marker]:hidden">
+                                                    <summary className="flex items-center justify-between p-5 cursor-pointer bg-gradient-to-r hover:from-amber-50/50 hover:to-white transition-colors min-h-[44px]">
+                                                        <div className="flex items-center gap-4">
+                                                            <div className="w-10 h-10 bg-amber-100 rounded-xl flex items-center justify-center text-amber-600">
+                                                                <Calendar size={20} />
+                                                            </div>
+                                                            <div>
+                                                                <h4 className="font-bold text-cafe-900 text-base">{formattedDate}</h4>
+                                                                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-cafe-500 mt-1">
+                                                                    <span>ขาย {day.soldQty} ชิ้น</span>
+                                                                    {(totalEatQty + totalGiveawayQty) > 0 && (
+                                                                        <span className="text-amber-600 font-medium">กิน/แจก {totalEatQty + totalGiveawayQty} ชิ้น</span>
+                                                                    )}
+                                                                    {totalWasteQty > 0 && (
+                                                                        <span className="text-red-500 font-medium">เสีย {totalWasteQty} ชิ้น</span>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                        <div className="flex items-center gap-6">
+                                                            <div className="text-right hidden sm:block">
+                                                                <div className="font-bold text-cafe-900 text-base">{formatCurrency(day.revenue)}</div>
+                                                                <div className="text-xs text-green-600 font-semibold">กำไร {formatCurrency(day.profit)}</div>
+                                                            </div>
+                                                            <div className="w-8 h-8 rounded-full bg-cafe-50 flex items-center justify-center group-open:rotate-180 transition-transform text-cafe-500">
+                                                                <ChevronDown size={20} />
+                                                            </div>
+                                                        </div>
+                                                    </summary>
+                                                    <div className="p-0 border-t border-cafe-100 bg-cafe-50/30 overflow-x-auto">
+                                                        <table className="w-full text-xs">
+                                                            <thead className="bg-white border-b border-cafe-100">
+                                                                <tr>
+                                                                    <th className="px-5 py-3 text-left font-semibold text-cafe-700">สินค้า</th>
+                                                                    <th className="px-5 py-3 text-center font-semibold text-cafe-700">เอาไป (เตรียม)</th>
+                                                                    <th className="px-5 py-3 text-center font-semibold text-cafe-700">ขายได้ (ชิ้น)</th>
+                                                                    <th className="px-5 py-3 text-center font-semibold text-cafe-700">เหลือ (หน้าร้าน)</th>
+                                                                    <th className="px-5 py-3 text-center font-semibold text-cafe-700">กิน/แจก</th>
+                                                                    <th className="px-5 py-3 text-center font-semibold text-cafe-700">เสีย</th>
+                                                                    <th className="px-5 py-3 text-right font-semibold text-cafe-700">รายรับ</th>
+                                                                    <th className="px-5 py-3 text-right font-semibold text-cafe-700">กำไร</th>
+                                                                </tr>
+                                                            </thead>
+                                                            <tbody className="divide-y divide-cafe-100">
+                                                                {day.products.map((p, idx: number) => {
+                                                                    const eatGiveaway = (p.eatQty || 0) + (p.giveawayQty || 0);
+                                                                    return (
+                                                                        <tr key={idx} className="hover:bg-white transition-colors">
+                                                                            <td className="px-5 py-3">
+                                                                                <div className="font-semibold text-cafe-900">{p.productName}</div>
+                                                                                {p.variantName && <div className="text-[10px] text-cafe-400">{p.variantName}</div>}
+                                                                            </td>
+                                                                            <td className="px-5 py-3 text-center font-medium text-stone-600">
+                                                                                {p.preparedQty !== undefined ? `${p.preparedQty} ชิ้น` : '-'}
+                                                                            </td>
+                                                                            <td className="px-5 py-3 text-center font-bold text-cafe-800">
+                                                                                {p.quantity}
+                                                                            </td>
+                                                                            <td className="px-5 py-3 text-center font-medium text-stone-600">
+                                                                                {p.leftoverQty !== undefined ? `${p.leftoverQty} ชิ้น` : '-'}
+                                                                            </td>
+                                                                            <td className={`px-5 py-3 text-center font-medium ${eatGiveaway > 0 ? 'text-amber-600' : 'text-cafe-300'}`}>
+                                                                                {eatGiveaway > 0 ? `${eatGiveaway} ชิ้น` : '-'}
+                                                                            </td>
+                                                                            <td className={`px-5 py-3 text-center font-medium ${p.wasteQty && p.wasteQty > 0 ? 'text-red-600' : 'text-cafe-300'}`}>
+                                                                                {p.wasteQty && p.wasteQty > 0 ? `${p.wasteQty} ชิ้น` : '-'}
+                                                                            </td>
+                                                                            <td className="px-5 py-3 text-right font-semibold text-cafe-900">
+                                                                                {formatCurrency(p.revenue)}
+                                                                            </td>
+                                                                            <td className="px-5 py-3 text-right font-bold text-green-600">
+                                                                                {formatCurrency(p.profit)}
+                                                                            </td>
+                                                                        </tr>
+                                                                    );
+                                                                })}
+                                                            </tbody>
+                                                        </table>
+                                                    </div>
+                                                </details>
+                                            );
+                                        })}
+                                    </div>
                                 )}
                             </div>
 

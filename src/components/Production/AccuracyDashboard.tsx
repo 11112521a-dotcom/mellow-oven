@@ -505,9 +505,10 @@ export const AccuracyDashboard: React.FC<Props> = ({ data, title }) => {
                                 <tr>
                                     <th className="px-4 py-3 text-left text-cafe-600 font-semibold">สินค้า</th>
                                     <th className="px-4 py-3 text-center text-purple-700 font-semibold bg-purple-50">🤖 AI แนะนำ</th>
+                                    <th className="px-4 py-3 text-center text-blue-700 font-semibold bg-blue-50">📦 ผลิต/ส่งร้าน</th>
                                     <th className="px-4 py-3 text-center text-green-700 font-semibold bg-green-50">💵 ขายจริง</th>
-                                    <th className="px-4 py-3 text-center text-amber-700 font-semibold bg-amber-50">🏠 เหลือ</th>
-                                    <th className="px-4 py-3 text-right text-cafe-600 font-semibold">ผลต่าง (Diff)</th>
+                                    <th className="px-4 py-3 text-center text-amber-700 font-semibold bg-amber-50">🏠 เหลือทิ้ง</th>
+                                    <th className="px-4 py-3 text-right text-cafe-600 font-semibold">ผลต่าง (AI vs ขาย)</th>
                                     <th className="px-4 py-3 text-right text-cafe-600 font-semibold">สถานะ</th>
                                     <th className="px-4 py-3 text-right text-cafe-600 font-semibold">มูลค่าเสียหาย</th>
                                 </tr>
@@ -531,6 +532,7 @@ export const AccuracyDashboard: React.FC<Props> = ({ data, title }) => {
                                         <tr key={r.productId} className="hover:bg-cafe-50 transition-colors">
                                             <td className="px-4 py-3 font-medium text-cafe-900 border-r border-cafe-100">{r.productName}</td>
                                             <td className="px-4 py-3 text-center text-purple-700 font-bold bg-purple-50/50">{r.forecastQty}</td>
+                                            <td className="px-4 py-3 text-center text-blue-700 font-bold bg-blue-50/50">{r.toShopQty > 0 ? r.toShopQty : '-'}</td>
                                             <td className={`px-4 py-3 text-center font-bold ${r.status === 'pending' ? 'text-gray-400 italic bg-gray-50/50' : 'text-green-700 bg-green-50/50'}`}>
                                                 {r.status === 'pending' ? '...' : r.actualQty}
                                             </td>

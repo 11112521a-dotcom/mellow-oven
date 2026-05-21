@@ -131,6 +131,7 @@ export interface ProductsSlice {
     getLatestForecast: (productId: string, marketId: string, date: string) => ProductionForecast | null;
     deleteForecastsForMarket: (marketId: string) => Promise<void>;
     deleteForecastsByDate: (date: string) => Promise<void>; // NEW
+    generateAutoForecasts: (targetDate?: string) => Promise<void>; // NEW
 }
 
 // ProductSaleLog is now defined above to include new fields
@@ -139,6 +140,7 @@ export interface ProductsSlice {
 export interface SalesSlice {
     productSales: ProductSaleLog[];
     markets: Market[];
+    marketSchedules: import('../../types').MarketSchedule[]; // NEW
 
     addProductSaleLog: (log: ProductSaleLog) => Promise<void>;
     fetchProductSales: () => Promise<void>;
@@ -150,6 +152,12 @@ export interface SalesSlice {
     addMarket: (market: Market) => void;
     updateMarket: (id: string, updates: Partial<Market>) => void;
     removeMarket: (id: string) => void;
+
+    // Market Schedule
+    addMarketSchedule: (schedule: Omit<import('../../types').MarketSchedule, 'id' | 'createdAt'>) => Promise<void>;
+    updateMarketSchedule: (id: string, updates: Partial<import('../../types').MarketSchedule>) => Promise<void>;
+    removeMarketSchedule: (id: string) => Promise<void>;
+    fetchMarketSchedules: () => Promise<void>;
 }
 
 export interface PromotionSlice {

@@ -354,10 +354,7 @@ export function getCalendarFactors(date: string): {
     }
 
     // Apply payday factor (only if not a holiday)
-    if (!event && isPayday) {
-        factors.push({ name: 'ช่วง Payday', factor: 1.20 });
-        totalFactor *= 1.20;
-    }
+    // REMOVED: Applied dynamically via getMarketAdjustment in smartForecaster.ts instead to prevent double-counting.
 
     return {
         event,

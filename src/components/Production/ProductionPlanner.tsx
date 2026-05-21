@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { useStore } from '@/src/store';
-import { calculateOptimalProduction } from '@/src/lib/forecasting';
+import { calculateOptimalProduction, calculateSmartForecast } from '@/src/lib/forecasting';
 import type { ForecastOutput } from '@/src/lib/forecasting';
 import {
     getCalendarFactors,
@@ -11,6 +11,7 @@ import {
 import {
     fetchWeatherForecast,
     getWeatherEmoji,
+    getWeatherFactor,
     WeatherForecast
 } from '@/src/lib/forecasting/weatherAPI';
 import { Product, Variant } from '@/types';
@@ -22,6 +23,7 @@ import {
 import { Save, Loader2, Calendar, CloudSun, Store, AlertTriangle, TrendingUp, Package, Target, ArrowUpRight, ArrowDownRight, Sparkles, ChevronDown, Brain, Zap, Info, Rocket, ShieldCheck, Eye, ChevronLeft, Trash2 } from 'lucide-react';
 import { analyzeAccuracy } from '@/src/lib/forecasting/accuracyAnalytics';
 import { AccuracyDashboard } from './AccuracyDashboard';
+import { MarketScheduler } from './MarketScheduler';
 
 interface ForecastResult {
     productId: string;
@@ -32,7 +34,7 @@ interface ForecastResult {
 
 export const ProductionPlanner: React.FC = () => {
     const { products, markets, saveForecast, productSales, dailyReports, productionForecasts, dailyInventory } = useStore();
-    const [activeTab, setActiveTab] = useState<'plan' | 'accuracy'>('plan');
+    const [activeTab, setActiveTab] = useState<'plan' | 'accuracy' | 'schedule'>('plan');
 
     // State for Production Planner
     const [selectedDate, setSelectedDate] = useState(() => {
@@ -52,6 +54,7 @@ export const ProductionPlanner: React.FC = () => {
     const [smartWeather, setSmartWeather] = useState<WeatherForecast | null>(null);
     const [upcomingEvents, setUpcomingEvents] = useState<ThaiCalendarEvent[]>([]);
     const [isFetchingWeather, setIsFetchingWeather] = useState(false);
+    const [showWeatherDetails, setShowWeatherDetails] = useState(false);
 
     const getMarketName = (marketId: string) => {
         return markets.find(m => m.id === marketId)?.name || marketId;
@@ -139,16 +142,32 @@ export const ProductionPlanner: React.FC = () => {
 
         for (const item of forecastItems) {
             try {
-                const forecast = await calculateOptimalProduction({
-                    productId: item.product.id,
-                    variantId: item.variant?.id,
-                    marketId: selectedMarket,
-                    marketName: getMarketName(selectedMarket),
-                    weatherForecast: selectedWeather as any,
-                    product: item.variant ? { ...item.product, price: item.variant.price, cost: item.variant.cost } : item.product,
-                    productSales: productSales,
-                    targetDate: selectedDate // NEW: Pass target date for day-of-week matching
-                });
+                let forecast: any;
+                if (smartMode) {
+                    forecast = await calculateSmartForecast({
+                        product: item.variant ? { ...item.product, price: item.variant.price, cost: item.variant.cost } : item.product,
+                        productId: item.product.id,
+                        variantId: item.variant?.id,
+                        marketId: selectedMarket,
+                        marketName: getMarketName(selectedMarket),
+                        targetDate: selectedDate,
+                        productSales: productSales,
+                        historicalForecasts: productionForecasts as any,
+                        autoFetchWeather: false,
+                        weatherCondition: selectedWeather as any
+                    });
+                } else {
+                    forecast = await calculateOptimalProduction({
+                        productId: item.product.id,
+                        variantId: item.variant?.id,
+                        marketId: selectedMarket,
+                        marketName: getMarketName(selectedMarket),
+                        weatherForecast: selectedWeather as any,
+                        product: item.variant ? { ...item.product, price: item.variant.price, cost: item.variant.cost } : item.product,
+                        productSales: productSales,
+                        targetDate: selectedDate
+                    });
+                }
 
                 forecastResults.push({
                     productId: item.id,
@@ -246,8 +265,19 @@ export const ProductionPlanner: React.FC = () => {
                     >
                         🎯 ความแม่นยำ
                     </button>
+
+                    <button
+                        onClick={() => setActiveTab('schedule')}
+                        className={`px-4 py-2 rounded-md text-sm font-semibold transition-all whitespace-nowrap ${activeTab === 'schedule' ? 'bg-white text-cafe-800 shadow-sm' : 'text-cafe-500 hover:text-cafe-800'}`}
+                    >
+                        📍 ตารางตลาด
+                    </button>
                 </div>
             </div>
+
+            {activeTab === 'schedule' && (
+                <MarketScheduler />
+            )}
 
             {activeTab === 'plan' ? (
                 <div className="space-y-6">
@@ -358,7 +388,7 @@ export const ProductionPlanner: React.FC = () => {
                                         <p className="text-xl font-bold text-purple-700">
                                             {selectedWeather === 'sunny' ? '☀️ 100%' :
                                                 selectedWeather === 'cloudy' ? '☁️ ~90%' :
-                                                    selectedWeather === 'rain' ? '🌧️ ~70%' : '⛈️ ~50%'}
+                                                    selectedWeather === 'rain' ? '🌧️ ~60%' : '⛈️ ~5%'}
                                         </p>
                                     </div>
                                     <div className="bg-green-50 rounded-xl p-3 text-center">
@@ -410,23 +440,72 @@ export const ProductionPlanner: React.FC = () => {
                                     </div>
 
                                     {/* 2. Weather Factor */}
-                                    <div className={`rounded-xl p-3 border ${smartWeather ? 'bg-sky-50 border-sky-100' : 'bg-gray-50 border-gray-100'}`}>
-                                        <p className="text-xs text-gray-600 mb-1 font-semibold flex items-center gap-1">
-                                            {smartWeather ? getWeatherEmoji(smartWeather.condition) : <CloudSun size={12} />}
-                                            สภาพอากาศ
+                                    <div 
+                                        className={`group relative rounded-xl p-3 border transition-all duration-300 ${
+                                            smartWeather 
+                                                ? 'bg-sky-50 hover:bg-sky-100 border-sky-100 hover:border-sky-200' 
+                                                : 'bg-gray-50 border-gray-100'
+                                        }`}
+                                    >
+                                        <p className="text-xs text-gray-600 mb-1 font-semibold flex items-center justify-between gap-1">
+                                            <span className="flex items-center gap-1">
+                                                {smartWeather ? getWeatherEmoji(smartWeather.condition) : <CloudSun size={12} />}
+                                                สภาพอากาศ
+                                            </span>
+                                            {smartWeather && (
+                                                <button 
+                                                    onClick={() => setShowWeatherDetails(!showWeatherDetails)}
+                                                    className="text-[9px] bg-sky-200 hover:bg-sky-300 text-sky-800 px-1 rounded font-medium flex items-center gap-0.5 transition-colors"
+                                                >
+                                                    โหวต {smartWeather.consensusAgreement}%
+                                                    <ChevronDown size={8} className={`transform transition-transform ${showWeatherDetails ? 'rotate-180' : ''}`} />
+                                                </button>
+                                            )}
                                         </p>
                                         <p className={`text-xl font-bold ${smartWeather ? 'text-sky-700' : 'text-gray-400'}`}>
                                             {smartWeather
-                                                ? `x${(
-                                                    smartWeather.condition === 'rain' ? 0.7
-                                                        : smartWeather.condition === 'storm' ? 0.5
-                                                            : 1.0
-                                                ).toFixed(2)}`
+                                                ? `x${getWeatherFactor(selectedWeather as any).toFixed(2)}`
                                                 : '-'}
                                         </p>
-                                        <p className="text-[10px] text-gray-400">
-                                            {smartWeather ? smartWeather.description : 'รอข้อมูล...'}
+                                        <p className="text-[10px] text-gray-400 truncate flex items-center justify-between">
+                                            <span>{smartWeather ? smartWeather.description : 'รอข้อมูล...'}</span>
+                                            {smartWeather && (
+                                                <button 
+                                                    onClick={() => setShowWeatherDetails(!showWeatherDetails)}
+                                                    className="text-[9px] text-sky-500 hover:text-sky-700 underline font-medium"
+                                                >
+                                                    รายละเอียด
+                                                </button>
+                                            )}
                                         </p>
+
+                                        {/* Dropdown breakdown */}
+                                        {smartWeather && showWeatherDetails && (
+                                            <div className="absolute left-0 right-0 top-full mt-2 z-30 bg-white border border-sky-100 rounded-xl p-3 shadow-xl max-h-60 overflow-y-auto">
+                                                <p className="text-xs font-bold text-sky-950 mb-2 border-b border-sky-50 pb-1 flex items-center justify-between">
+                                                    <span>📊 แหล่งข้อมูลสภาพอากาศ</span>
+                                                    <span className="text-[9px] text-sky-600 font-normal">ความเห็นพ้อง {smartWeather.consensusAgreement}%</span>
+                                                </p>
+                                                <div className="space-y-1.5">
+                                                    {smartWeather.sources?.map((src: any, idx: number) => (
+                                                        <div key={idx} className="flex flex-col text-[10px] bg-slate-50/70 p-1.5 rounded border border-slate-100">
+                                                            <div className="flex justify-between items-center font-medium text-slate-700">
+                                                                <span>{src.sourceName}</span>
+                                                                <span>{getWeatherEmoji(src.condition)} {src.condition.toUpperCase()}</span>
+                                                            </div>
+                                                            <div className="flex justify-between text-slate-400 mt-0.5 text-[9px]">
+                                                                <span>🌡️ {src.temperature}°C</span>
+                                                                <span>🌧️ {src.precipitation} มม. (RH {src.humidity}%)</span>
+                                                            </div>
+                                                            <span className="text-[9px] text-slate-500 italic mt-0.5 truncate">{src.description}</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                                <div className="mt-2 text-[9px] text-sky-700 bg-sky-50 p-2 rounded leading-relaxed border border-sky-100/50">
+                                                    <strong>มติมติสถิติ (Consensus):</strong> อุณหภูมิเฉลี่ย {smartWeather.temperature}°C, ปริมาณฝนเฉลี่ย {smartWeather.precipitation} มม., ความชื้นเฉลี่ย {smartWeather.humidity}%
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
 
                                     {/* 3. Payday Factor */}
@@ -463,7 +542,7 @@ export const ProductionPlanner: React.FC = () => {
                                         <span className="text-yellow-400 font-bold text-sm">
                                             x{(
                                                 1.0 *
-                                                (smartWeather?.condition === 'rain' ? 0.7 : smartWeather?.condition === 'storm' ? 0.5 : 1.0) *
+                                                getWeatherFactor(selectedWeather as any) *
                                                 (calendarFactors.isPayday ? 1.2 : 1.0) *
                                                 ((calendarFactors.event?.demandFactor || 1) * monthSeasonality.factor)
                                             ).toFixed(2)}
@@ -609,57 +688,77 @@ export const ProductionPlanner: React.FC = () => {
                                                         📊 วิธีคิด
                                                     </summary>
                                                     <div className="mt-2 pt-2 border-t border-gray-100 text-xs text-gray-600 space-y-2">
-                                                        {/* Step 1: Baseline */}
-                                                        <div className="p-2 bg-blue-50 rounded-lg">
-                                                            <div className="flex justify-between items-center">
-                                                                <span className="font-medium text-blue-700">1️⃣ ค่าเฉลี่ยยอดขาย</span>
-                                                                <span className="font-bold text-blue-800">{result.forecast.baselineForecast.toFixed(1)} ชิ้น</span>
+                                                        {smartMode && (result.forecast as any).explanation ? (
+                                                            <div className="p-2.5 bg-purple-50/70 rounded-xl space-y-1.5 border border-purple-100">
+                                                                <p className="font-bold text-purple-950 mb-1 flex items-center gap-1">
+                                                                    <Brain size={12} className="text-purple-600 animate-pulse" /> 
+                                                                    การวิเคราะห์ AI (Smart Mode):
+                                                                </p>
+                                                                {(result.forecast as any).explanation.map((exp: string, idx: number) => (
+                                                                    <div key={idx} className="flex items-start gap-1.5 text-[10px] text-purple-900 font-medium">
+                                                                        <span className="text-purple-500">•</span>
+                                                                        <span>{exp}</span>
+                                                                    </div>
+                                                                ))}
+                                                                <div className="text-center text-[9px] text-purple-400 pt-1 border-t border-purple-100/50 mt-1">
+                                                                    โมเดล: {result.forecast.distributionType === 'poisson' ? 'Poisson' : 'Negative Binomial'} | ช่วง: {result.forecast.predictionInterval.lower}-{result.forecast.predictionInterval.upper}
+                                                                </div>
                                                             </div>
-                                                            <p className="text-[10px] text-blue-500 mt-1">
-                                                                = เฉลี่ยจาก {result.forecast.sameDayDataPoints > 0 ? `${result.forecast.sameDayDataPoints} วันเดียวกัน` : `${result.forecast.dataPoints} วัน`}
-                                                            </p>
-                                                        </div>
+                                                        ) : (
+                                                            <>
+                                                                {/* Step 1: Baseline */}
+                                                                <div className="p-2 bg-blue-50 rounded-lg">
+                                                                    <div className="flex justify-between items-center">
+                                                                        <span className="font-medium text-blue-700">1️⃣ ค่าเฉลี่ยยอดขาย</span>
+                                                                        <span className="font-bold text-blue-800">{result.forecast.baselineForecast.toFixed(1)} ชิ้น</span>
+                                                                    </div>
+                                                                    <p className="text-[10px] text-blue-500 mt-1">
+                                                                        = เฉลี่ยจาก {result.forecast.sameDayDataPoints > 0 ? `${result.forecast.sameDayDataPoints} วันเดียวกัน` : `${result.forecast.dataPoints} วัน`}
+                                                                    </p>
+                                                                </div>
 
-                                                        {/* Step 2: Weather */}
-                                                        <div className="p-2 bg-purple-50 rounded-lg">
-                                                            <div className="flex justify-between items-center">
-                                                                <span className="font-medium text-purple-700">2️⃣ ปรับสภาพอากาศ</span>
-                                                                <span className="font-bold text-purple-800">{result.forecast.weatherAdjustedForecast.toFixed(1)} ชิ้น</span>
-                                                            </div>
-                                                            <p className="text-[10px] text-purple-500 mt-1">
-                                                                = {result.forecast.baselineForecast.toFixed(1)} × {(result.forecast.weatherAdjustedForecast / result.forecast.baselineForecast * 100).toFixed(0)}% (ตามสภาพอากาศ)
-                                                            </p>
-                                                        </div>
+                                                                {/* Step 2: Weather */}
+                                                                <div className="p-2 bg-purple-50 rounded-lg">
+                                                                    <div className="flex justify-between items-center">
+                                                                        <span className="font-medium text-purple-700">2️⃣ ปรับสภาพอากาศ</span>
+                                                                        <span className="font-bold text-purple-800">{result.forecast.weatherAdjustedForecast.toFixed(1)} ชิ้น</span>
+                                                                    </div>
+                                                                    <p className="text-[10px] text-purple-500 mt-1">
+                                                                        = {result.forecast.baselineForecast.toFixed(1)} × {(result.forecast.weatherAdjustedForecast / result.forecast.baselineForecast * 100).toFixed(0)}% (ตามสภาพอากาศ)
+                                                                    </p>
+                                                                </div>
 
-                                                        {/* Step 3: Lambda & Payday */}
-                                                        <div className="p-2 bg-amber-50 rounded-lg">
-                                                            <div className="flex justify-between items-center">
-                                                                <span className="font-medium text-amber-700">3️⃣ ค่าเฉลี่ยสุดท้าย (λ)</span>
-                                                                <span className="font-bold text-amber-800">{result.forecast.lambda.toFixed(1)} ชิ้น</span>
-                                                            </div>
-                                                            <p className="text-[10px] text-amber-500 mt-1">
-                                                                = รวม Payday Boost (ถ้าใกล้สิ้นเดือน +20%)
-                                                            </p>
-                                                        </div>
+                                                                {/* Step 3: Lambda & Payday */}
+                                                                <div className="p-2 bg-amber-50 rounded-lg">
+                                                                    <div className="flex justify-between items-center">
+                                                                        <span className="font-medium text-amber-700">3️⃣ ค่าเฉลี่ยสุดท้าย (λ)</span>
+                                                                        <span className="font-bold text-amber-800">{result.forecast.lambda.toFixed(1)} ชิ้น</span>
+                                                                    </div>
+                                                                    <p className="text-[10px] text-amber-500 mt-1">
+                                                                        = รวม Payday Boost (ถ้าใกล้สิ้นเดือน +20%)
+                                                                    </p>
+                                                                </div>
 
-                                                        {/* Step 4: Newsvendor */}
-                                                        <div className="p-2 bg-emerald-50 rounded-lg">
-                                                            <div className="flex justify-between items-center">
-                                                                <span className="font-medium text-emerald-700">4️⃣ จำนวนที่เหมาะสม</span>
-                                                                <span className="font-bold text-emerald-800">{result.forecast.optimalQuantity} ชิ้น</span>
-                                                            </div>
-                                                            <p className="text-[10px] text-emerald-500 mt-1">
-                                                                = Newsvendor Model @ {(result.forecast.serviceLevelTarget * 100).toFixed(0)}% Service Level
-                                                            </p>
-                                                            <p className="text-[10px] text-emerald-400">
-                                                                (เลือกจำนวนที่ลดโอกาสขาดสินค้าให้น้อยที่สุด)
-                                                            </p>
-                                                        </div>
+                                                                {/* Step 4: Newsvendor */}
+                                                                <div className="p-2 bg-emerald-50 rounded-lg">
+                                                                    <div className="flex justify-between items-center">
+                                                                        <span className="font-medium text-emerald-700">4️⃣ จำนวนที่เหมาะสม</span>
+                                                                        <span className="font-bold text-emerald-800">{result.forecast.optimalQuantity} ชิ้น</span>
+                                                                    </div>
+                                                                    <p className="text-[10px] text-emerald-500 mt-1">
+                                                                        = Newsvendor Model @ {(result.forecast.serviceLevelTarget * 100).toFixed(0)}% Service Level
+                                                                    </p>
+                                                                    <p className="text-[10px] text-emerald-400">
+                                                                        (เลือกจำนวนที่ลดโอกาสขาดสินค้าให้น้อยที่สุด)
+                                                                    </p>
+                                                                </div>
 
-                                                        {/* Summary */}
-                                                        <div className="text-center text-[10px] text-gray-400 pt-1 border-t border-gray-100">
-                                                            Distribution: {result.forecast.distributionType === 'poisson' ? 'Poisson' : 'Negative Binomial'} | ช่วง: {result.forecast.predictionInterval.lower}-{result.forecast.predictionInterval.upper}
-                                                        </div>
+                                                                {/* Summary */}
+                                                                <div className="text-center text-[10px] text-gray-400 pt-1 border-t border-gray-100">
+                                                                    Distribution: {result.forecast.distributionType === 'poisson' ? 'Poisson' : 'Negative Binomial'} | ช่วง: {result.forecast.predictionInterval.lower}-{result.forecast.predictionInterval.upper}
+                                                                </div>
+                                                            </>
+                                                        )}
                                                     </div>
                                                 </details>
                                             </>

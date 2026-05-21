@@ -24,6 +24,7 @@ export interface MarketProfile {
     weatherSensitivity: number;     // 0-1 (0 = immune, 1 = very sensitive)
     paydaySensitivity: number;      // 0-2 (1 = normal effect)
     holidaySensitivity: number;     // 0-2
+    weatherFactors?: Record<string, number>; // Learned multipliers per weather condition
 
     // Product preferences
     topProducts: Array<{ productId: string; productName: string; avgQty: number }>;
@@ -161,9 +162,101 @@ export function buildMarketProfile(
         dataPoints >= 30 ? 'high' :
             dataPoints >= 14 ? 'medium' : 'low';
 
-    // Default sensitivities (will be learned over time)
-    const weatherSensitivity = 0.5; // Default: moderate
-    const paydaySensitivity = 1.2;  // Default: +20% on payday
+    // 1. Dynamic Payday Sensitivity Learning
+    let paydaySensitivity = 1.2; // Default
+    const paydayRevenues: number[] = [];
+    const normalRevenues: number[] = [];
+
+    dates.forEach(date => {
+        const dayRevenue = salesByDate[date].reduce((sum, s) => sum + s.totalRevenue, 0);
+        const dayOfMonth = new Date(date).getDate();
+        const isPayday = dayOfMonth >= 25 || dayOfMonth <= 5;
+        if (isPayday) {
+            paydayRevenues.push(dayRevenue);
+        } else {
+            normalRevenues.push(dayRevenue);
+        }
+    });
+
+    if (paydayRevenues.length >= 2 && normalRevenues.length >= 4) {
+        const avgPayday = paydayRevenues.reduce((a, b) => a + b, 0) / paydayRevenues.length;
+        const avgNormal = normalRevenues.reduce((a, b) => a + b, 0) / normalRevenues.length;
+        if (avgNormal > 0) {
+            const rawRatio = avgPayday / avgNormal;
+            // Cap between 0.7 and 1.8 to prevent noise from wild data
+            paydaySensitivity = Math.max(0.7, Math.min(1.8, rawRatio));
+        }
+    }
+
+    // 2. Dynamic Weather Sensitivity & Factors Learning (Empirical Weather Pooling)
+    const defaultWeatherFactors = {
+        sunny: 1.0,
+        cloudy: 0.90,
+        rain: 0.60,
+        storm: 0.05
+    };
+
+    const weatherFactors = { ...defaultWeatherFactors };
+
+    // Group dates by dominant weather
+    const weatherByDate: Record<string, string> = {};
+    dates.forEach(date => {
+        const weatherCounts: Record<string, number> = {};
+        salesByDate[date].forEach(s => {
+            if (s.weatherCondition) {
+                weatherCounts[s.weatherCondition] = (weatherCounts[s.weatherCondition] || 0) + 1;
+            }
+        });
+
+        let dominantWeather = 'sunny';
+        let maxCount = 0;
+        Object.entries(weatherCounts).forEach(([w, count]) => {
+            if (count > maxCount) {
+                maxCount = count;
+                dominantWeather = w;
+            }
+        });
+        weatherByDate[date] = dominantWeather;
+    });
+
+    // Group revenues by dominant weather
+    const revenuesByWeather: Record<string, number[]> = {
+        sunny: [],
+        cloudy: [],
+        rain: [],
+        storm: []
+    };
+
+    dates.forEach(date => {
+        const dayRevenue = salesByDate[date].reduce((sum, s) => sum + s.totalRevenue, 0);
+        const w = weatherByDate[date] || 'sunny';
+        if (revenuesByWeather[w] !== undefined) {
+            revenuesByWeather[w].push(dayRevenue);
+        } else {
+            revenuesByWeather.sunny.push(dayRevenue);
+        }
+    });
+
+    const baselineRevenues = [...revenuesByWeather.sunny, ...revenuesByWeather.cloudy];
+    if (baselineRevenues.length >= 3) {
+        const avgBaseline = baselineRevenues.reduce((a, b) => a + b, 0) / baselineRevenues.length;
+        if (avgBaseline > 0) {
+            if (revenuesByWeather.cloudy.length >= 2) {
+                const avgCloudy = revenuesByWeather.cloudy.reduce((a, b) => a + b, 0) / revenuesByWeather.cloudy.length;
+                weatherFactors.cloudy = Math.max(0.5, Math.min(1.5, avgCloudy / avgBaseline));
+            }
+            if (revenuesByWeather.rain.length >= 2) {
+                const avgRain = revenuesByWeather.rain.reduce((a, b) => a + b, 0) / revenuesByWeather.rain.length;
+                weatherFactors.rain = Math.max(0.1, Math.min(1.2, avgRain / avgBaseline));
+            }
+            if (revenuesByWeather.storm.length >= 2) {
+                const avgStorm = revenuesByWeather.storm.reduce((a, b) => a + b, 0) / revenuesByWeather.storm.length;
+                weatherFactors.storm = Math.max(0.01, Math.min(1.0, avgStorm / avgBaseline));
+            }
+        }
+    }
+
+    const weatherSensitivity = Math.max(0, Math.min(1.0, 1.0 - (weatherFactors.rain + weatherFactors.storm) / 2));
     const holidaySensitivity = 1.0; // Default: no effect
 
     return {
@@ -177,6 +270,7 @@ export function buildMarketProfile(
         weatherSensitivity,
         paydaySensitivity,
         holidaySensitivity,
+        weatherFactors,
         topProducts,
         productMix,
         salesVolatility,
@@ -202,6 +296,7 @@ function createEmptyProfile(marketId: string, marketName: string): MarketProfile
         weatherSensitivity: 0.5,
         paydaySensitivity: 1.2,
         holidaySensitivity: 1.0,
+        weatherFactors: { sunny: 1.0, cloudy: 0.90, rain: 0.60, storm: 0.05 },
         topProducts: [],
         productMix: {},
         salesVolatility: 0.3,
@@ -313,7 +408,9 @@ export function getMarketAdjustment(
     baseQty: number,
     profile: MarketProfile | null,
     dayOfWeek: number,
-    isPayday: boolean
+    isPayday: boolean,
+    applyWeekday: boolean = true,
+    applyPayday: boolean = true
 ): {
     adjustedQty: number;
     factors: Array<{ name: string; factor: number }>;
@@ -326,18 +423,20 @@ export function getMarketAdjustment(
     }
 
     // Apply day of week factor
-    const dayFactor = getMarketDayFactor(profile, dayOfWeek);
-    if (Math.abs(dayFactor - 1) > 0.05) {
-        factors.push({
-            name: `วัน${getDayName(dayOfWeek)} (${profile.marketName})`,
-            factor: dayFactor
-        });
-        adjustedQty *= dayFactor;
+    if (applyWeekday) {
+        const dayFactor = getMarketDayFactor(profile, dayOfWeek);
+        if (Math.abs(dayFactor - 1) > 0.05) {
+            factors.push({
+                name: `วัน${getDayName(dayOfWeek)} (${profile.marketName})`,
+                factor: dayFactor
+            });
+            adjustedQty *= dayFactor;
+        }
     }
 
     // Apply payday sensitivity
-    if (isPayday && profile.paydaySensitivity !== 1.0) {
-        factors.push({ name: 'Payday Effect', factor: profile.paydaySensitivity });
+    if (applyPayday && isPayday && profile.paydaySensitivity !== 1.0) {
+        factors.push({ name: `ช่วงเงินเดือนออก (${profile.marketName})`, factor: profile.paydaySensitivity });
         adjustedQty *= profile.paydaySensitivity;
     }
 

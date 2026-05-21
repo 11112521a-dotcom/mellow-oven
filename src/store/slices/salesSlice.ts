@@ -120,5 +120,54 @@ export const createSalesSlice: StateCreator<AppState, [], [], SalesSlice> = (set
     removeMarket: async (id) => {
         set((state) => ({ markets: state.markets.filter((m) => m.id !== id) }));
         await supabase.from('markets').delete().eq('id', id);
+    },
+
+    marketSchedules: [],
+    fetchMarketSchedules: async () => {
+        const { data, error } = await supabase.from('market_schedules').select('*');
+        if (!error && data) {
+            const mappedData = data.map(row => ({
+                id: row.id,
+                marketId: row.market_id,
+                dayOfWeek: row.day_of_week,
+                isActive: row.is_active,
+                createdAt: row.created_at
+            }));
+            set({ marketSchedules: mappedData });
+        }
+    },
+    addMarketSchedule: async (schedule) => {
+        const newSchedule = { ...schedule, id: crypto.randomUUID(), createdAt: new Date().toISOString() };
+        set(state => ({ marketSchedules: [...state.marketSchedules, newSchedule] }));
+        
+        // Sync with Supabase
+        const dbSchedule = {
+            id: newSchedule.id,
+            market_id: newSchedule.marketId,
+            day_of_week: newSchedule.dayOfWeek,
+            is_active: newSchedule.isActive,
+            created_at: newSchedule.createdAt
+        };
+        await supabase.from('market_schedules').insert(dbSchedule);
+    },
+    updateMarketSchedule: async (id, updates) => {
+        set(state => ({
+            marketSchedules: state.marketSchedules.map(s => s.id === id ? { ...s, ...updates } : s)
+        }));
+
+        const dbUpdates: any = {};
+        if (updates.marketId !== undefined) dbUpdates.market_id = updates.marketId;
+        if (updates.dayOfWeek !== undefined) dbUpdates.day_of_week = updates.dayOfWeek;
+        if (updates.isActive !== undefined) dbUpdates.is_active = updates.isActive;
+
+        if (Object.keys(dbUpdates).length > 0) {
+            await supabase.from('market_schedules').update(dbUpdates).eq('id', id);
+        }
+    },
+    removeMarketSchedule: async (id) => {
+        set(state => ({
+            marketSchedules: state.marketSchedules.filter(s => s.id !== id)
+        }));
+        await supabase.from('market_schedules').delete().eq('id', id);
     }
 });
