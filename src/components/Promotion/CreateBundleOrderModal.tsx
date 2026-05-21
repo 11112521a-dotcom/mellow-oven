@@ -183,7 +183,7 @@ export const CreateBundleOrderModal: React.FC<CreateBundleOrderModalProps> = ({ 
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <div className="absolute inset-0 bg-stone-900/50 backdrop-blur-sm" onClick={onClose} />
+            <div className="absolute inset-0 bg-stone-900/50 backdrop-blur-sm" role="presentation" onClick={onClose} />
 
             <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
                 {/* Header */}

@@ -4,6 +4,7 @@ import { Product, DailyProductionLog, Variant } from '@/types';
 import { formatCurrency } from '@/src/lib/utils';
 import { NumberInput } from '@/src/components/ui/NumberInput';
 import { Calendar, Store, Save, ShoppingCart, Package, TrendingUp, AlertCircle, Check, X, Sparkles, ArrowRight, Sun, Cloud, CloudRain, CloudLightning, ChevronDown, ChevronUp, Wind, ThermometerSnowflake, UtensilsCrossed } from 'lucide-react';
+import { predictSalesFromHistory, getProductVariantKey } from '@/src/lib/salesPrediction';
 
 // Weather type
 type WeatherCondition = 'sunny' | 'cloudy' | 'rain' | 'storm' | 'wind' | 'cold' | null;
@@ -132,7 +133,8 @@ export const DailySalesForm: React.FC = () => {
     const {
         products, addTransaction, updateJarBalance, deductStockByRecipe, markets,
         addDailyReport, addProductSaleLog, fetchData,
-        dailyInventory, fetchDailyInventory, upsertDailyInventory // NEW: Integration with Stock Log
+        dailyInventory, fetchDailyInventory, upsertDailyInventory, // NEW: Integration with Stock Log
+        productSales
     } = useStore();
 
     const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
@@ -142,6 +144,7 @@ export const DailySalesForm: React.FC = () => {
     const [weather, setWeather] = useState<WeatherCondition>(null); // NEW: Weather state
     const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set()); // NEW: For collapsible groups
     const [hasSaved, setHasSaved] = useState(false); // FIX: Track if already saved to prevent duplicate entries
+    const [isPredicting, setIsPredicting] = useState(false);
 
     // Success Modal State
     const [showSuccessModal, setShowSuccessModal] = useState(false);
@@ -229,13 +232,16 @@ export const DailySalesForm: React.FC = () => {
         }
     }, [products, dailyInventory, date]);
 
-    const handleLogChange = (index: number, field: keyof DailyProductionLog, value: any) => {
+    const handleLogChange = <K extends keyof DailyProductionLog>(
+        index: number,
+        field: K,
+        value: DailyProductionLog[K]
+    ) => {
         const newLogs = [...logs];
-        const log = newLogs[index];
-        (log as any)[field] = value;
+        const log = { ...newLogs[index], [field]: value };
 
         // Auto-calculate: Sold = Available - Waste - Leftover - Free(กินแจก)
-        if (['wasteQty', 'leftoverQty', 'freeQty'].includes(field)) {
+        if (['wasteQty', 'leftoverQty', 'freeQty'].includes(field as string)) {
             const available = Number(log.preparedQty) || 0;
             const waste = Number(log.wasteQty) || 0;
             const leftover = Number(log.leftoverQty) || 0;
@@ -243,6 +249,7 @@ export const DailySalesForm: React.FC = () => {
             log.soldQty = Math.max(0, available - waste - leftover - free);
         }
 
+        newLogs[index] = log;
         setLogs(newLogs);
     };
 
@@ -301,6 +308,96 @@ export const DailySalesForm: React.FC = () => {
     const totalFreeCost = logs.reduce((sum, log) => sum + ((log.freeQty || 0) * (log.variant ? (log.variant.cost || log.product.cost) : log.product.cost)), 0);
     const trueProfit = totalRevenue - totalCOGS - totalWasteCost - totalFreeCost;
 
+    // Get current market name for UI
+    const marketName = useMemo(() => {
+        return markets.find(m => m.id === selectedMarketId)?.name || 'Unknown Market';
+    }, [markets, selectedMarketId]);
+
+    // Calculate dynamic metadata for the predictions
+    const predictionMeta = useMemo(() => {
+        if (!selectedMarketId || !date || !productSales.length) {
+            return { count: 0, dayName: '' };
+        }
+        const targetDayOfWeek = new Date(date).getDay();
+        const dayNames = ['วันอาทิตย์', 'วันจันทร์', 'วันอังคาร', 'วันพุธ', 'วันพฤหัสบดี', 'วันศุกร์', 'วันเสาร์'];
+        const dayName = dayNames[targetDayOfWeek];
+
+        const relevantSales = productSales.filter(sale => {
+            if (sale.marketId !== selectedMarketId) return false;
+            if (sale.saleDate === date) return false;
+            const saleDayOfWeek = new Date(sale.saleDate).getDay();
+            return saleDayOfWeek === targetDayOfWeek;
+        });
+
+        const uniqueDates = Array.from(new Set(relevantSales.map(s => s.saleDate)));
+        return {
+            count: Math.min(uniqueDates.length, 8),
+            dayName
+        };
+    }, [productSales, selectedMarketId, date]);
+
+    // Handle auto-fill prediction logic
+    const handleAutoFill = () => {
+        if (!selectedMarketId) {
+            alert('⚠️ กรุณาเลือกตลาดก่อนเติมข้อมูลทำนาย!');
+            return;
+        }
+
+        setIsPredicting(true);
+        try {
+            const predictions = predictSalesFromHistory({
+                productSales,
+                targetDate: date,
+                marketId: selectedMarketId
+            });
+
+            if (predictions.size === 0) {
+                alert(`ℹ️ ไม่พบข้อมูลยอดขายย้อนหลังสำหรับวัน${predictionMeta.dayName}ที่ตลาดนี้`);
+                setIsPredicting(false);
+                return;
+            }
+
+            const newLogs = logs.map(log => {
+                const key = getProductVariantKey(log.productId, log.variantId);
+                const pred = predictions.get(key);
+
+                if (!pred) {
+                    return log; // Keep current log unmodified if no prediction
+                }
+
+                const available = log.preparedQty;
+
+                const avgWaste = Math.round(pred.avgWaste);
+                const avgFree = Math.round(pred.avgFree);
+                const avgSold = Math.round(pred.avgSold);
+
+                const wasteQty = Math.min(avgWaste, available);
+                const freeQty = Math.min(avgFree, available - wasteQty);
+                const soldQty = Math.min(avgSold, available - wasteQty - freeQty);
+
+                const leftoverQty = Math.max(0, available - soldQty - wasteQty - freeQty);
+
+                return {
+                    ...log,
+                    wasteQty,
+                    freeQty,
+                    soldQty,
+                    leftoverQty
+                };
+            });
+
+            setLogs(newLogs);
+
+            const filledCount = logs.filter(log => predictions.has(getProductVariantKey(log.productId, log.variantId))).length;
+            alert(`✨ เติมข้อมูลทำนายสำเร็จสำหรับ ${filledCount} รายการ!\nกรุณาตรวจสอบและปรับเปลี่ยนตามจริงก่อนกดบันทึก`);
+        } catch (error) {
+            console.error('Error during auto-fill:', error);
+            alert('❌ เกิดข้อผิดพลาดในการคำนวณข้อมูลทำนาย');
+        } finally {
+            setIsPredicting(false);
+        }
+    };
+
     const handleSaveClick = () => {
         // Validate market selection
         if (!selectedMarketId) {
@@ -320,8 +417,6 @@ export const DailySalesForm: React.FC = () => {
     };
 
     const confirmSave = async () => {
-        const marketName = markets.find(m => m.id === selectedMarketId)?.name || 'Unknown Market';
-
         // Update daily_inventory with sold_qty for each product/variant (VARIANT-AWARE!)
         // FIX: Always update soldQty, even if no inventory record exists (creates one if needed)
         for (const log of logs) {
@@ -551,6 +646,46 @@ export const DailySalesForm: React.FC = () => {
                     </div>
                 </div>
             )}
+
+            {/* AI Auto-fill Panel */}
+            <div className="bg-gradient-to-r from-amber-500/10 via-orange-500/10 to-yellow-500/10 border border-amber-200 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="flex items-start gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 to-orange-500 flex items-center justify-center text-white shadow-md shrink-0">
+                        <Sparkles size={20} />
+                    </div>
+                    <div>
+                        <h3 className="font-bold text-stone-800">
+                            ระบบกรอกยอดขายอัจฉริยะ (Auto-fill)
+                        </h3>
+                        <p className="text-sm text-stone-600 mt-0.5">
+                            {selectedMarketId
+                                ? predictionMeta.count > 0
+                                    ? `วิเคราะห์จากข้อมูลวัน${predictionMeta.dayName}ที่ตลาดนี้ ย้อนหลังล่าสุด ${predictionMeta.count} สัปดาห์`
+                                    : `ไม่พบข้อมูลวัน${predictionMeta.dayName}ย้อนหลังสำหรับตลาดนี้`
+                                : 'กรุณาเลือกตลาดเพื่อเปิดใช้งานระบบวิเคราะห์ประวัติยอดขาย'
+                            }
+                        </p>
+                    </div>
+                </div>
+
+                <button
+                    type="button"
+                    onClick={handleAutoFill}
+                    disabled={!selectedMarketId || hasNoStock || isPredicting || predictionMeta.count === 0}
+                    className={`px-5 py-2.5 rounded-xl font-bold transition-all flex items-center justify-center gap-2 text-sm shadow-sm shrink-0 ${
+                        !selectedMarketId || hasNoStock || isPredicting || predictionMeta.count === 0
+                            ? 'bg-stone-100 text-stone-400 border border-stone-200 cursor-not-allowed shadow-none'
+                            : 'bg-gradient-to-r from-amber-500 to-orange-500 text-white hover:from-amber-600 hover:to-orange-600 hover:shadow-md hover:-translate-y-0.5 active:translate-y-0'
+                    }`}
+                >
+                    {isPredicting ? 'กำลังคำนวณ...' : (
+                        <>
+                            <Sparkles size={16} />
+                            เติมข้อมูลทำนาย
+                        </>
+                    )}
+                </button>
+            </div>
 
             {/* Product Cards - Grouped Grid Layout */}
             <div className="space-y-4">

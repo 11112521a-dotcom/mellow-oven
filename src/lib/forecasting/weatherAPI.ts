@@ -56,7 +56,6 @@ export async function fetchWeatherForecast(
 
         // Open-Meteo only forecasts up to 16 days ahead
         if (daysAhead > 16 || daysAhead < 0) {
-            console.log('Date out of forecast range, using cached/default');
             return weatherCache.get(cacheKey) || getDefaultWeather(date);
         }
 
@@ -112,7 +111,6 @@ export async function fetchWeatherForecast(
         // SAFETY: On any error, try cache first, then return default
         const cached = weatherCache.get(cacheKey);
         if (cached) {
-            console.log('[Weather] Using cached forecast due to API error');
             return cached;
         }
 

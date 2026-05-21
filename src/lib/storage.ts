@@ -46,7 +46,6 @@ export async function uploadShopLogo(file: File): Promise<string | null> {
             .from(BUCKET_NAME)
             .getPublicUrl(filePath);
 
-        console.log('[uploadShopLogo] Success:', urlData.publicUrl);
         return urlData.publicUrl;
 
     } catch (error) {
@@ -74,7 +73,6 @@ export async function deleteShopLogo(url: string): Promise<boolean> {
             return false;
         }
 
-        console.log('[deleteShopLogo] Success:', path);
         return true;
 
     } catch (error) {

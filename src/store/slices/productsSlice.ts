@@ -36,7 +36,6 @@ export const createProductsSlice: StateCreator<AppState, [], [], ProductsSlice> 
             set((state) => ({
                 products: state.products.map((p) => p.id === tempId ? { ...p, id: data.id } : p)
             }));
-            console.log('[addProduct] Successfully added:', data.name);
         }
     },
 
@@ -64,7 +63,6 @@ export const createProductsSlice: StateCreator<AppState, [], [], ProductsSlice> 
             // Only update local state AFTER DB success
             set((state) => ({ products: state.products.filter((p) => p.id !== id) }));
 
-            console.log('[removeProduct] Successfully deleted product:', id);
         } catch (err) {
             console.error('[removeProduct] Error:', err);
             throw err;  // Re-throw for UI to handle
@@ -105,7 +103,6 @@ export const createProductsSlice: StateCreator<AppState, [], [], ProductsSlice> 
                 )
             }));
 
-            console.log('[toggleProductActive] Success:', id, '->', newStatus ? 'เปิดขาย' : 'พักขาย');
         } catch (err) {
             console.error('[toggleProductActive] Error:', err);
             throw err;
@@ -165,7 +162,6 @@ export const createProductsSlice: StateCreator<AppState, [], [], ProductsSlice> 
                 )
             }));
 
-            console.log('[toggleVariantActive] Success:', variantId, '->', newStatus ? 'เปิดขาย' : 'พักขาย');
         } catch (err) {
             console.error('[toggleVariantActive] Error:', err);
             throw err;
@@ -265,7 +261,6 @@ export const createProductsSlice: StateCreator<AppState, [], [], ProductsSlice> 
                 productionForecasts: state.productionForecasts.filter(f => f.marketId !== marketId)
             }));
 
-            console.log('Successfully deleted forecasts for market:', marketId);
         } catch (error) {
             console.error('Error in deleteForecastsForMarket:', error);
             throw error;
@@ -287,7 +282,6 @@ export const createProductsSlice: StateCreator<AppState, [], [], ProductsSlice> 
                 productionForecasts: state.productionForecasts.filter(f => f.forecastForDate !== date)
             }));
 
-            console.log('Successfully deleted forecasts for date:', date);
         } catch (error) {
             console.error('Error in deleteForecastsByDate:', error);
             throw error;

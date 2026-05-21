@@ -53,11 +53,19 @@ import { DetailedSalesReportModal } from '@/src/components/Reports/DetailedSales
 import { runOracle, OraclePattern, runComboAnalysis, runCannibalismCheck } from '@/src/lib/oracle/oracleEngine';
 import { OracleInsightCard } from '@/src/components/SalesReport/OracleInsightCard';
 import { FileDown } from 'lucide-react'; // Ensure FileDown is imported
+import { 
+    calculateSalesSummary, 
+    calculateProductGroups, 
+    calculateDailyBreakdown, 
+    calculatePerMarketProductData, 
+    calculateWasteSummary 
+} from '@/src/lib/salesAnalytics';
+import { ProductSaleLog } from '@/types';
 
 interface EditSalesModalProps {
     isOpen: boolean;
     onClose: () => void;
-    saleData: any;
+    saleData: ProductSaleLog | null;
     onSave: (id: string, newQuantity: number, eatQty: number, giveawayQty: number) => void;
 }
 
@@ -68,7 +76,7 @@ const EditSalesModal: React.FC<EditSalesModalProps> = ({ isOpen, onClose, saleDa
 
     React.useEffect(() => {
         if (saleData) {
-            setQuantity(saleData.quantity);
+            setQuantity(saleData.quantitySold);
             setEatQty(saleData.eatQty || 0);
             setGiveawayQty(saleData.giveawayQty || 0);
         }
@@ -87,7 +95,7 @@ const EditSalesModal: React.FC<EditSalesModalProps> = ({ isOpen, onClose, saleDa
                 <div className="bg-gradient-to-r from-cafe-50 to-amber-50 p-4 rounded-xl border border-cafe-100">
                     <div className="text-sm text-cafe-500 mb-1">📅 วันที่</div>
                     <div className="font-bold text-cafe-900">
-                        {new Date(saleData.date).toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' })}
+                        {new Date(saleData.saleDate).toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' })}
                     </div>
                     <div className="text-sm text-cafe-500 mt-2 mb-1">🍞 สินค้า</div>
                     <div className="font-bold text-cafe-900">
@@ -184,12 +192,18 @@ const formatDateLocal = (date: Date) => {
 };
 
 export const SalesReport: React.FC = () => {
-    const { productSales, markets, products, updateProductSaleLog, specialOrders, dailyInventory, fetchInventoryByDateRange } = useStore();
+    const productSales = useStore((state) => state.productSales);
+    const markets = useStore((state) => state.markets);
+    const products = useStore((state) => state.products);
+    const updateProductSaleLog = useStore((state) => state.updateProductSaleLog);
+    const specialOrders = useStore((state) => state.specialOrders);
+    const dailyInventory = useStore((state) => state.dailyInventory);
+    const fetchInventoryByDateRange = useStore((state) => state.fetchInventoryByDateRange);
 
     const globalDateFilter = useStore((state) => state.globalDateFilter);
     const setGlobalDateFilter = useStore((state) => state.setGlobalDateFilter);
 
-    const datePreset = globalDateFilter.preset as any;
+    const datePreset = globalDateFilter.preset as 'today' | 'yesterday' | 'thisWeek' | 'lastWeek' | 'thisMonth' | 'lastMonth' | '3months' | '6months' | 'thisYear' | 'custom';
     const startDate = globalDateFilter.fromDate;
     const endDate = globalDateFilter.toDate;
 
@@ -204,7 +218,6 @@ export const SalesReport: React.FC = () => {
     // NEW: Fetch inventory when date range changes
     useEffect(() => {
         if (startDate && endDate) {
-            console.log('Fetching inventory for range:', startDate, endDate);
             fetchInventoryByDateRange(startDate, endDate);
         }
     }, [startDate, endDate]);
@@ -214,7 +227,7 @@ export const SalesReport: React.FC = () => {
     const [expandedProduct, setExpandedProduct] = useState<string | null>(null);
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [isDetailedReportOpen, setIsDetailedReportOpen] = useState(false); // NEW
-    const [editingSale, setEditingSale] = useState<any>(null);
+    const [editingSale, setEditingSale] = useState<ProductSaleLog | null>(null);
 
     // Oracle Core State
     const [oraclePatterns, setOraclePatterns] = useState<OraclePattern[]>([]);
@@ -295,7 +308,7 @@ export const SalesReport: React.FC = () => {
         label: datePreset === 'today' ? 'วันนี้' : datePreset === 'thisMonth' ? 'เดือนนี้' : 'กำหนดเอง'
     }), [startDate, endDate, datePreset]);
 
-    const handleEditClick = (sale: any) => {
+    const handleEditClick = (sale: ProductSaleLog) => {
         setEditingSale(sale);
         setIsEditModalOpen(true);
     };
@@ -309,8 +322,8 @@ export const SalesReport: React.FC = () => {
             const variant = product.variants.find(v => v.id === editingSale.variantId);
             if (variant) { defaultPrice = variant.price; defaultCost = variant.cost; }
         }
-        const pricePerUnit = editingSale.quantity > 0 ? editingSale.revenue / editingSale.quantity : defaultPrice;
-        const costPerUnit = editingSale.quantity > 0 ? editingSale.cost / editingSale.quantity : defaultCost;
+        const pricePerUnit = editingSale.quantitySold > 0 ? editingSale.totalRevenue / editingSale.quantitySold : defaultPrice;
+        const costPerUnit = editingSale.quantitySold > 0 ? editingSale.totalCost / editingSale.quantitySold : defaultCost;
 
         // Calculate totals
         // Revenue comes ONLY from sold quantity
@@ -420,56 +433,9 @@ export const SalesReport: React.FC = () => {
         });
     }, [productSales, startDate, endDate, selectedMarket]);
 
-    // Titan Analytics Removed (Replaced by Oracle Core in Detailed Report)
+    const summary = useMemo(() => calculateSalesSummary(filteredSales), [filteredSales]);
 
-    const summary = useMemo(() => {
-        const totalRevenue = filteredSales.reduce((sum, s) => sum + s.totalRevenue, 0);
-        const totalCost = filteredSales.reduce((sum, s) => sum + s.totalCost, 0);
-        const totalProfit = filteredSales.reduce((sum, s) => sum + s.grossProfit, 0);
-        const totalQuantity = filteredSales.reduce((sum, s) => sum + s.quantitySold, 0);
-        return { totalRevenue, totalCost, totalProfit, totalQuantity, profitMargin: totalRevenue > 0 ? (totalProfit / totalRevenue) * 100 : 0 };
-    }, [filteredSales]);
-
-    const productGroups = useMemo(() => {
-        const groups = filteredSales.reduce((acc, sale) => {
-            const key = sale.variantId || sale.productId;
-            if (!acc[key]) acc[key] = {
-                productId: sale.productId,
-                variantId: sale.variantId,
-                productName: sale.variantName ? `${sale.productName} (${sale.variantName})` : sale.productName,
-                category: sale.category,
-                totalQuantity: 0,
-                totalRevenue: 0,
-                totalCost: 0,
-                totalProfit: 0,
-                totalWaste: 0, // NEW: Total waste quantity
-                dailySales: []
-            };
-            acc[key].totalQuantity += sale.quantitySold;
-            acc[key].totalRevenue += sale.totalRevenue;
-            acc[key].totalCost += sale.totalCost;
-            acc[key].totalProfit += sale.grossProfit;
-            acc[key].totalWaste += sale.wasteQty || 0; // NEW: Accumulate waste
-            // Enhanced dailySales with more data
-            acc[key].dailySales.push({
-                date: sale.saleDate,
-                quantity: sale.quantitySold,
-                revenue: sale.totalRevenue,
-                cost: sale.totalCost,
-                profit: sale.grossProfit,
-                marketId: sale.marketId,
-                id: sale.id,
-                productId: sale.productId,
-                variantId: sale.variantId,
-                pricePerUnit: sale.pricePerUnit, // NEW
-                costPerUnit: sale.costPerUnit,   // NEW
-                wasteQty: sale.wasteQty || 0,    // NEW
-                weather: sale.weatherCondition   // NEW
-            });
-            return acc;
-        }, {} as Record<string, any>);
-        return Object.values(groups).sort((a: any, b: any) => b.totalRevenue - a.totalRevenue);
-    }, [filteredSales]);
+    const productGroups = useMemo(() => calculateProductGroups(filteredSales), [filteredSales]);
 
     const revenueTrendData = useMemo(() => {
         const dateMap = new Map<string, { revenue: number; profit: number }>();
@@ -480,12 +446,15 @@ export const SalesReport: React.FC = () => {
         return Array.from(dateMap.entries()).map(([date, data]) => ({ date: new Date(date).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' }), revenue: data.revenue, profit: data.profit })).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
     }, [filteredSales]);
 
-    const topProductsData = useMemo(() => productGroups.slice(0, 10).map((product: any) => ({ productName: product.productName, category: product.category, value: topProductsMode === 'quantity' ? product.totalQuantity : topProductsMode === 'revenue' ? product.totalRevenue : product.totalProfit })), [productGroups, topProductsMode]);
+    const dailyBreakdownData = useMemo(() => calculateDailyBreakdown(filteredSales), [filteredSales]);
 
-    // Bottom 5 Products - Worst Sellers (sorted by quantity ascending)
+    const perMarketProductData = useMemo(() => calculatePerMarketProductData(filteredSales, markets), [filteredSales, markets]);
+
+    const topProductsData = useMemo(() => productGroups.slice(0, 10).map((product) => ({ productName: product.productName, category: product.category, value: topProductsMode === 'quantity' ? product.totalQuantity : topProductsMode === 'revenue' ? product.totalRevenue : product.totalProfit })), [productGroups, topProductsMode]);
+
     const bottomProductsData = useMemo(() => {
-        const sorted = [...productGroups].sort((a: any, b: any) => a.totalQuantity - b.totalQuantity);
-        return sorted.slice(0, 5).map((product: any) => ({
+        const sorted = [...productGroups].sort((a, b) => a.totalQuantity - b.totalQuantity);
+        return sorted.slice(0, 5).map((product) => ({
             productName: product.productName,
             category: product.category,
             value: topProductsMode === 'quantity' ? product.totalQuantity : topProductsMode === 'revenue' ? product.totalRevenue : product.totalProfit,
@@ -504,32 +473,7 @@ export const SalesReport: React.FC = () => {
         return Array.from(marketMap.entries()).map(([marketId, data]) => ({ marketName: markets.find(m => m.id === marketId)?.name || marketId, revenue: data.revenue, profit: data.profit, quantity: data.quantity }));
     }, [filteredSales, markets]);
 
-    // NEW: Waste Summary Data
-    const wasteSummary = useMemo(() => {
-        const wasteByProduct: Record<string, { productName: string; wasteQty: number; wasteCost: number }> = {};
-        let totalWasteQty = 0;
-        let totalWasteCost = 0;
-
-        filteredSales.forEach(sale => {
-            const wasteQty = sale.wasteQty || 0;
-            if (wasteQty > 0) {
-                const wasteCost = wasteQty * sale.costPerUnit;
-                totalWasteQty += wasteQty;
-                totalWasteCost += wasteCost;
-
-                const key = sale.variantId || sale.productId;
-                const productName = sale.variantName ? `${sale.productName} (${sale.variantName})` : sale.productName;
-                if (!wasteByProduct[key]) {
-                    wasteByProduct[key] = { productName, wasteQty: 0, wasteCost: 0 };
-                }
-                wasteByProduct[key].wasteQty += wasteQty;
-                wasteByProduct[key].wasteCost += wasteCost;
-            }
-        });
-
-        const sortedWasteProducts = Object.values(wasteByProduct).sort((a, b) => b.wasteCost - a.wasteCost);
-        return { totalWasteQty, totalWasteCost, wasteByProduct: sortedWasteProducts };
-    }, [filteredSales]);
+    const wasteSummary = useMemo(() => calculateWasteSummary(filteredSales), [filteredSales]);
 
     // NEW: Day of Week Analysis
     const dayOfWeekData = useMemo(() => {
@@ -660,7 +604,7 @@ export const SalesReport: React.FC = () => {
                             <Clock size={18} className="text-amber-600" />
                             <select
                                 value={datePreset}
-                                onChange={(e) => applyDatePreset(e.target.value as any)}
+                                onChange={(e) => applyDatePreset(e.target.value as 'today' | 'yesterday' | 'thisWeek' | 'lastWeek' | 'thisMonth' | 'lastMonth' | '3months' | '6months' | 'thisYear' | 'custom')}
                                 className="bg-transparent border-none text-stone-700 font-medium focus:ring-0 cursor-pointer"
                             >
                                 <option value="today">วันนี้</option>
@@ -835,22 +779,24 @@ export const SalesReport: React.FC = () => {
                     {/* TAB: SALES - Original Sales Report Content */}
                     {activeTab === 'sales' && (
                         <>
-                            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                                 <StatCard icon={<DollarSign size={28} />} label="รายรับรวม" value={formatCurrency(summary.totalRevenue)} gradient="from-blue-500 to-blue-600" delay={0} growth={growthData.revenueGrowth} />
                                 <StatCard icon={<TrendingUp size={28} />} label="กำไรสุทธิ" value={formatCurrency(summary.totalProfit)} gradient="from-emerald-500 to-green-600" delay={50} growth={growthData.profitGrowth} />
                                 <StatCard icon={<Package size={28} />} label="ขายได้" value={summary.totalQuantity} subValue="ชิ้น" gradient="from-violet-500 to-purple-600" delay={100} growth={growthData.quantityGrowth} />
                                 <StatCard icon={<Target size={28} />} label="Margin" value={`${summary.profitMargin.toFixed(1)}%`} gradient="from-pink-500 to-rose-600" delay={150} />
-                                <StatCard icon={<ShoppingBag size={28} />} label="ต้นทุน" value={formatCurrency(summary.totalCost)} gradient="from-orange-500 to-red-500" delay={200} />
-                                {/* Waste Card - Special Highlight */}
+                                
+                                <StatCard icon={<ShoppingBag size={28} />} label="ต้นทุน" value={formatCurrency(summary.totalCost)} gradient="from-orange-500 to-orange-600" delay={200} />
                                 <div className={`relative overflow-hidden rounded-2xl shadow-lg p-5 transform hover:scale-105 hover:-translate-y-1 transition-all duration-300 hover:shadow-xl ${wasteSummary.totalWasteCost > 0 ? 'bg-gradient-to-br from-red-500 to-rose-600' : 'bg-gradient-to-br from-green-500 to-emerald-600'} text-white`}>
                                     <div className="absolute top-0 right-0 w-20 h-20 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2" />
                                     <div className="relative">
                                         <div className="opacity-80 mb-2"><Trash2 size={28} /></div>
-                                        <p className="text-white/70 text-xs mb-1">🗑️ Waste</p>
+                                        <p className="text-white/70 text-xs mb-1">🗑️ ของเสีย</p>
                                         <p className="text-2xl font-bold">{wasteSummary.totalWasteCost > 0 ? `-${formatCurrency(wasteSummary.totalWasteCost)}` : '฿0'}</p>
                                         <p className="text-xs text-white/60 mt-1">{wasteSummary.totalWasteQty} ชิ้น</p>
                                     </div>
                                 </div>
+                                <StatCard icon={<Activity size={28} />} label="กิน/แจกฟรี" value={`${summary.totalEatGiveaway} ชิ้น`} subValue={`-${formatCurrency(summary.totalEatGiveawayCost)}`} gradient="from-amber-500 to-yellow-600" delay={250} />
+                                <StatCard icon={<Calendar size={28} />} label="เฉลี่ย/วัน" value={formatCurrency(summary.avgRevenuePerDay)} subValue={`กำไร ${formatCurrency(summary.avgProfitPerDay)}`} gradient="from-teal-500 to-emerald-600" delay={300} />
                             </div>
 
                             {/* Oracle Card Removed from here */}
@@ -869,17 +815,81 @@ export const SalesReport: React.FC = () => {
                                     <WasteSummaryCard
                                         totalWasteQty={wasteSummary.totalWasteQty}
                                         totalWasteCost={wasteSummary.totalWasteCost}
-                                        wasteByProduct={wasteSummary.wasteByProduct}
+                                        wasteByProduct={wasteSummary.byProduct}
                                         totalRevenue={summary.totalRevenue}
                                     />
                                 )}
                             </div>
 
-                            {/* Charts */}
-                            <div className="space-y-6">
+                            {/* NEW: Daily Breakdown & Revenue Trend Row */}
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+                                {/* Daily Breakdown Table */}
+                                <div className="bg-white rounded-2xl shadow-sm border border-cafe-100 p-6 hover:shadow-lg transition-shadow flex flex-col max-h-[450px]">
+                                    <h3 className="text-lg font-bold text-cafe-900 flex items-center gap-2 mb-4 shrink-0">
+                                        <Calendar size={20} className="text-blue-500" />
+                                        รายงานการขายรายวัน
+                                    </h3>
+                                    <div className="overflow-y-auto flex-1 pr-2 custom-scrollbar">
+                                        <table className="w-full text-sm">
+                                            <thead className="bg-cafe-50 sticky top-0 z-10 shadow-sm">
+                                                <tr>
+                                                    <th className="px-3 py-2 text-left font-semibold text-cafe-700 rounded-tl-lg">วันที่</th>
+                                                    <th className="px-3 py-2 text-center font-semibold text-cafe-700">อากาศ</th>
+                                                    <th className="px-3 py-2 text-right font-semibold text-cafe-700">รายได้</th>
+                                                    <th className="px-3 py-2 text-right font-semibold text-cafe-700">กำไร</th>
+                                                    <th className="px-3 py-2 text-center font-semibold text-cafe-700">ขาย</th>
+                                                    <th className="px-3 py-2 text-center font-semibold text-cafe-700">กิน/แจก</th>
+                                                    <th className="px-3 py-2 text-center font-semibold text-cafe-700 rounded-tr-lg">เสีย</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-cafe-100">
+                                                {(() => {
+                                                    const validDays = dailyBreakdownData.filter(d => d.revenue > 0);
+                                                    const maxRev = validDays.length > 0 ? Math.max(...validDays.map(d => d.revenue)) : 0;
+                                                    const minRev = validDays.length > 0 ? Math.min(...validDays.map(d => d.revenue)) : -1;
+                                                    
+                                                    return dailyBreakdownData.map((day, i) => {
+                                                        const isBest = day.revenue === maxRev && maxRev > 0;
+                                                        const isWorst = day.revenue === minRev && minRev >= 0 && maxRev !== minRev;
+                                                        
+                                                        return (
+                                                            <tr key={day.date} className={`hover:bg-cafe-50 transition-colors ${isBest ? 'bg-emerald-50/50' : isWorst ? 'bg-red-50/50' : ''}`}>
+                                                                <td className="px-3 py-2 whitespace-nowrap">
+                                                                    <div className="font-medium text-cafe-900">{new Date(day.date).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })}</div>
+                                                                </td>
+                                                                <td className="px-3 py-2 text-center">
+                                                                    {getWeatherIcon(day.weather)}
+                                                                </td>
+                                                                <td className="px-3 py-2 text-right font-bold text-cafe-900">
+                                                                    {formatCurrency(day.revenue)}
+                                                                </td>
+                                                                <td className="px-3 py-2 text-right text-green-600 font-semibold">
+                                                                    {formatCurrency(day.profit)}
+                                                                </td>
+                                                                <td className="px-3 py-2 text-center text-cafe-800">
+                                                                    {day.quantity}
+                                                                </td>
+                                                                <td className={`px-3 py-2 text-center ${day.eatGiveaway > 0 ? 'text-amber-600 font-medium' : 'text-cafe-300'}`}>
+                                                                    {day.eatGiveaway > 0 ? day.eatGiveaway : '-'}
+                                                                </td>
+                                                                <td className={`px-3 py-2 text-center ${day.waste > 0 ? 'text-red-600 font-medium' : 'text-cafe-300'}`}>
+                                                                    {day.waste > 0 ? day.waste : '-'}
+                                                                </td>
+                                                            </tr>
+                                                        );
+                                                    });
+                                                })()}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+
                                 <div className="bg-white rounded-2xl shadow-sm border border-cafe-100 p-6 hover:shadow-lg transition-shadow">
                                     <RevenueTrendChart data={revenueTrendData} />
                                 </div>
+                            </div>
+
+                            <div className="space-y-6 mt-6">
 
                                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                                     {/* Top Products */}
@@ -891,7 +901,7 @@ export const SalesReport: React.FC = () => {
                                             </h3>
                                             <div className="flex gap-1 bg-cafe-100 rounded-lg p-1">
                                                 {['quantity', 'revenue', 'profit'].map(mode => (
-                                                    <button key={mode} onClick={() => setTopProductsMode(mode as any)}
+                                                    <button key={mode} onClick={() => setTopProductsMode(mode as 'quantity' | 'revenue' | 'profit')}
                                                         className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${topProductsMode === mode ? 'bg-white shadow text-cafe-800' : 'text-cafe-600 hover:text-cafe-800'}`}>
                                                         {mode === 'quantity' ? 'จำนวน' : mode === 'revenue' ? 'รายรับ' : 'กำไร'}
                                                     </button>
@@ -910,7 +920,7 @@ export const SalesReport: React.FC = () => {
                                             </h3>
                                             <div className="flex gap-1 bg-cafe-100 rounded-lg p-1">
                                                 {['revenue', 'profit', 'quantity'].map(mode => (
-                                                    <button key={mode} onClick={() => setMarketComparisonMode(mode as any)}
+                                                    <button key={mode} onClick={() => setMarketComparisonMode(mode as 'revenue' | 'profit' | 'quantity')}
                                                         className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${marketComparisonMode === mode ? 'bg-white shadow text-cafe-800' : 'text-cafe-600 hover:text-cafe-800'}`}>
                                                         {mode === 'quantity' ? 'จำนวน' : mode === 'revenue' ? 'รายรับ' : 'กำไร'}
                                                     </button>
@@ -934,7 +944,7 @@ export const SalesReport: React.FC = () => {
                                     </div>
                                     <p className="text-sm text-cafe-500 mb-4">เมนูที่ขายได้น้อยที่สุดในช่วงเวลา - พิจารณาปรับแผนการผลิตหรือยกเลิก</p>
                                     <div className="space-y-3">
-                                        {bottomProductsData.map((product: any, index: number) => (
+                                        {bottomProductsData.map((product, index: number) => (
                                             <div key={index} className="flex items-center justify-between p-3 bg-gradient-to-r from-orange-50 to-amber-50 rounded-xl border border-orange-100">
                                                 <div className="flex items-center gap-3">
                                                     <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${index === 0 ? 'bg-red-500 text-white' : index === 1 ? 'bg-orange-500 text-white' : 'bg-amber-400 text-white'}`}>
@@ -954,6 +964,79 @@ export const SalesReport: React.FC = () => {
                                     </div>
                                 </div>
                             )}
+
+                            {/* NEW: Per-Market Product Breakdown */}
+                            <div className="space-y-4 mb-6">
+                                <h3 className="text-lg font-bold text-cafe-900 flex items-center gap-2">
+                                    <Store className="text-orange-500" size={20} />
+                                    รายละเอียดแยกตามตลาด (Per-Market Breakdown)
+                                </h3>
+                                {perMarketProductData.length === 0 ? (
+                                    <div className="bg-white rounded-2xl p-8 text-center border border-cafe-100">
+                                        <p className="text-cafe-500">ไม่มีข้อมูลตลาดในช่วงเวลานี้</p>
+                                    </div>
+                                ) : (
+                                    perMarketProductData.map(market => (
+                                        <details key={market.marketId} className="group bg-white rounded-2xl shadow-sm border border-cafe-100 overflow-hidden [&_summary::-webkit-details-marker]:hidden">
+                                            <summary className="flex items-center justify-between p-5 cursor-pointer bg-gradient-to-r hover:from-orange-50 hover:to-white transition-colors">
+                                                <div className="flex items-center gap-4">
+                                                    <div className="w-10 h-10 bg-orange-100 rounded-xl flex items-center justify-center text-orange-600">
+                                                        <Store size={20} />
+                                                    </div>
+                                                    <div>
+                                                        <h4 className="font-bold text-cafe-900 text-lg">{market.marketName}</h4>
+                                                        <div className="flex items-center gap-3 text-sm text-cafe-500 mt-1">
+                                                            <span>ขาย {market.quantity} ชิ้น</span>
+                                                            {market.eatGiveaway > 0 && <span className="text-amber-600">แจก {market.eatGiveaway} ชิ้น</span>}
+                                                            {market.waste > 0 && <span className="text-red-500">เสีย {market.waste} ชิ้น</span>}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div className="flex items-center gap-6">
+                                                    <div className="text-right hidden sm:block">
+                                                        <div className="font-bold text-cafe-900 text-lg">{formatCurrency(market.revenue)}</div>
+                                                        <div className="text-sm text-green-600 font-medium">กำไร {formatCurrency(market.profit)}</div>
+                                                    </div>
+                                                    <div className="w-8 h-8 rounded-full bg-cafe-50 flex items-center justify-center group-open:rotate-180 transition-transform text-cafe-500">
+                                                        <ChevronDown size={20} />
+                                                    </div>
+                                                </div>
+                                            </summary>
+                                            <div className="p-0 border-t border-cafe-100 bg-cafe-50/30 overflow-x-auto">
+                                                <table className="w-full text-sm">
+                                                    <thead className="bg-white border-b border-cafe-100">
+                                                        <tr>
+                                                            <th className="px-5 py-3 text-left font-semibold text-cafe-700">สินค้า</th>
+                                                            <th className="px-5 py-3 text-center font-semibold text-cafe-700">ขาย (ชิ้น)</th>
+                                                            <th className="px-5 py-3 text-right font-semibold text-cafe-700">รายได้</th>
+                                                            <th className="px-5 py-3 text-right font-semibold text-cafe-700">ต้นทุน</th>
+                                                            <th className="px-5 py-3 text-right font-semibold text-cafe-700">กำไร</th>
+                                                            <th className="px-5 py-3 text-center font-semibold text-cafe-700">กิน/แจก</th>
+                                                            <th className="px-5 py-3 text-center font-semibold text-cafe-700">เสีย</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody className="divide-y divide-cafe-100">
+                                                        {market.products.map((p, idx: number) => (
+                                                            <tr key={idx} className="hover:bg-white transition-colors">
+                                                                <td className="px-5 py-3">
+                                                                    <div className="font-medium text-cafe-900">{p.productName}</div>
+                                                                    <div className="text-xs text-cafe-500">{p.category}</div>
+                                                                </td>
+                                                                <td className="px-5 py-3 text-center font-medium text-cafe-800">{p.quantity}</td>
+                                                                <td className="px-5 py-3 text-right font-semibold text-cafe-900">{formatCurrency(p.revenue)}</td>
+                                                                <td className="px-5 py-3 text-right text-orange-600">{formatCurrency(p.cost)}</td>
+                                                                <td className="px-5 py-3 text-right font-bold text-green-600">{formatCurrency(p.profit)}</td>
+                                                                <td className={`px-5 py-3 text-center ${p.eatGiveaway > 0 ? 'text-amber-600 font-medium' : 'text-cafe-300'}`}>{p.eatGiveaway > 0 ? p.eatGiveaway : '-'}</td>
+                                                                <td className={`px-5 py-3 text-center ${p.waste > 0 ? 'text-red-600 font-medium' : 'text-cafe-300'}`}>{p.waste > 0 ? p.waste : '-'}</td>
+                                                            </tr>
+                                                        ))}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </details>
+                                    ))
+                                )}
+                            </div>
 
                             {/* Data Table */}
                             <div className="bg-white rounded-2xl shadow-sm border border-cafe-100 overflow-hidden hover:shadow-lg transition-shadow">
@@ -979,6 +1062,8 @@ export const SalesReport: React.FC = () => {
                                                     <th className="px-6 py-4 text-left text-sm font-semibold text-cafe-700 w-10"></th>
                                                     <th className="px-6 py-4 text-left text-sm font-semibold text-cafe-700">เมนู</th>
                                                     <th className="px-6 py-4 text-center text-sm font-semibold text-cafe-700">จำนวน</th>
+                                                    <th className="px-6 py-4 text-center text-sm font-semibold text-cafe-700">กิน/แจก</th>
+                                                    <th className="px-6 py-4 text-center text-sm font-semibold text-cafe-700">เสีย</th>
                                                     <th className="px-6 py-4 text-right text-sm font-semibold text-cafe-700">รายรับ</th>
                                                     <th className="px-6 py-4 text-right text-sm font-semibold text-cafe-700">กำไร</th>
                                                     <th className="px-6 py-4 text-right text-sm font-semibold text-cafe-700">💰 กำไร/ชิ้น</th>
@@ -986,7 +1071,7 @@ export const SalesReport: React.FC = () => {
                                                 </tr>
                                             </thead>
                                             <tbody className="divide-y divide-cafe-50">
-                                                {productGroups.map((product: any) => {
+                                                {productGroups.map((product) => {
                                                     const profitMargin = product.totalRevenue > 0 ? (product.totalProfit / product.totalRevenue) * 100 : 0;
                                                     const profitPerItem = product.totalQuantity > 0 ? product.totalProfit / product.totalQuantity : 0;
                                                     const isExpanded = expandedProduct === (product.variantId || product.productId);
@@ -996,6 +1081,8 @@ export const SalesReport: React.FC = () => {
                                                                 <td className="px-6 py-4"><button className="text-cafe-500 hover:text-cafe-700">{isExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}</button></td>
                                                                 <td className="px-6 py-4"><div className="font-semibold text-cafe-900">{product.productName}</div><div className="text-xs text-cafe-500">{product.category}</div></td>
                                                                 <td className="px-6 py-4 text-center font-medium text-cafe-800">{product.totalQuantity}</td>
+                                                                <td className={`px-6 py-4 text-center font-medium ${product.totalEatGiveaway > 0 ? 'text-amber-600' : 'text-cafe-300'}`}>{product.totalEatGiveaway > 0 ? product.totalEatGiveaway : '-'}</td>
+                                                                <td className={`px-6 py-4 text-center font-medium ${product.totalWaste > 0 ? 'text-red-600' : 'text-cafe-300'}`}>{product.totalWaste > 0 ? product.totalWaste : '-'}</td>
                                                                 <td className="px-6 py-4 text-right font-semibold text-cafe-900">{formatCurrency(product.totalRevenue)}</td>
                                                                 <td className="px-6 py-4 text-right font-bold text-green-600">{formatCurrency(product.totalProfit)}</td>
                                                                 <td className="px-6 py-4 text-right">
@@ -1011,7 +1098,7 @@ export const SalesReport: React.FC = () => {
                                                             </tr>
                                                             {isExpanded && (
                                                                 <tr>
-                                                                    <td colSpan={7} className="p-0">
+                                                                    <td colSpan={9} className="p-0">
                                                                         <div className="bg-gradient-to-r from-cafe-50 to-amber-50 p-5 border-t border-cafe-100">
                                                                             <div className="flex items-center justify-between mb-4">
                                                                                 <h4 className="text-md font-bold text-cafe-800 flex items-center gap-2">
@@ -1030,22 +1117,22 @@ export const SalesReport: React.FC = () => {
 
                                                                             {/* Daily Sales Cards */}
                                                                             <div className="grid gap-3">
-                                                                                {product.dailySales.map((sale: any, index: number) => (
+                                                                                {product.dailySales.map((sale, index: number) => (
                                                                                     <div key={index} className="bg-white rounded-xl p-4 border border-cafe-100 hover:shadow-md transition-shadow">
                                                                                         {/* Row 1: Date, Market, Weather */}
                                                                                         <div className="flex items-center justify-between mb-3 pb-3 border-b border-cafe-100">
                                                                                             <div className="flex items-center gap-4">
                                                                                                 <div className="text-center min-w-[50px]">
-                                                                                                    <div className="text-lg font-bold text-cafe-800">{new Date(sale.date).toLocaleDateString('th-TH', { day: 'numeric' })}</div>
-                                                                                                    <div className="text-xs text-cafe-500">{new Date(sale.date).toLocaleDateString('th-TH', { month: 'short' })}</div>
+                                                                                                    <div className="text-lg font-bold text-cafe-800">{new Date(sale.saleDate).toLocaleDateString('th-TH', { day: 'numeric' })}</div>
+                                                                                                    <div className="text-xs text-cafe-500">{new Date(sale.saleDate).toLocaleDateString('th-TH', { month: 'short' })}</div>
                                                                                                 </div>
                                                                                                 <div className="h-8 w-px bg-cafe-200"></div>
                                                                                                 <div>
                                                                                                     <div className="text-sm font-medium text-cafe-800">{markets.find(m => m.id === sale.marketId)?.name || '-'}</div>
-                                                                                                    {sale.weather && (
+                                                                                                    {sale.weatherCondition && (
                                                                                                         <div className="flex items-center gap-1 text-xs text-cafe-500 mt-0.5">
-                                                                                                            {getWeatherIcon(sale.weather)}
-                                                                                                            <span>{sale.weather === 'sunny' ? 'แดดออก' : sale.weather === 'cloudy' ? 'มีเมฆ' : sale.weather === 'rain' ? 'ฝนตก' : sale.weather === 'storm' ? 'พายุ' : sale.weather}</span>
+                                                                                                            {getWeatherIcon(sale.weatherCondition)}
+                                                                                                            <span>{sale.weatherCondition === 'sunny' ? 'แดดออก' : sale.weatherCondition === 'cloudy' ? 'มีเมฆ' : sale.weatherCondition === 'rain' ? 'ฝนตก' : sale.weatherCondition === 'storm' ? 'พายุ' : sale.weatherCondition}</span>
                                                                                                         </div>
                                                                                                     )}
                                                                                                 </div>
@@ -1059,7 +1146,7 @@ export const SalesReport: React.FC = () => {
                                                                                         <div className="grid grid-cols-3 sm:grid-cols-6 gap-3 text-center">
                                                                                             <div className="bg-blue-50 rounded-lg p-2">
                                                                                                 <div className="text-xs text-blue-600">ขายได้</div>
-                                                                                                <div className="font-bold text-blue-800">{sale.quantity} ชิ้น</div>
+                                                                                                <div className="font-bold text-blue-800">{sale.quantitySold} ชิ้น</div>
                                                                                             </div>
                                                                                             <div className="bg-violet-50 rounded-lg p-2">
                                                                                                 <div className="text-xs text-violet-600">ราคา/ชิ้น</div>
@@ -1071,11 +1158,11 @@ export const SalesReport: React.FC = () => {
                                                                                             </div>
                                                                                             <div className="bg-cafe-50 rounded-lg p-2">
                                                                                                 <div className="text-xs text-cafe-600">รายรับรวม</div>
-                                                                                                <div className="font-bold text-cafe-800">{formatCurrency(sale.revenue)}</div>
+                                                                                                <div className="font-bold text-cafe-800">{formatCurrency(sale.totalRevenue)}</div>
                                                                                             </div>
                                                                                             <div className="bg-green-50 rounded-lg p-2">
                                                                                                 <div className="text-xs text-green-600">กำไร</div>
-                                                                                                <div className="font-bold text-green-700">{formatCurrency(sale.profit)}</div>
+                                                                                                <div className="font-bold text-green-700">{formatCurrency(sale.grossProfit)}</div>
                                                                                             </div>
                                                                                             {/* Waste */}
                                                                                             <div className={`rounded-lg p-2 ${sale.wasteQty > 0 ? 'bg-red-50' : 'bg-gray-50'}`}>
@@ -1101,6 +1188,8 @@ export const SalesReport: React.FC = () => {
                                                     <td className="px-6 py-5"></td>
                                                     <td className="px-6 py-5 text-lg">🏆 รวมทั้งหมด</td>
                                                     <td className="px-6 py-5 text-center text-xl">{summary.totalQuantity}</td>
+                                                    <td className="px-6 py-5 text-center text-xl text-amber-300">{summary.totalEatGiveaway > 0 ? summary.totalEatGiveaway : '-'}</td>
+                                                    <td className="px-6 py-5 text-center text-xl text-red-300">{wasteSummary.totalWasteQty > 0 ? wasteSummary.totalWasteQty : '-'}</td>
                                                     <td className="px-6 py-5 text-right text-xl">{formatCurrency(summary.totalRevenue)}</td>
                                                     <td className="px-6 py-5 text-right text-xl text-green-300">{formatCurrency(summary.totalProfit)}</td>
                                                     <td className="px-6 py-5 text-right text-lg">

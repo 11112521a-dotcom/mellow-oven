@@ -37,7 +37,6 @@ export function useFormDraft<T>(
                 setData(parsed);
                 setWasRestored(true);
                 setHasDraft(true);
-                console.log(`[FormDraft] Restored draft for: ${key}`);
             }
         } catch (e) {
             console.warn('[FormDraft] Failed to restore draft:', e);
@@ -61,7 +60,6 @@ export function useFormDraft<T>(
                 const serialized = JSON.stringify(data);
                 localStorage.setItem(storageKey, serialized);
                 setHasDraft(true);
-                console.log(`[FormDraft] Saved draft for: ${key}`);
             } catch (e) {
                 console.warn('[FormDraft] Failed to save draft:', e);
             }
@@ -80,7 +78,6 @@ export function useFormDraft<T>(
             localStorage.removeItem(storageKey);
             setHasDraft(false);
             setWasRestored(false);
-            console.log(`[FormDraft] Cleared draft for: ${key}`);
         } catch (e) {
             console.warn('[FormDraft] Failed to clear draft:', e);
         }

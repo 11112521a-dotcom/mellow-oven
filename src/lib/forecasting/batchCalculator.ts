@@ -85,7 +85,6 @@ export function runBatchCalculatorTests(): void {
         { name: 'Small Shortfall', input: { currentStock: 140, dailyTarget: 144, batchSize: 36 }, expected: { batches: 1, total: 176 } },
     ];
 
-    console.log('🧪 Running Batch Calculator Tests...\n');
 
     testCases.forEach((tc, i) => {
         const result = calculateDailyProduction(tc.input);
@@ -151,7 +150,6 @@ export function runStockTransferTests(): void {
         { name: 'Exact Match', input: { totalAvailableStock: 100, shopCapacity: 100 }, expected: { transfer: 100, keep: 0 } },
     ];
 
-    console.log('🚚 Running Stock Transfer Tests...\n');
 
     testCases.forEach((tc, i) => {
         const result = calculateStockTransfer(tc.input);
@@ -170,6 +168,5 @@ export function runStockTransferTests(): void {
  */
 export function runAllProductionTests(): void {
     runBatchCalculatorTests();
-    console.log('\n---\n');
     runStockTransferTests();
 }

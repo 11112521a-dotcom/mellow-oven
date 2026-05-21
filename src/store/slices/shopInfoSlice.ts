@@ -133,7 +133,6 @@ export const createShopInfoSlice: StateCreator<ShopInfoSlice> = (set, get) => ({
                 set({ shopInfo: toCamelCase(data) });
             }
 
-            console.log('[updateShopInfo] Success');
         } catch (error) {
             console.error('[updateShopInfo] Error:', error);
             throw error;
@@ -156,7 +155,6 @@ export const createShopInfoSlice: StateCreator<ShopInfoSlice> = (set, get) => ({
             // Update shop info with new URL
             await get().updateShopInfo({ logoUrl: url });
 
-            console.log('[uploadLogo] Success:', url);
             return url;
         } catch (error) {
             console.error('[uploadLogo] Error:', error);
@@ -173,7 +171,6 @@ export const createShopInfoSlice: StateCreator<ShopInfoSlice> = (set, get) => ({
             await deleteShopLogo(current.logoUrl);
             await get().updateShopInfo({ logoUrl: null });
 
-            console.log('[deleteLogo] Success');
         } catch (error) {
             console.error('[deleteLogo] Error:', error);
             throw error;

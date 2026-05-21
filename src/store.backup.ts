@@ -272,7 +272,6 @@ export const useStore = create<AppState>()(
                 if (profitsError) {
                     console.error('[fetchData] unallocated_profits fetch error:', profitsError);
                 } else {
-                    console.log('[fetchData] unallocated_profits loaded:', unallocatedProfitsData?.length || 0, 'records');
                 }
                 const { data: allocationProfilesData } = await supabase.from('allocation_profiles').select('*').order('created_at', { ascending: true });
 
@@ -1022,7 +1021,6 @@ export const useStore = create<AppState>()(
                     console.error('[AllocationProfile] Set default failed:', error);
                     alert(`❌ ตั้งค่า Default Profile ไม่สำเร็จ: ${error.message}`);
                 } else {
-                    console.log('[AllocationProfile] Default set to:', profileId);
                 }
             },
 
@@ -2124,7 +2122,6 @@ export const useStore = create<AppState>()(
                     if (profitError) {
                         console.error('[SpecialOrder] Failed to add profit to unallocated:', profitError);
                     } else {
-                        console.log(`[SpecialOrder] Added ${order.grossProfit} profit to unallocated from ${order.orderNumber}`);
                         // Update local state for unallocated profits
                         const { data: newProfit } = await supabase
                             .from('unallocated_profits')
@@ -2223,14 +2220,12 @@ export const useStore = create<AppState>()(
                             }]
                         }));
                         syncedCount++;
-                        console.log(`[Sync] Added missing profit ${order.grossProfit} from ${order.orderNumber}`);
                     } else if (error) {
                         console.error(`[Sync] Insert failed for ${order.orderNumber}:`, error.message, error.details, error.code);
                     }
                 }
 
                 if (syncedCount > 0) {
-                    console.log(`[Sync] Total synced: ${syncedCount} orders`);
                 }
                 return syncedCount;
             },

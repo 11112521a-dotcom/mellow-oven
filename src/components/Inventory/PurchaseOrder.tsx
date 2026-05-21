@@ -111,7 +111,6 @@ export const PurchaseOrderForm: React.FC = () => {
                     } catch (shareError: any) {
                         // User cancelled share or it failed
                         if (shareError.name === 'AbortError') return;
-                        console.log('Share failed, falling back to download', shareError);
                     }
                 }
 

@@ -3,7 +3,7 @@ import { Transaction, Ingredient, ProductSaleLog, DailyInventory } from '../../.
 import { ProductionForecast } from '../../lib/forecasting/types';
 import { JarType } from '../../../types';
 
-export const mapTransaction = (t: any): Transaction => ({
+export const mapTransaction = (t: Record<string, any>): Transaction => ({
     id: t.id,
     date: t.date,
     amount: Number(t.amount),
@@ -15,7 +15,7 @@ export const mapTransaction = (t: any): Transaction => ({
     marketId: t.market_id
 });
 
-export const mapIngredient = (i: any): Ingredient => ({
+export const mapIngredient = (i: Record<string, any>): Ingredient => ({
     id: i.id,
     name: i.name,
     unit: i.unit,
@@ -29,7 +29,7 @@ export const mapIngredient = (i: any): Ingredient => ({
     isHidden: i.is_hidden ?? false
 });
 
-export const mapProductSaleLog = (s: any): ProductSaleLog => ({
+export const mapProductSaleLog = (s: Record<string, any>): ProductSaleLog => ({
     id: s.id,
     recordedAt: s.recorded_at,
     saleDate: s.sale_date,
@@ -50,7 +50,7 @@ export const mapProductSaleLog = (s: any): ProductSaleLog => ({
     weatherCondition: s.weather_condition
 });
 
-export const mapProductionForecast = (f: any): ProductionForecast => ({
+export const mapProductionForecast = (f: Record<string, any>): ProductionForecast => ({
     id: f.id,
     createdAt: f.created_at,
     productId: f.product_id,
@@ -77,7 +77,7 @@ export const mapProductionForecast = (f: any): ProductionForecast => ({
     outliersRemoved: f.outliers_removed
 });
 
-export const mapDailyInventory = (d: any): DailyInventory => ({
+export const mapDailyInventory = (d: Record<string, any>): DailyInventory => ({
     id: d.id,
     createdAt: d.created_at || d.createdAt, // Fallback for stability
     businessDate: d.business_date,

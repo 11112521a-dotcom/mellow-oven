@@ -102,7 +102,6 @@ export const createQuotationSlice: StateCreator<QuotationSlice> = (set, get) => 
             if (error) throw error;
 
             set({ quotations: (data || []).map(toCamelCase) });
-            console.log('[fetchQuotations] Loaded', data?.length, 'quotations');
         } catch (error) {
             console.error('[fetchQuotations] Error:', error);
         } finally {
@@ -144,7 +143,6 @@ export const createQuotationSlice: StateCreator<QuotationSlice> = (set, get) => 
             // Refresh data
             await get().fetchQuotations();
 
-            console.log('[createQuotation] Created:', data.quotation_number);
             return toCamelCase(data);
         } catch (error) {
             console.error('[createQuotation] Error:', error);
@@ -186,7 +184,6 @@ export const createQuotationSlice: StateCreator<QuotationSlice> = (set, get) => 
             // Refresh data
             await get().fetchQuotations();
 
-            console.log('[updateQuotation] Updated:', id);
         } catch (error) {
             console.error('[updateQuotation] Error:', error);
             throw error;
@@ -210,7 +207,6 @@ export const createQuotationSlice: StateCreator<QuotationSlice> = (set, get) => 
                 )
             });
 
-            console.log('[updateQuotationStatus] Updated:', id, '->', status);
         } catch (error) {
             console.error('[updateQuotationStatus] Error:', error);
             throw error;
@@ -230,7 +226,6 @@ export const createQuotationSlice: StateCreator<QuotationSlice> = (set, get) => 
             // Update local state
             set({ quotations: get().quotations.filter(q => q.id !== id) });
 
-            console.log('[deleteQuotation] Deleted:', id);
         } catch (error) {
             console.error('[deleteQuotation] Error:', error);
             throw error;

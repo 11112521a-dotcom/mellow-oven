@@ -579,7 +579,6 @@ export const MenuStockPlanner: React.FC = () => {
 
     // Handle Edit Save with confirmation
     const handleEditSave = async (producedQty: number, toShopQty: number, freeQty: number, wasteQty: number) => {
-        console.log('[handleEditSave] Called with:', { producedQty, toShopQty, freeQty, wasteQty, hasEditModal: !!editModal });
 
         if (!editModal) {
             console.error('[handleEditSave] editModal is null! Cannot save.');
@@ -589,14 +588,11 @@ export const MenuStockPlanner: React.FC = () => {
         const item = editModal.item;
         const stockYesterday = editModal.stockYesterday;
 
-        console.log('[handleEditSave] Item:', item.name, 'stockYesterday:', stockYesterday);
 
         setIsSaving(true);
         try {
             const saved = getSavedRecord(item);
-            console.log('[handleEditSave] Saved record:', saved);
 
-            console.log('[handleEditSave] Calling upsertDailyInventory...');
             await upsertDailyInventory({
                 businessDate,
                 productId: item.productId,
@@ -609,10 +605,8 @@ export const MenuStockPlanner: React.FC = () => {
                 eatQty: freeQty,
                 giveawayQty: 0
             });
-            console.log('[handleEditSave] upsertDailyInventory done!');
 
             await fetchDailyInventory(businessDate);
-            console.log('[handleEditSave] fetchDailyInventory done!');
         } catch (error) {
             console.error('[handleEditSave] Error:', error);
         } finally {
@@ -756,9 +750,7 @@ export const MenuStockPlanner: React.FC = () => {
             }> = [];
 
             for (const { item, value } of bulkActionModal.items) {
-                console.log(`[confirmBulkAction] Processing item: ${item.name}, modal value: ${value}`);
                 if (value <= 0) {
-                    console.log(`[confirmBulkAction] Skipped: value <= 0`);
                     continue;
                 }
 
@@ -771,7 +763,6 @@ export const MenuStockPlanner: React.FC = () => {
 
                 const saved = getSavedRecord(item);
                 const stockYesterday = saved.stockYesterday ?? getYesterdayForItem(item);
-                console.log(`[confirmBulkAction] saved record:`, saved);
 
                 if (bulkActionModal.type === 'produceAll') {
                     // ADD to existing production
@@ -819,17 +810,14 @@ export const MenuStockPlanner: React.FC = () => {
                             stockYesterday
                         });
                     } else {
-                        console.log(`[confirmBulkAction] Skipped: safeTransfer <= 0`);
                     }
                 }
             }
 
-            console.log(`[confirmBulkAction] batchRecords count: ${batchRecords.length}`, batchRecords);
 
             // 🚀 PHASE 2: Single batch RPC call (if RPC exists) or fallback to Promise.all
             if (batchRecords.length > 0) {
                 // TEMP: Skip RPC and use fallback directly to debug
-                console.log('[confirmBulkAction] Using fallback upsert (RPC bypassed for debug)');
                 await Promise.all(batchRecords.map(record =>
                     upsertDailyInventory({
                         businessDate: record.businessDate,

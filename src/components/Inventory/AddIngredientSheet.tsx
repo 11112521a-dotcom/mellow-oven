@@ -107,7 +107,7 @@ export const AddIngredientSheet: React.FC<AddIngredientSheetProps> = ({
     return (
         <>
             {/* Backdrop */}
-            <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50" onClick={onClose} />
+            <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50" role="presentation" onClick={onClose} />
 
             {/* Sheet */}
             <div className="fixed bottom-0 left-0 right-0 z-50 animate-in slide-in-from-bottom duration-300">

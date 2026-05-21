@@ -156,8 +156,8 @@ export const JarsSection: React.FC<JarsSectionProps> = ({ jars, onJarClick }) =>
 
             {/* Edit Balance Modal */}
             {editingJar && (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setEditingJar(null)}>
-                    <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-xl" onClick={(e) => e.stopPropagation()}>
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" role="presentation" onClick={() => setEditingJar(null)}>
+                    <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-xl" role="presentation" onClick={(e) => e.stopPropagation()}>
                         <div className="flex justify-between items-center mb-4">
                             <h3 className="text-lg font-bold text-stone-800">แก้ไขยอด {editingJar.name}</h3>
                             <button onClick={() => setEditingJar(null)} className="p-2 hover:bg-gray-100 rounded-full">

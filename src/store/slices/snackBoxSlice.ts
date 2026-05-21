@@ -97,7 +97,6 @@ export const createSnackBoxSlice: StateCreator<SnackBoxSlice> = (set, get) => ({
             });
 
             set({ snackBoxSets: sets });
-            console.log('[fetchSnackBoxSets] Loaded', sets.length, 'sets');
         } catch (error) {
             console.error('[fetchSnackBoxSets] Error:', error);
         } finally {
@@ -117,7 +116,6 @@ export const createSnackBoxSlice: StateCreator<SnackBoxSlice> = (set, get) => ({
             if (error) throw error;
 
             set({ packagingOptions: (data || []).map(toPackagingCamelCase) });
-            console.log('[fetchPackagingOptions] Loaded', data?.length, 'options');
         } catch (error) {
             console.error('[fetchPackagingOptions] Error:', error);
         }
@@ -165,7 +163,6 @@ export const createSnackBoxSlice: StateCreator<SnackBoxSlice> = (set, get) => ({
             // Refresh data
             await get().fetchSnackBoxSets();
 
-            console.log('[createSnackBoxSet] Created:', newSet.name);
             return toSetCamelCase(newSet);
         } catch (error) {
             console.error('[createSnackBoxSet] Error:', error);
@@ -226,7 +223,6 @@ export const createSnackBoxSlice: StateCreator<SnackBoxSlice> = (set, get) => ({
             // Refresh data
             await get().fetchSnackBoxSets();
 
-            console.log('[updateSnackBoxSet] Updated:', id);
         } catch (error) {
             console.error('[updateSnackBoxSet] Error:', error);
             throw error;
@@ -246,7 +242,6 @@ export const createSnackBoxSlice: StateCreator<SnackBoxSlice> = (set, get) => ({
             // Update local state
             set({ snackBoxSets: get().snackBoxSets.filter(s => s.id !== id) });
 
-            console.log('[deleteSnackBoxSet] Deleted:', id);
         } catch (error) {
             console.error('[deleteSnackBoxSet] Error:', error);
             throw error;
@@ -280,7 +275,6 @@ export const createSnackBoxSlice: StateCreator<SnackBoxSlice> = (set, get) => ({
             // Update local state immediately (Optimistic UI)
             set({ packagingOptions: [...currentOptions, newOption] });
 
-            console.log('[createPackagingOption] Created:', name);
             return newOption;
         } catch (error) {
             console.error('[createPackagingOption] Error:', error);

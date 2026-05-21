@@ -198,7 +198,6 @@ export async function calculateOptimalProduction(
         let historicalVariance = quantities.length >= 3 ? calculateVariance(quantities) : mean;
         if (historicalVariance === 0 || !isFinite(historicalVariance)) {
             historicalVariance = mean * 0.1 + 1; // Add small variance to prevent division issues
-            console.log('[Forecast] Variance was 0, adding epsilon');
         }
 
         const varianceToMeanRatio = historicalVariance / (calculateMean(quantities) || 1);
@@ -217,7 +216,6 @@ export async function calculateOptimalProduction(
             // Large r (>500) or p close to 1 (>0.9) causes CDF calculation failures
             // This was the root cause of the "1 piece" bug for Saturday egg tarts
             if (r > 500 || p > 0.9 || !isFinite(r) || isNaN(r) || !isFinite(p) || isNaN(p)) {
-                console.log(`[Forecast] NB params unstable (r=${r.toFixed(2)}, p=${p.toFixed(3)}), using Poisson fallback`);
                 distribution = { type: 'poisson', lambda: mean };
             } else {
                 distribution = { type: 'negativeBinomial', r, p };
@@ -240,7 +238,6 @@ export async function calculateOptimalProduction(
         // SAFETY: Q should never be less than 50% of mean for high-volume items
         // This prevents the "1 piece" bug even if quantile calculation fails
         if (mean > 50 && Q < mean * 0.5) {
-            console.log(`[Forecast] Q=${Q} too low for mean=${mean.toFixed(1)}, applying floor at 70%`);
             Q = Math.round(mean * 0.7);
         }
 

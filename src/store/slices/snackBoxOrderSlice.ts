@@ -108,7 +108,6 @@ export const createSnackBoxOrderSlice: StateCreator<SnackBoxOrderSlice> = (set, 
             if (error) throw error;
 
             await get().fetchSnackBoxOrders();
-            console.log('[createSnackBoxOrder] Created:', newOrder.order_number);
             return toOrderCamelCase(newOrder);
         } catch (error) {
             console.error('[createSnackBoxOrder] Error:', error);
@@ -176,7 +175,6 @@ export const createSnackBoxOrderSlice: StateCreator<SnackBoxOrderSlice> = (set, 
                 )
             });
 
-            console.log('[confirmAndRecordProfit] Confirmed order', order.orderNumber, 'profit:', profit);
         } catch (error) {
             console.error('[confirmAndRecordProfit] Error:', error);
             throw error;
@@ -193,7 +191,6 @@ export const createSnackBoxOrderSlice: StateCreator<SnackBoxOrderSlice> = (set, 
             if (error) throw error;
 
             set({ snackBoxOrders: get().snackBoxOrders.filter(o => o.id !== id) });
-            console.log('[deleteSnackBoxOrder] Deleted:', id);
         } catch (error) {
             console.error('[deleteSnackBoxOrder] Error:', error);
             throw error;

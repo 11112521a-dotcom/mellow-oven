@@ -9,11 +9,13 @@ import {
 import type { ForecastOutput } from '../lib/forecasting';
 import { ProductionForecast } from '../lib/forecasting/types';
 
+import type { User, Session } from '@supabase/supabase-js';
+
 // ==================== SLICE INTERFACES ====================
 
 export interface AuthSlice {
-    user: any | null;
-    session: any | null;
+    user: User | null;
+    session: Session | null;
     userRole: 'owner' | 'staff' | null;
     signIn: (email: string, password: string) => Promise<void>;
     signOut: () => Promise<void>;

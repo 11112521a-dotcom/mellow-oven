@@ -111,7 +111,6 @@ export const createPromotionOrderSlice: StateCreator<PromotionOrderSlice> = (set
             });
 
             set({ promotionOrders: orders });
-            console.log('[fetchPromotionOrders] Loaded', orders.length, 'orders');
         } catch (error) {
             console.error('[fetchPromotionOrders] Error:', error);
         } finally {
@@ -172,7 +171,6 @@ export const createPromotionOrderSlice: StateCreator<PromotionOrderSlice> = (set
             // Refresh data
             await get().fetchPromotionOrders();
 
-            console.log('[createPromotionOrder] Created:', newOrder.order_number);
             return toOrderCamelCase(newOrder);
         } catch (error) {
             console.error('[createPromotionOrder] Error:', error);
@@ -208,7 +206,6 @@ export const createPromotionOrderSlice: StateCreator<PromotionOrderSlice> = (set
             // Refresh data
             await get().fetchPromotionOrders();
 
-            console.log('[updatePromotionOrder] Updated:', id);
         } catch (error) {
             console.error('[updatePromotionOrder] Error:', error);
             throw error;
@@ -235,7 +232,6 @@ export const createPromotionOrderSlice: StateCreator<PromotionOrderSlice> = (set
                 )
             });
 
-            console.log('[updatePromotionOrderStatus] Updated:', id, '->', status);
         } catch (error) {
             console.error('[updatePromotionOrderStatus] Error:', error);
             throw error;
@@ -255,7 +251,6 @@ export const createPromotionOrderSlice: StateCreator<PromotionOrderSlice> = (set
             // Update local state
             set({ promotionOrders: get().promotionOrders.filter(o => o.id !== id) });
 
-            console.log('[deletePromotionOrder] Deleted:', id);
         } catch (error) {
             console.error('[deletePromotionOrder] Error:', error);
             throw error;

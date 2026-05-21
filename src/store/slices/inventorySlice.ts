@@ -317,11 +317,9 @@ export const createInventorySlice: StateCreator<AppState, [], [], InventorySlice
         const order = specialOrders.find(o => o.id === orderId);
 
         if (!order || order.stockDeducted) {
-            console.log('[deductStockForBundleOrder] Order not found or already deducted:', orderId);
             return;
         }
 
-        console.log('[deductStockForBundleOrder] Processing order:', order.orderNumber);
 
         for (const item of order.items) {
             const product = products.find(p => p.id === item.productId);
@@ -329,26 +327,22 @@ export const createInventorySlice: StateCreator<AppState, [], [], InventorySlice
 
             // CASE 1: Bundle Product - deduct each selected option
             if (product.bundleConfig?.isBundle && item.selectedOptions) {
-                console.log('[deductStockForBundleOrder] Bundle item detected:', product.name);
 
                 // Deduct for each slot selection
                 Object.keys(item.selectedOptions).forEach(slotId => {
                     const selection = (item.selectedOptions as Record<string, { productId: string; productName: string; unitCost: number; surcharge: number }>)[slotId];
                     if (selection?.productId) {
-                        console.log(`  - Deducting ${item.quantity}x ${selection.productName}`);
                         deductStockByRecipe(selection.productId, item.quantity);
                     }
                 });
 
                 // Also deduct packaging if product has recipe (the box itself)
                 if (product.recipe) {
-                    console.log(`  - Deducting packaging: ${product.name}`);
                     deductStockByRecipe(product.id, item.quantity);
                 }
             }
             // CASE 2: Regular Product - deduct by recipe
             else {
-                console.log('[deductStockForBundleOrder] Regular item:', product.name);
                 deductStockByRecipe(item.productId, item.quantity, item.variantId);
             }
         }

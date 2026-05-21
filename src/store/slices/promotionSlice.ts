@@ -242,7 +242,6 @@ export const createPromotionSlice: StateCreator<AppState, [], [], PromotionSlice
                     }]
                 }));
                 syncedCount++;
-                console.log(`[Sync] Added missing profit ${order.grossProfit} from ${order.orderNumber}`);
             } else if (error) {
                 console.error(`[Sync] Insert failed for ${order.orderNumber}:`, error.message);
             }
