@@ -7,12 +7,12 @@ import {
     Calendar, TrendingUp, Sparkles, Check, Plus, Eye, Wallet,
     ArrowUpRight, ChevronDown, ChevronUp, Coins, BadgeDollarSign,
     Boxes, Shield, Briefcase, PiggyBank, Lock, Unlock, Star, Edit2, X,
-    Target, Gauge, Settings2, ArrowDown, AlertTriangle
+    Target, Gauge, Settings2, ArrowDown, AlertTriangle, RefreshCw
 } from 'lucide-react';
 import { NumberInput } from '@/src/components/ui/NumberInput';
 
 interface AllocationStationProps {
-    onAllocate: (amount: number, allocations: Record<JarType, number>, fromProfit: boolean, specificProfits?: { id: string, amount: number }[], manualDebtAmount?: number) => void;
+    onAllocate: (amount: number, allocations: Record<JarType, number>, fromProfit: boolean, specificProfits?: { id: string, amount: number }[], manualDebtAmount?: number) => Promise<void>;
 }
 
 type InputMode = 'percentage' | 'amount';
@@ -92,6 +92,8 @@ export const AllocationStation: React.FC<AllocationStationProps> = ({ onAllocate
     } = useStore();
 
     const [amount, setAmount] = useState<string>('');
+    const [isAllocating, setIsAllocating] = useState(false);
+    const isInternalAmountChange = React.useRef(false);
     const [selectedProfileId, setSelectedProfileId] = useState<string>(defaultProfileId || 'default');
     const [renameModal, setRenameModal] = useState<{ isOpen: boolean; profileId: string; currentName: string }>({ isOpen: false, profileId: '', currentName: '' });
     const [currentAllocations, setCurrentAllocations] = useState<Record<JarType, number>>({
@@ -310,6 +312,10 @@ export const AllocationStation: React.FC<AllocationStationProps> = ({ onAllocate
     }, [selectedProfitDate, availableDates, fetchDailyInventory]);
 
     useEffect(() => {
+        if (isInternalAmountChange.current) {
+            isInternalAmountChange.current = false;
+            return;
+        }
         if (inputMode === 'amount' && amount) {
             const numAmount = parseFloat(amount);
             if (!isNaN(numAmount)) {
@@ -353,10 +359,14 @@ export const AllocationStation: React.FC<AllocationStationProps> = ({ onAllocate
     };
 
     const handleAmountChange = (jarId: JarType, value: string) => {
-        setCurrentAmounts(prev => ({
-            ...prev,
+        isInternalAmountChange.current = true;
+
+        const updatedAmounts = {
+            ...currentAmounts,
             [jarId]: value
-        }));
+        };
+
+        setCurrentAmounts(updatedAmounts);
 
         const numAmount = parseFloat(amount);
         if (!isNaN(numAmount) && numAmount > 0) {
@@ -364,14 +374,10 @@ export const AllocationStation: React.FC<AllocationStationProps> = ({ onAllocate
             let total = 0;
 
             jars.forEach(jar => {
-                const jarAmount = parseFloat(currentAmounts[jar.id] || '0');
+                const jarAmount = parseFloat(updatedAmounts[jar.id] || '0');
                 newAmounts[jar.id] = jarAmount;
                 total += jarAmount;
             });
-
-            const newValue = parseFloat(value) || 0;
-            newAmounts[jarId] = newValue;
-            total = total - (parseFloat(currentAmounts[jarId] || '0')) + newValue;
 
             const newAllocations: Record<JarType, number> = {} as Record<JarType, number>;
             jars.forEach(jar => {
@@ -446,7 +452,7 @@ export const AllocationStation: React.FC<AllocationStationProps> = ({ onAllocate
         }
     };
 
-    const handleAllocate = () => {
+    const handleAllocate = async () => {
         const numAmount = parseFloat(amount);
         if (isNaN(numAmount) || numAmount <= 0) return;
         if (Math.abs(totalPercentage - 100) > 0.1) {
@@ -460,15 +466,22 @@ export const AllocationStation: React.FC<AllocationStationProps> = ({ onAllocate
             specificProfits = profits.map(p => ({ id: p.id, amount: p.amount }));
         }
 
-        onAllocate(numAmount, currentAllocations, allocationSource === 'profit', specificProfits, effectiveDebtAmount);
-
-        if (allocationSource === 'manual') {
-            setAmount('');
+        setIsAllocating(true);
+        try {
+            await onAllocate(numAmount, currentAllocations, allocationSource === 'profit', specificProfits, effectiveDebtAmount);
+            if (allocationSource === 'manual') {
+                setAmount('');
+            }
+            setCurrentAmounts({
+                'Working': '', 'CapEx': '', 'Opex': '', 'Emergency': '', 'Owner': ''
+            });
+            setShowPreview(false);
+        } catch (error) {
+            console.error('Error allocating funds:', error);
+            alert('เกิดข้อผิดพลาดในการจัดสรรเงิน กรุณาลองใหม่อีกครั้ง');
+        } finally {
+            setIsAllocating(false);
         }
-        setCurrentAmounts({
-            'Working': '', 'CapEx': '', 'Opex': '', 'Emergency': '', 'Owner': ''
-        });
-        setShowPreview(false);
     };
 
     const numAmount = parseFloat(amount) || 0;
@@ -1003,17 +1016,26 @@ export const AllocationStation: React.FC<AllocationStationProps> = ({ onAllocate
                     <div className="hidden lg:block mt-6">
                         <button
                             onClick={handleAllocate}
-                            disabled={!isValidAllocation}
-                            className={`w-full py-5 rounded-2xl font-black text-lg shadow-xl transform transition-all duration-300 active:scale-[0.98] flex items-center justify-center gap-3 ${!isValidAllocation
+                            disabled={!isValidAllocation || isAllocating}
+                            className={`w-full py-5 rounded-2xl font-black text-lg shadow-xl transform transition-all duration-300 active:scale-[0.98] flex items-center justify-center gap-3 ${(!isValidAllocation || isAllocating)
                                 ? 'bg-stone-100 text-stone-400 cursor-not-allowed shadow-none'
                                 : allocationSource === 'profit'
                                     ? 'bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 text-white hover:shadow-2xl hover:shadow-emerald-300/50 hover:-translate-y-0.5'
                                     : 'bg-cafe-900 text-white hover:bg-cafe-800 hover:shadow-2xl hover:shadow-stone-400/30 hover:-translate-y-0.5'
                                 }`}
                         >
-                            {allocationSource === 'profit' ? <Sparkles className="animate-pulse" /> : <Check />}
-                            ยืนยันการจัดสรร
-                            <ArrowRight size={20} />
+                            {isAllocating ? (
+                                <>
+                                    <RefreshCw className="animate-spin" size={20} />
+                                    กำลังจัดสรรเงิน...
+                                </>
+                            ) : (
+                                <>
+                                    {allocationSource === 'profit' ? <Sparkles className="animate-pulse" /> : <Check />}
+                                    ยืนยันการจัดสรร
+                                    <ArrowRight size={20} />
+                                </>
+                            )}
                         </button>
                     </div>
                 </div>
@@ -1248,17 +1270,27 @@ export const AllocationStation: React.FC<AllocationStationProps> = ({ onAllocate
                     <div className="lg:hidden mt-6">
                         <button
                             onClick={handleAllocate}
-                            disabled={!isValidAllocation}
-                            className={`w-full py-5 rounded-2xl font-black text-lg shadow-xl flex items-center justify-center gap-3 ${!isValidAllocation
+                            disabled={!isValidAllocation || isAllocating}
+                            className={`w-full py-5 rounded-2xl font-black text-lg shadow-xl transform transition-all duration-150 active:scale-[0.98] active:opacity-90 flex items-center justify-center gap-3 ${(!isValidAllocation || isAllocating)
                                 ? 'bg-stone-100 text-stone-400 shadow-none'
                                 : allocationSource === 'profit'
                                     ? 'bg-gradient-to-r from-emerald-500 to-teal-600 text-white'
                                     : 'bg-gradient-to-r from-stone-800 to-stone-900 text-white'
                                 }`}
+                            style={{ touchAction: 'manipulation' }}
                         >
-                            {allocationSource === 'profit' ? <Sparkles /> : <Check />}
-                            ยืนยันการจัดสรร
-                            <ArrowRight size={20} />
+                            {isAllocating ? (
+                                <>
+                                    <RefreshCw className="animate-spin" size={20} />
+                                    กำลังจัดสรรเงิน...
+                                </>
+                            ) : (
+                                <>
+                                    {allocationSource === 'profit' ? <Sparkles /> : <Check />}
+                                    ยืนยันการจัดสรร
+                                    <ArrowRight size={20} />
+                                </>
+                            )}
                         </button>
                     </div>
                 </div>

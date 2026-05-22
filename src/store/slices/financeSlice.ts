@@ -1,7 +1,7 @@
 import { StateCreator } from 'zustand';
 import { AppState, FinanceSlice } from '../types';
 import { supabase } from '../../lib/supabase';
-import { Alert } from '../../../types';
+import { Alert, JarType, Transaction, UnallocatedProfit } from '../../../types';
 
 export const createFinanceSlice: StateCreator<AppState, [], [], FinanceSlice> = (set, get) => ({
     jars: [
@@ -288,5 +288,197 @@ export const createFinanceSlice: StateCreator<AppState, [], [], FinanceSlice> = 
     calculateHealthScore: () => {
         // Simplified health score logic
         return 85;
+    },
+
+    executeAllocation: async (amount, allocations, fromProfit = false, specificProfits, manualDebtAmount) => {
+        const { debtConfig } = get();
+
+        // Calculate debt deduction
+        let debtDeduction = 0;
+        let workingAmount = amount;
+
+        if (manualDebtAmount !== undefined) {
+            debtDeduction = manualDebtAmount;
+            workingAmount = Math.max(0, amount - debtDeduction);
+        } else if (debtConfig.isEnabled && amount > 0) {
+            if (amount >= debtConfig.safetyThreshold) {
+                debtDeduction = debtConfig.fixedAmount;
+            } else {
+                debtDeduction = amount * debtConfig.safetyRatio;
+            }
+            workingAmount = amount - debtDeduction;
+        }
+
+        // Helper: Round down to nearest 5
+        const roundToFive = (n: number) => Math.floor(n / 5) * 5;
+
+        // Calculate raw amounts first (using workingAmount after debt deduction)
+        const rawAmounts: Record<JarType, number> = {} as Record<JarType, number>;
+        let totalRounded = 0;
+
+        // Round all jars EXCEPT Owner
+        Object.entries(allocations).forEach(([jarId, percentage]) => {
+            const rawAmount = (workingAmount * percentage) / 100;
+            if (jarId !== 'Owner') {
+                const rounded = roundToFive(rawAmount);
+                rawAmounts[jarId as JarType] = rounded;
+                totalRounded += rounded;
+            }
+        });
+
+        // Owner gets the remainder (to keep total exact)
+        const ownerRemainder = workingAmount - totalRounded;
+        rawAmounts['Owner'] = ownerRemainder;
+
+        // Step 1: Prepare unallocated profits updates if fromProfit is true
+        const profitsToUpsert: UnallocatedProfit[] = [];
+        let updatedUnallocatedProfits = get().unallocatedProfits;
+
+        if (fromProfit) {
+            if (specificProfits && specificProfits.length > 0) {
+                const updatedMap = new Map<string, number>();
+                for (const sp of specificProfits) {
+                    const p = updatedUnallocatedProfits.find(x => x.id === sp.id);
+                    if (p) {
+                        const newAmt = Math.max(0, p.amount - sp.amount);
+                        updatedMap.set(sp.id, newAmt);
+                        profitsToUpsert.push({ ...p, amount: newAmt });
+                    }
+                }
+                updatedUnallocatedProfits = updatedUnallocatedProfits.map(p => {
+                    if (updatedMap.has(p.id)) {
+                        return { ...p, amount: updatedMap.get(p.id)! };
+                    }
+                    return p;
+                });
+            } else {
+                const sortedProfits = [...updatedUnallocatedProfits].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+                let remaining = amount;
+                const updatedMap = new Map<string, number>();
+
+                for (const profit of sortedProfits) {
+                    if (remaining <= 0) break;
+                    const deduct = Math.min(profit.amount, remaining);
+                    const newAmt = Math.max(0, profit.amount - deduct);
+                    updatedMap.set(profit.id, newAmt);
+                    profitsToUpsert.push({ ...profit, amount: newAmt });
+                    remaining -= deduct;
+                }
+                updatedUnallocatedProfits = updatedUnallocatedProfits.map(p => {
+                    if (updatedMap.has(p.id)) {
+                        return { ...p, amount: updatedMap.get(p.id)! };
+                    }
+                    return p;
+                });
+            }
+        }
+
+        // Step 2: Prepare transactions list
+        const transactionsToInsert: Transaction[] = [];
+        const timestamp = new Date().toISOString();
+
+        if (debtDeduction > 0) {
+            transactionsToInsert.push({
+                id: crypto.randomUUID(),
+                date: timestamp,
+                amount: debtDeduction,
+                type: 'INCOME',
+                category: 'Debt Repayment',
+                description: `หักเข้ากองทุนหนี้ (Priority Deduction)`,
+                toJar: 'Owner'
+            });
+        }
+
+        Object.entries(rawAmounts).forEach(([jarId, jarAmount]) => {
+            if (jarAmount > 0) {
+                const percentage = allocations[jarId as JarType] || 0;
+                transactionsToInsert.push({
+                    id: crypto.randomUUID(),
+                    date: timestamp,
+                    amount: jarAmount,
+                    type: 'INCOME',
+                    category: 'Allocation',
+                    description: fromProfit
+                        ? `จัดสรรจากกำไร (${percentage}%)`
+                        : `จัดสรรเงินเข้าระบบ (${percentage}%)`,
+                    toJar: jarId as JarType
+                });
+            }
+        });
+
+        const dbTransactions = transactionsToInsert.map(t => ({
+            id: t.id,
+            date: t.date,
+            amount: t.amount,
+            type: t.type,
+            description: t.description,
+            category: t.category,
+            to_jar: t.toJar,
+            from_jar: t.fromJar,
+            market_id: t.marketId
+        }));
+
+        // Step 3: Prepare local state updates
+        const updatedJars = get().jars.map(jar => {
+            let added = 0;
+            if (jar.id === 'Owner' && debtDeduction > 0) {
+                added += debtDeduction;
+            }
+            const allocatedAmt = rawAmounts[jar.id] || 0;
+            added += allocatedAmt;
+
+            if (added !== 0) {
+                return { ...jar, balance: jar.balance + added };
+            }
+            return jar;
+        });
+
+        const updatedDebtConfig = {
+            ...get().debtConfig,
+            accumulatedAmount: get().debtConfig.accumulatedAmount + debtDeduction
+        };
+
+        // Step 4: Perform DB operations (Parallel and Batch)
+        const dbPromises: Promise<any>[] = [];
+
+        if (profitsToUpsert.length > 0) {
+            const dbUpserts = profitsToUpsert.map(p => ({
+                id: p.id,
+                date: p.date,
+                amount: p.amount,
+                source: p.source,
+                created_at: p.createdAt
+            }));
+            dbPromises.push(Promise.resolve(supabase.from('unallocated_profits').upsert(dbUpserts)));
+        }
+
+        if (dbTransactions.length > 0) {
+            dbPromises.push(Promise.resolve(supabase.from('transactions').insert(dbTransactions)));
+        }
+
+        if (debtDeduction > 0) {
+            dbPromises.push(Promise.resolve((async () => {
+                const { data: debtConfigData } = await supabase.from('debt_config').select('id').single();
+                if (debtConfigData?.id) {
+                    return supabase.from('debt_config').update({ accumulated_amount: updatedDebtConfig.accumulatedAmount }).eq('id', debtConfigData.id);
+                }
+            })()));
+        }
+
+        const results = await Promise.all(dbPromises);
+        for (const res of results) {
+            if (res?.error) {
+                console.error('Database write error during allocation:', res.error);
+                throw new Error(res.error.message || 'Database write failed');
+            }
+        }
+
+        // Step 5: Update Zustand state in a single batch set call
+        set((state) => ({
+            jars: updatedJars,
+            transactions: [...transactionsToInsert, ...state.transactions],
+            unallocatedProfits: updatedUnallocatedProfits,
+            debtConfig: updatedDebtConfig
+        }));
     }
 });

@@ -10,7 +10,7 @@ import { ArrowRightLeft, TrendingUp, TrendingDown, FileText, Plus, Minus, Refres
 import { formatCurrency } from '@/src/lib/utils';
 
 const Financials: React.FC = () => {
-    const { jars, transactions, updateJarBalance, addTransaction, allocateFromProfits, deductUnallocatedProfit } = useStore();
+    const { jars, transactions, executeAllocation } = useStore();
 
     const [isTransactionModalOpen, setIsTransactionModalOpen] = useState(false);
     const [isMonthlyReportOpen, setIsMonthlyReportOpen] = useState(false);
@@ -36,19 +36,16 @@ const Financials: React.FC = () => {
         .reduce((acc, t) => acc + t.amount, 0);
 
     const handleAllocate = async (amount: number, allocations: Record<JarType, number>, fromProfit: boolean = false, specificProfits?: { id: string, amount: number }[], manualDebtAmount?: number) => {
-        // Get debt config from store
-        const { debtConfig, addToDebtAccumulated } = useStore.getState();
+        // Calculate debt config locally to display the alert info accurately
+        const { debtConfig } = useStore.getState();
 
-        // Calculate debt deduction
         let debtDeduction = 0;
         let workingAmount = amount;
 
         if (manualDebtAmount !== undefined) {
-            // Use manual adjustment if provided
             debtDeduction = manualDebtAmount;
             workingAmount = Math.max(0, amount - debtDeduction);
         } else if (debtConfig.isEnabled && amount > 0) {
-            // Fallback to auto-calculation
             if (amount >= debtConfig.safetyThreshold) {
                 debtDeduction = debtConfig.fixedAmount;
             } else {
@@ -57,77 +54,8 @@ const Financials: React.FC = () => {
             workingAmount = amount - debtDeduction;
         }
 
-        // If allocating from profit
-        if (fromProfit) {
-            if (specificProfits && specificProfits.length > 0) {
-                // Deduct from specific profits (Smart Allocation by Date)
-                for (const profit of specificProfits) {
-                    await deductUnallocatedProfit(profit.id, profit.amount);
-                }
-            } else {
-                // FIFO Allocation (All Available)
-                await allocateFromProfits(amount);
-            }
-        }
-
-        // Step 1: Record debt deduction if applicable
-        if (debtDeduction > 0) {
-            await addToDebtAccumulated(debtDeduction);
-            addTransaction({
-                id: crypto.randomUUID(),
-                date: new Date().toISOString(),
-                amount: debtDeduction,
-                type: 'INCOME',
-                category: 'Debt Repayment',
-                description: `หักเข้ากองทุนหนี้ (Priority Deduction)`,
-                toJar: 'Owner' // Using Owner jar as the debt fund destination
-            });
-            updateJarBalance('Owner', debtDeduction);
-        }
-
-        // Helper: Round down to nearest 5 (e.g., 208.05 → 205, 138.70 → 135)
-        const roundToFive = (n: number) => Math.floor(n / 5) * 5;
-
-        // Calculate raw amounts first (using workingAmount after debt deduction)
-        const rawAmounts: Record<JarType, number> = {} as Record<JarType, number>;
-        let totalRounded = 0;
-
-        // Round all jars EXCEPT Owner
-        Object.entries(allocations).forEach(([jarId, percentage]) => {
-            const rawAmount = (workingAmount * percentage) / 100;
-            if (jarId !== 'Owner') {
-                const rounded = roundToFive(rawAmount);
-                rawAmounts[jarId as JarType] = rounded;
-                totalRounded += rounded;
-            }
-        });
-
-        // Owner gets the remainder (to keep total exact)
-        const ownerRemainder = workingAmount - totalRounded;
-        rawAmounts['Owner'] = ownerRemainder;
-
-        // Create transactions with rounded amounts
-        Object.entries(rawAmounts).forEach(([jarId, jarAmount]) => {
-            if (jarAmount > 0) {
-                const percentage = allocations[jarId as JarType] || 0;
-
-                // Update Balance
-                updateJarBalance(jarId as JarType, jarAmount);
-
-                // Add Transaction Record
-                addTransaction({
-                    id: crypto.randomUUID(),
-                    date: new Date().toISOString(),
-                    amount: jarAmount,
-                    type: 'INCOME',
-                    category: 'Allocation',
-                    description: fromProfit
-                        ? `จัดสรรจากกำไร (${percentage}%)`
-                        : `จัดสรรเงินเข้าระบบ (${percentage}%)`,
-                    toJar: jarId as JarType
-                });
-            }
-        });
+        // Call the optimized batch database action in Zustand store
+        await executeAllocation(amount, allocations, fromProfit, specificProfits, manualDebtAmount);
 
         // Show success message with debt info
         if (debtDeduction > 0) {

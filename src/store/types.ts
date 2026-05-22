@@ -68,6 +68,13 @@ export interface FinanceSlice {
     updateJarCustomization: (jarId: JarType, customization: Partial<JarCustomization>) => void;
     autoAllocate: (totalAmount: number) => void;
     calculateHealthScore: () => number;
+    executeAllocation: (
+        amount: number,
+        allocations: Record<JarType, number>,
+        fromProfit?: boolean,
+        specificProfits?: { id: string; amount: number }[],
+        manualDebtAmount?: number
+    ) => Promise<void>;
 }
 
 export interface InventorySlice {
