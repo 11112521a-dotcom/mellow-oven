@@ -101,19 +101,21 @@ export const JarsSection: React.FC<JarsSectionProps> = ({ jars, onJarClick }) =>
     };
 
     return (
-        <div>
-            <h2 className="text-xl font-bold text-stone-800 mb-6 flex items-center gap-2">
-                <span className="w-2 h-8 bg-amber-500 rounded-full"></span>
+        <div className="mt-2">
+            <h2 className="text-xl font-black text-stone-800 mb-6 flex items-center gap-3">
+                <div className="p-2 bg-amber-100 rounded-xl">
+                    <Box size={20} className="text-amber-600" />
+                </div>
                 กระเป๋าเงิน (Cloud Pockets)
             </h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-5">
                 {jars.map((jar) => {
                     const config = getJarConfig(jar.id);
                     return (
                         <div
                             key={jar.id}
                             onClick={() => onJarClick(jar.id)}
-                            className="bg-white rounded-2xl p-5 shadow-sm hover:shadow-md transition-all cursor-pointer border border-stone-100 h-40 flex flex-col justify-between relative overflow-hidden group"
+                            className="bg-white rounded-[2rem] p-6 shadow-sm hover:shadow-xl hover:shadow-stone-200/50 transition-all duration-300 cursor-pointer border border-stone-100/80 flex flex-col justify-between relative overflow-hidden group"
                         >
                             {/* Edit Button */}
                             <button
@@ -125,12 +127,12 @@ export const JarsSection: React.FC<JarsSectionProps> = ({ jars, onJarClick }) =>
                             </button>
 
                             {/* Top Row */}
-                            <div className="flex justify-between items-start">
-                                <div className={`w-12 h-12 rounded-2xl ${config.iconBg} flex items-center justify-center transition-transform group-hover:scale-110`}>
+                            <div className="flex justify-between items-start mb-6">
+                                <div className={`w-14 h-14 rounded-[1.25rem] ${config.iconBg} flex items-center justify-center transition-transform group-hover:scale-110 shadow-sm border border-white/60`}>
                                     {config.icon}
                                 </div>
                                 <div className="text-right">
-                                    <p className={`text-xl font-bold ${config.text}`}>
+                                    <p className={`text-2xl font-black ${config.text} tracking-tight`}>
                                         {formatCurrency(jar.balance)}
                                     </p>
                                 </div>
@@ -139,16 +141,15 @@ export const JarsSection: React.FC<JarsSectionProps> = ({ jars, onJarClick }) =>
                             {/* Bottom Row */}
                             <div className="flex justify-between items-end mt-4">
                                 <div>
-                                    <p className="font-semibold text-stone-700 text-lg">{jar.name}</p>
-                                    <p className="text-xs text-stone-400 line-clamp-1">{jar.description}</p>
+                                    <p className="font-bold text-stone-800 text-lg">{jar.name}</p>
+                                    <p className="text-xs text-stone-400 font-medium line-clamp-1">{jar.description}</p>
                                 </div>
-                                <div className={`text-xs font-bold px-2 py-1 rounded-lg ${config.bg} ${config.text}`}>
+                                <div className={`text-xs font-black px-2.5 py-1 rounded-xl ${config.bg} ${config.text} border border-white/50`}>
                                     {config.percentage}%
                                 </div>
                             </div>
 
-                            {/* Decorative Background Blob */}
-                            <div className={`absolute -bottom-8 -right-8 w-24 h-24 rounded-full ${config.bg} opacity-50 blur-2xl pointer-events-none group-hover:opacity-80 transition-opacity`}></div>
+                            <div className={`absolute -bottom-10 -right-10 w-32 h-32 rounded-full ${config.bg} opacity-60 blur-3xl pointer-events-none group-hover:opacity-100 transition-opacity duration-500`}></div>
                         </div>
                     );
                 })}

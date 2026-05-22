@@ -7,7 +7,7 @@
 // - Modern, premium design
 // ============================================================
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import {
     Search,
     Plus,
@@ -246,6 +246,8 @@ const DetailModal: React.FC<DetailModalProps> = ({
     const [localVariants, setLocalVariants] = useState<Variant[]>([]);
     const [recipe, setRecipe] = useState<Product['recipe'] | null>(null);
     const [hasChanges, setHasChanges] = useState(false);
+    const [editingVariantId, setEditingVariantId] = useState<string | null>(null);
+    const [editingVariantName, setEditingVariantName] = useState('');
 
     // Initialize form when product changes
     React.useEffect(() => {
@@ -293,6 +295,31 @@ const DetailModal: React.FC<DetailModalProps> = ({
         // Also persist to DB immediately
         if (product) {
             onToggleVariant(product.id, variantId);
+        }
+    };
+
+    const handleStartRenameVariant = (variant: Variant) => {
+        setEditingVariantId(variant.id);
+        setEditingVariantName(variant.name);
+    };
+
+    const handleConfirmRenameVariant = () => {
+        if (!editingVariantId || !editingVariantName.trim()) {
+            setEditingVariantId(null);
+            return;
+        }
+        setLocalVariants(prev => prev.map(v =>
+            v.id === editingVariantId ? { ...v, name: editingVariantName.trim() } : v
+        ));
+        setEditingVariantId(null);
+        setHasChanges(true);
+    };
+
+    const handleRenameKeyDown = (e: React.KeyboardEvent) => {
+        if (e.key === 'Enter') {
+            handleConfirmRenameVariant();
+        } else if (e.key === 'Escape') {
+            setEditingVariantId(null);
         }
     };
 
@@ -467,13 +494,30 @@ const DetailModal: React.FC<DetailModalProps> = ({
                                                     }`}>
                                                     {variant.isActive !== false ? <CheckCircle2 size={20} /> : <Circle size={20} />}
                                                 </div>
-                                                <div>
-                                                    <p className={`font-bold ${variant.isActive !== false ? 'text-gray-800' : 'text-gray-400'}`}>
-                                                        {variant.name}
-                                                        {variant.isActive === false && (
-                                                            <span className="ml-2 text-xs font-normal text-red-400">[พักขาย]</span>
-                                                        )}
-                                                    </p>
+                                                <div className="flex-1 min-w-0">
+                                                    {editingVariantId === variant.id ? (
+                                                        <input
+                                                            type="text"
+                                                            value={editingVariantName}
+                                                            onChange={(e) => setEditingVariantName(e.target.value)}
+                                                            onBlur={handleConfirmRenameVariant}
+                                                            onKeyDown={handleRenameKeyDown}
+                                                            autoFocus
+                                                            className="w-full px-2 py-1 border border-cafe-400 rounded-lg text-sm font-bold focus:ring-2 focus:ring-cafe-500 focus:border-cafe-500 outline-none bg-white"
+                                                        />
+                                                    ) : (
+                                                        <p
+                                                            className={`font-bold flex items-center gap-1.5 group/name cursor-pointer ${variant.isActive !== false ? 'text-gray-800' : 'text-gray-400'}`}
+                                                            onClick={(e) => { e.stopPropagation(); handleStartRenameVariant(variant); }}
+                                                            title="คลิกเพื่อเปลี่ยนชื่อ"
+                                                        >
+                                                            {variant.name}
+                                                            <Edit3 size={12} className="opacity-0 group-hover/name:opacity-100 text-cafe-400 transition-opacity" />
+                                                            {variant.isActive === false && (
+                                                                <span className="ml-1 text-xs font-normal text-red-400">[พักขาย]</span>
+                                                            )}
+                                                        </p>
+                                                    )}
                                                     <p className="text-xs text-gray-400">
                                                         ฿{variant.price} <span className="mx-1">•</span> ทุน ฿{variant.cost}
                                                     </p>

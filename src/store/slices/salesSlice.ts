@@ -1,6 +1,6 @@
 import { StateCreator } from 'zustand';
 import { AppState, SalesSlice } from '../types';
-import { supabase } from '../../lib/supabase';
+import { supabase, fetchAllRows } from '../../lib/supabase';
 
 export const createSalesSlice: StateCreator<AppState, [], [], SalesSlice> = (set, get) => ({
     productSales: [],
@@ -73,17 +73,14 @@ export const createSalesSlice: StateCreator<AppState, [], [], SalesSlice> = (set
     },
 
     fetchProductSales: async () => {
-        const { data, error } = await supabase
-            .from('product_sales')
-            .select('*')
-            .order('sale_date', { ascending: false });
+        // ⚡ ใช้ fetchAllRows() เพื่อป้องกัน 1000-row cap อย่างถาวร
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const data = await fetchAllRows<any>('product_sales', {
+            orderBy: 'sale_date',
+            ascending: false
+        });
 
-        if (error) {
-            console.error('Error fetching product sales:', error);
-            return;
-        }
-
-        const mappedData = (data || []).map(row => ({
+        const mappedData = data.map(row => ({
             id: row.id,
             recordedAt: row.recorded_at,
             saleDate: row.sale_date,

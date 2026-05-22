@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { useStore } from '@/src/store';
 import { TransactionTable } from '@/src/components/Finance/TransactionTable';
 import { TransactionModal } from '@/src/components/Finance/TransactionModal';
@@ -6,7 +6,7 @@ import { JarsSection } from '@/src/components/Finance/JarsSection';
 import { AllocationStation } from '@/src/components/Finance/AllocationStation';
 import { MonthlyReportModal } from '@/src/components/Finance/MonthlyReportModal';
 import { JarType } from '@/types';
-import { ArrowRightLeft, TrendingUp, TrendingDown, FileText, Plus, Minus, RefreshCw, Wallet, Sparkles } from 'lucide-react';
+import { ArrowRightLeft, TrendingUp, TrendingDown, FileText, Plus, Minus, RefreshCw, Wallet, Sparkles, Zap } from 'lucide-react';
 import { formatCurrency } from '@/src/lib/utils';
 
 const Financials: React.FC = () => {
@@ -17,25 +17,27 @@ const Financials: React.FC = () => {
     const [transactionMode, setTransactionMode] = useState<'INCOME' | 'EXPENSE' | 'TRANSFER'>('INCOME');
     const [selectedJar, setSelectedJar] = useState<JarType | undefined>(undefined);
 
-    const openTransaction = (mode: 'INCOME' | 'EXPENSE' | 'TRANSFER', jarId?: JarType) => {
+    const openTransaction = useCallback((mode: 'INCOME' | 'EXPENSE' | 'TRANSFER', jarId?: JarType) => {
         setTransactionMode(mode);
         setSelectedJar(jarId);
         setIsTransactionModalOpen(true);
-    };
+    }, []);
 
-    const totalBalance = jars.reduce((acc, jar) => acc + jar.balance, 0);
+    const totalBalance = useMemo(() => jars.reduce((acc, jar) => acc + jar.balance, 0), [jars]);
 
     // Calculate daily stats
-    const today = new Date().toISOString().split('T')[0];
-    const todayTransactions = transactions.filter(t => t.date.startsWith(today));
-    const incomeToday = todayTransactions
+    const today = useMemo(() => new Date().toISOString().split('T')[0], []);
+    const todayTransactions = useMemo(() => transactions.filter(t => t.date.startsWith(today)), [transactions, today]);
+    
+    const incomeToday = useMemo(() => todayTransactions
         .filter(t => t.type === 'INCOME')
-        .reduce((acc, t) => acc + t.amount, 0);
-    const expenseToday = todayTransactions
+        .reduce((acc, t) => acc + t.amount, 0), [todayTransactions]);
+        
+    const expenseToday = useMemo(() => todayTransactions
         .filter(t => t.type === 'EXPENSE')
-        .reduce((acc, t) => acc + t.amount, 0);
+        .reduce((acc, t) => acc + t.amount, 0), [todayTransactions]);
 
-    const handleAllocate = async (amount: number, allocations: Record<JarType, number>, fromProfit: boolean = false, specificProfits?: { id: string, amount: number }[], manualDebtAmount?: number) => {
+    const handleAllocate = useCallback(async (amount: number, allocations: Record<JarType, number>, fromProfit: boolean = false, specificProfits?: { id: string, amount: number }[], manualDebtAmount?: number) => {
         // Calculate debt config locally to display the alert info accurately
         const { debtConfig } = useStore.getState();
 
@@ -63,110 +65,99 @@ const Financials: React.FC = () => {
         } else {
             alert(`จัดสรรเงิน ${formatCurrency(amount)} เรียบร้อยแล้ว!`);
         }
-    };
+    }, [executeAllocation]);
 
     return (
-        <div className="space-y-8 animate-in fade-in duration-500 pb-20">
+        <div className="space-y-6 animate-in fade-in duration-500 pb-20 p-4 md:p-6 lg:p-8 max-w-[1600px] mx-auto">
             {/* ═══════════════════════════════════════════════════════════
-                💰 WARM CAFE HEADER - Financial Overview
+                🌟 HERO SECTION - Allocation First
                ═══════════════════════════════════════════════════════════ */}
-            <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-amber-50 via-orange-50 to-yellow-50 border border-amber-100 p-6 sm:p-8">
-                {/* Decorative elements */}
-                <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-amber-200/40 to-transparent rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl" />
-                <div className="absolute bottom-0 left-0 w-48 h-48 bg-gradient-to-tr from-orange-200/30 to-transparent rounded-full translate-y-1/2 -translate-x-1/2 blur-2xl" />
+            <div className="max-w-5xl mx-auto w-full">
+                <AllocationStation onAllocate={handleAllocate} />
+            </div>
 
-                <div className="relative z-10">
-                    {/* Title & Balance */}
-                    <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6 mb-6">
-                        <div className="flex items-start gap-4">
-                            <div className="w-14 h-14 bg-gradient-to-br from-amber-400 to-orange-500 rounded-2xl flex items-center justify-center shadow-lg shadow-amber-200/50">
-                                <Wallet size={28} className="text-white" />
-                            </div>
-                            <div>
-                                <div className="flex items-center gap-2 mb-1">
-                                    <span className="text-sm text-amber-600 font-medium">ยอดเงินรวมทั้งหมด</span>
-                                    <Sparkles size={14} className="text-amber-500" />
-                                </div>
-                                <h1 className="text-4xl sm:text-5xl font-black text-stone-800 tracking-tight">
-                                    ฿{totalBalance.toLocaleString()}
-                                </h1>
-                            </div>
-                        </div>
+            {/* ═══════════════════════════════════════════════════════════
+                📊 SUMMARY & QUICK ACTIONS (Moved below Allocation)
+               ═══════════════════════════════════════════════════════════ */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl mx-auto">
+                {/* Total Balance Card */}
+                <div className="bg-white rounded-[2rem] p-6 border border-stone-200 shadow-sm flex flex-col justify-center">
+                    <div className="flex items-center gap-2 mb-2 text-stone-500">
+                        <Wallet size={18} />
+                        <span className="font-bold tracking-wide text-sm">ยอดเงินรวม</span>
+                    </div>
+                    <h1 className="text-4xl md:text-5xl font-black text-stone-800 tracking-tight">
+                        ฿{totalBalance.toLocaleString()}
+                    </h1>
+                </div>
 
-                        {/* Today's Stats */}
-                        <div className="flex gap-4">
-                            <div className="bg-white/80 backdrop-blur-sm px-5 py-3 rounded-2xl border border-emerald-100 shadow-sm">
-                                <div className="flex items-center gap-3">
-                                    <div className="p-2 bg-emerald-100 rounded-xl">
-                                        <TrendingUp size={20} className="text-emerald-600" />
-                                    </div>
-                                    <div>
-                                        <p className="text-xs text-stone-500">รายรับวันนี้</p>
-                                        <p className="font-bold text-lg text-emerald-600">+฿{incomeToday.toLocaleString()}</p>
-                                    </div>
+                {/* Today's Stats */}
+                <div className="flex flex-col gap-4">
+                    <div className="bg-white p-4 rounded-[1.5rem] border border-stone-100 shadow-sm flex-1 flex flex-col justify-center">
+                        <div className="flex items-center justify-between mb-1">
+                            <div className="flex items-center gap-2">
+                                <div className="p-1.5 bg-emerald-100 rounded-lg">
+                                    <TrendingUp size={16} className="text-emerald-600" />
                                 </div>
+                                <span className="text-xs font-bold text-stone-500">รายรับวันนี้</span>
                             </div>
-                            <div className="bg-white/80 backdrop-blur-sm px-5 py-3 rounded-2xl border border-rose-100 shadow-sm">
-                                <div className="flex items-center gap-3">
-                                    <div className="p-2 bg-rose-100 rounded-xl">
-                                        <TrendingDown size={20} className="text-rose-600" />
-                                    </div>
-                                    <div>
-                                        <p className="text-xs text-stone-500">รายจ่ายวันนี้</p>
-                                        <p className="font-bold text-lg text-rose-600">-฿{expenseToday.toLocaleString()}</p>
-                                    </div>
-                                </div>
-                            </div>
+                            <p className="font-black text-lg text-emerald-600">+฿{incomeToday.toLocaleString()}</p>
                         </div>
                     </div>
-
-                    {/* Jars Mini Preview - Desktop */}
-                    <div className="hidden lg:flex gap-3 mb-6">
-                        {jars.map(jar => (
-                            <div key={jar.id} className="bg-white/60 backdrop-blur-sm px-4 py-2 rounded-xl border border-amber-100/50 text-center">
-                                <div className="text-xs text-stone-500">{jar.name}</div>
-                                <div className="font-bold text-stone-800">{formatCurrency(jar.balance)}</div>
+                    <div className="bg-white p-4 rounded-[1.5rem] border border-stone-100 shadow-sm flex-1 flex flex-col justify-center">
+                        <div className="flex items-center justify-between mb-1">
+                            <div className="flex items-center gap-2">
+                                <div className="p-1.5 bg-rose-100 rounded-lg">
+                                    <TrendingDown size={16} className="text-rose-600" />
+                                </div>
+                                <span className="text-xs font-bold text-stone-500">รายจ่ายวันนี้</span>
                             </div>
-                        ))}
+                            <p className="font-black text-lg text-rose-600">-฿{expenseToday.toLocaleString()}</p>
+                        </div>
                     </div>
+                </div>
 
-                    {/* Quick Actions */}
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-6 border-t border-amber-200/50">
+                {/* Quick Actions Panel */}
+                <div className="bg-white rounded-[2rem] p-5 border border-stone-100 shadow-sm flex flex-col justify-center">
+                    <h3 className="text-sm font-bold text-stone-800 mb-3 flex items-center gap-2">
+                        <Zap size={16} className="text-amber-500" /> ทำรายการด่วน
+                    </h3>
+                    <div className="grid grid-cols-2 gap-3">
                         <button
                             onClick={() => openTransaction('INCOME')}
-                            className="bg-white hover:bg-emerald-50 p-4 rounded-2xl border border-stone-100 hover:border-emerald-200 transition-all duration-200 flex items-center justify-center gap-3 group shadow-sm hover:shadow-md"
+                            className="bg-stone-50 hover:bg-emerald-50 p-3 rounded-xl border border-stone-100 hover:border-emerald-200 transition-all flex flex-col items-center gap-2 group"
                         >
-                            <div className="p-2 bg-emerald-100 rounded-xl group-hover:bg-emerald-200 transition-colors">
-                                <Plus size={20} className="text-emerald-600" />
+                            <div className="p-1.5 bg-white rounded-lg shadow-sm group-hover:scale-110 transition-transform">
+                                <Plus size={16} className="text-emerald-600" />
                             </div>
-                            <span className="font-bold text-stone-700">รายรับ</span>
+                            <span className="text-xs font-bold text-stone-700">รับเงิน</span>
                         </button>
                         <button
                             onClick={() => openTransaction('EXPENSE')}
-                            className="bg-white hover:bg-rose-50 p-4 rounded-2xl border border-stone-100 hover:border-rose-200 transition-all duration-200 flex items-center justify-center gap-3 group shadow-sm hover:shadow-md"
+                            className="bg-stone-50 hover:bg-rose-50 p-3 rounded-xl border border-stone-100 hover:border-rose-200 transition-all flex flex-col items-center gap-2 group"
                         >
-                            <div className="p-2 bg-rose-100 rounded-xl group-hover:bg-rose-200 transition-colors">
-                                <Minus size={20} className="text-rose-600" />
+                            <div className="p-1.5 bg-white rounded-lg shadow-sm group-hover:scale-110 transition-transform">
+                                <Minus size={16} className="text-rose-600" />
                             </div>
-                            <span className="font-bold text-stone-700">รายจ่าย</span>
+                            <span className="text-xs font-bold text-stone-700">จ่ายเงิน</span>
                         </button>
                         <button
                             onClick={() => openTransaction('TRANSFER')}
-                            className="bg-white hover:bg-sky-50 p-4 rounded-2xl border border-stone-100 hover:border-sky-200 transition-all duration-200 flex items-center justify-center gap-3 group shadow-sm hover:shadow-md"
+                            className="bg-stone-50 hover:bg-sky-50 p-3 rounded-xl border border-stone-100 hover:border-sky-200 transition-all flex flex-col items-center gap-2 group"
                         >
-                            <div className="p-2 bg-sky-100 rounded-xl group-hover:bg-sky-200 transition-colors">
-                                <RefreshCw size={20} className="text-sky-600" />
+                            <div className="p-1.5 bg-white rounded-lg shadow-sm group-hover:scale-110 transition-transform">
+                                <RefreshCw size={16} className="text-sky-600" />
                             </div>
-                            <span className="font-bold text-stone-700">โอนเงิน</span>
+                            <span className="text-xs font-bold text-stone-700">โอนเงิน</span>
                         </button>
                         <button
                             onClick={() => setIsMonthlyReportOpen(true)}
-                            className="bg-white hover:bg-amber-50 p-4 rounded-2xl border border-stone-100 hover:border-amber-200 transition-all duration-200 flex items-center justify-center gap-3 group shadow-sm hover:shadow-md"
+                            className="bg-stone-50 hover:bg-amber-50 p-3 rounded-xl border border-stone-100 hover:border-amber-200 transition-all flex flex-col items-center gap-2 group"
                         >
-                            <div className="p-2 bg-amber-100 rounded-xl group-hover:bg-amber-200 transition-colors">
-                                <FileText size={20} className="text-amber-600" />
+                            <div className="p-1.5 bg-white rounded-lg shadow-sm group-hover:scale-110 transition-transform">
+                                <FileText size={16} className="text-amber-600" />
                             </div>
-                            <span className="font-bold text-stone-700">รายงาน</span>
+                            <span className="text-xs font-bold text-stone-700">รายงาน</span>
                         </button>
                     </div>
                 </div>
@@ -177,9 +168,6 @@ const Financials: React.FC = () => {
                 jars={jars}
                 onJarClick={(id) => openTransaction('INCOME', id as JarType)}
             />
-
-            {/* Allocation Station */}
-            <AllocationStation onAllocate={handleAllocate} />
 
             {/* Transactions Table (Full Width) */}
             <div>

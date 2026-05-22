@@ -81,7 +81,7 @@ const jarStyles: Record<string, { gradient: string, bg: string, text: string, ac
     }
 };
 
-export const AllocationStation: React.FC<AllocationStationProps> = ({ onAllocate }) => {
+export const AllocationStation = React.memo(({ onAllocate }: AllocationStationProps) => {
     const {
         allocationProfiles, saveAllocationProfile, deleteAllocationProfile,
         setDefaultProfile, renameAllocationProfile, defaultProfileId, jars,
@@ -561,219 +561,6 @@ export const AllocationStation: React.FC<AllocationStationProps> = ({ onAllocate
                     >
                         {isLocked ? <Lock size={18} /> : <Unlock size={18} />}
                     </button>
-                </div>
-            </div>
-
-            {/* ═══════════════════════════════════════════════════════════════
-                🔒 DEBT-FIRST ALLOCATION SECTION (v2.0)
-               ═══════════════════════════════════════════════════════════════ */}
-            <div className="mx-6 mb-4">
-                <div className={`rounded-2xl border transition-all duration-300 overflow-hidden ${debtConfig.isEnabled
-                    ? 'bg-gradient-to-br from-slate-50 via-gray-50 to-stone-50 border-slate-200 shadow-md shadow-slate-100'
-                    : 'bg-stone-50/50 border-stone-100'}`}>
-
-                    {/* Header Row */}
-                    <div className="px-5 py-4 flex items-center justify-between">
-                        <div className="flex items-center gap-4">
-                            <div className={`p-3 rounded-xl transition-all ${debtConfig.isEnabled
-                                ? 'bg-gradient-to-br from-slate-500 to-gray-600 shadow-lg shadow-slate-300/40'
-                                : 'bg-stone-200'}`}>
-                                <Lock size={20} className={debtConfig.isEnabled ? 'text-white' : 'text-stone-400'} />
-                            </div>
-                            <div>
-                                <h3 className="font-bold text-stone-800 flex items-center gap-2">
-                                    Priority Deduction (Debt-First)
-                                    {debtConfig.isEnabled && (
-                                        <span className="text-xs px-2 py-0.5 bg-slate-500 text-white rounded-full font-medium">
-                                            Active
-                                        </span>
-                                    )}
-                                </h3>
-                                <p className="text-xs text-stone-500">หักหนี้ก่อนจัดสรร - ความปลอดภัยทางการเงิน</p>
-                            </div>
-                        </div>
-
-                        <div className="flex items-center gap-3">
-                            {/* Settings Toggle */}
-                            {debtConfig.isEnabled && (
-                                <button
-                                    onClick={() => setShowDebtSettings(!showDebtSettings)}
-                                    className={`p-2.5 rounded-xl border transition-all ${showDebtSettings
-                                        ? 'bg-slate-100 border-slate-300 text-slate-600'
-                                        : 'bg-white border-stone-200 text-stone-400 hover:text-stone-600 hover:border-stone-300'}`}
-                                >
-                                    <Settings2 size={18} />
-                                </button>
-                            )}
-
-                            {/* Enable/Disable Toggle */}
-                            <button
-                                onClick={() => updateDebtConfig({ isEnabled: !debtConfig.isEnabled })}
-                                className={`relative w-14 h-8 rounded-full transition-all duration-300 ${debtConfig.isEnabled
-                                    ? 'bg-gradient-to-r from-slate-500 to-gray-600 shadow-inner'
-                                    : 'bg-stone-300'}`}
-                            >
-                                <div className={`absolute top-1 w-6 h-6 bg-white rounded-full shadow-md transition-all duration-300 ${debtConfig.isEnabled
-                                    ? 'left-7'
-                                    : 'left-1'}`} />
-                            </button>
-                        </div>
-                    </div>
-
-                    {/* Progress Bar (Always visible when enabled) */}
-                    {debtConfig.isEnabled && (
-                        <div className="px-5 pb-4">
-                            <div className="bg-white rounded-xl p-4 border border-slate-100">
-                                <div className="flex items-center justify-between mb-2">
-                                    <div className="flex items-center gap-2">
-                                        <Target size={16} className="text-slate-500" />
-                                        <span className="text-sm font-medium text-stone-600">เป้าหมายปลดหนี้</span>
-                                    </div>
-                                    <div className="text-right">
-                                        <span className="text-lg font-black text-slate-700">
-                                            {formatCurrency(debtConfig.accumulatedAmount)}
-                                        </span>
-                                        <span className="text-stone-400 text-sm"> / {formatCurrency(debtConfig.targetAmount)}</span>
-                                        <span className="ml-2 text-xs font-bold text-slate-500">
-                                            ({debtProgress.toFixed(1)}%)
-                                        </span>
-                                    </div>
-                                </div>
-                                <div className="h-3 bg-stone-100 rounded-full overflow-hidden">
-                                    <div
-                                        className="h-full bg-gradient-to-r from-slate-500 to-gray-600 rounded-full transition-all duration-500 relative"
-                                        style={{ width: `${Math.min(debtProgress, 100)}%` }}
-                                    >
-                                        {debtProgress >= 100 && (
-                                            <div className="absolute inset-0 bg-gradient-to-r from-emerald-400 to-teal-500 animate-pulse" />
-                                        )}
-                                    </div>
-                                </div>
-                                {/* Milestones */}
-                                <div className="flex justify-between mt-1 text-[10px] text-stone-400 font-medium">
-                                    <span>0%</span>
-                                    <span className={debtProgress >= 25 ? 'text-slate-500' : ''}>25%</span>
-                                    <span className={debtProgress >= 50 ? 'text-slate-500' : ''}>50%</span>
-                                    <span className={debtProgress >= 75 ? 'text-slate-500' : ''}>75%</span>
-                                    <span className={debtProgress >= 100 ? 'text-emerald-500 font-bold' : ''}>🏆</span>
-                                </div>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Settings Panel (Expandable) */}
-                    {debtConfig.isEnabled && showDebtSettings && (
-                        <div className="px-5 pb-4">
-                            <div className="bg-white rounded-xl p-4 border border-slate-100 space-y-4">
-                                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-                                    {/* Fixed Amount */}
-                                    <div>
-                                        <label className="text-xs font-medium text-stone-500 mb-1 block">
-                                            ยอดหักคงที่
-                                        </label>
-                                        <div className="relative">
-                                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 text-sm">฿</span>
-                                            <input
-                                                type="number"
-                                                value={localDebtConfig.fixedAmount}
-                                                onChange={(e) => setLocalDebtConfig(prev => ({ ...prev, fixedAmount: Number(e.target.value) }))}
-                                                className="w-full pl-8 pr-3 py-2.5 bg-stone-50 border border-stone-200 rounded-xl text-stone-700 font-bold focus:ring-2 focus:ring-slate-300 focus:border-slate-400 transition-all"
-                                            />
-                                        </div>
-                                    </div>
-
-                                    {/* Safety Threshold */}
-                                    <div>
-                                        <label className="text-xs font-medium text-stone-500 mb-1 block">
-                                            จุดปลอดภัย
-                                        </label>
-                                        <div className="relative">
-                                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 text-sm">฿</span>
-                                            <input
-                                                type="number"
-                                                value={localDebtConfig.safetyThreshold}
-                                                onChange={(e) => setLocalDebtConfig(prev => ({ ...prev, safetyThreshold: Number(e.target.value) }))}
-                                                className="w-full pl-8 pr-3 py-2.5 bg-stone-50 border border-stone-200 rounded-xl text-stone-700 font-bold focus:ring-2 focus:ring-slate-300 focus:border-slate-400 transition-all"
-                                            />
-                                        </div>
-                                    </div>
-
-                                    {/* Safety Ratio */}
-                                    <div>
-                                        <label className="text-xs font-medium text-stone-500 mb-1 block">
-                                            สัดส่วน Safety
-                                        </label>
-                                        <div className="relative">
-                                            <input
-                                                type="number"
-                                                value={localDebtConfig.safetyRatio}
-                                                onChange={(e) => setLocalDebtConfig(prev => ({ ...prev, safetyRatio: Number(e.target.value) }))}
-                                                className="w-full pl-3 pr-8 py-2.5 bg-stone-50 border border-stone-200 rounded-xl text-stone-700 font-bold focus:ring-2 focus:ring-slate-300 focus:border-slate-400 transition-all"
-                                            />
-                                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 text-sm">%</span>
-                                        </div>
-                                    </div>
-
-                                    {/* Target Amount */}
-                                    <div>
-                                        <label className="text-xs font-medium text-stone-500 mb-1 block">
-                                            เป้าหมาย
-                                        </label>
-                                        <div className="relative">
-                                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 text-sm">฿</span>
-                                            <input
-                                                type="number"
-                                                value={localDebtConfig.targetAmount}
-                                                onChange={(e) => setLocalDebtConfig(prev => ({ ...prev, targetAmount: Number(e.target.value) }))}
-                                                className="w-full pl-8 pr-3 py-2.5 bg-stone-50 border border-stone-200 rounded-xl text-stone-700 font-bold focus:ring-2 focus:ring-slate-300 focus:border-slate-400 transition-all"
-                                            />
-                                        </div>
-                                    </div>
-
-                                    {/* Accumulated Amount (New) */}
-                                    <div>
-                                        <label className="text-xs font-medium text-stone-500 mb-1 block">
-                                            ยอดสะสมปัจจุบัน
-                                        </label>
-                                        <div className="relative">
-                                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 text-sm">฿</span>
-                                            <input
-                                                type="number"
-                                                value={localDebtConfig.accumulatedAmount}
-                                                onChange={(e) => setLocalDebtConfig(prev => ({ ...prev, accumulatedAmount: Number(e.target.value) }))}
-                                                className="w-full pl-8 pr-3 py-2.5 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-700 font-bold focus:ring-2 focus:ring-emerald-300 focus:border-emerald-400 transition-all"
-                                            />
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {/* Save Button */}
-                                <div className="flex justify-end">
-                                    <button
-                                        onClick={() => {
-                                            updateDebtConfig({
-                                                fixedAmount: localDebtConfig.fixedAmount,
-                                                safetyThreshold: localDebtConfig.safetyThreshold,
-                                                safetyRatio: localDebtConfig.safetyRatio / 100, // Convert back to decimal
-                                                targetAmount: localDebtConfig.targetAmount,
-                                                accumulatedAmount: localDebtConfig.accumulatedAmount
-                                            });
-                                            setShowDebtSettings(false);
-                                        }}
-                                        className="px-4 py-2 bg-gradient-to-r from-slate-500 to-gray-600 text-white rounded-xl font-bold text-sm hover:shadow-lg transition-all flex items-center gap-2"
-                                    >
-                                        <Check size={16} />
-                                        บันทึกการตั้งค่า
-                                    </button>
-                                </div>
-                            </div>
-
-                            {/* Help Text */}
-                            <div className="text-xs text-stone-400 bg-stone-50 rounded-lg p-3 mt-4">
-                                <p><span className="font-semibold text-stone-500">กฎการหัก:</span> ถ้ากำไร ≥ จุดปลอดภัย → หักยอดคงที่ | ถ้ากำไร &lt; จุดปลอดภัย → หักตามสัดส่วน</p>
-                            </div>
-                        </div>
-                    )}
                 </div>
             </div>
 
@@ -1296,6 +1083,219 @@ export const AllocationStation: React.FC<AllocationStationProps> = ({ onAllocate
                 </div>
             </div>
 
+
+            {/* ═══════════════════════════════════════════════════════════════
+                🔒 DEBT-FIRST ALLOCATION SECTION (v2.0)
+               ═══════════════════════════════════════════════════════════════ */}
+            <div className="mx-6 mb-4">
+                <div className={`rounded-2xl border transition-all duration-300 overflow-hidden ${debtConfig.isEnabled
+                    ? 'bg-gradient-to-br from-slate-50 via-gray-50 to-stone-50 border-slate-200 shadow-md shadow-slate-100'
+                    : 'bg-stone-50/50 border-stone-100'}`}>
+
+                    {/* Header Row */}
+                    <div className="px-5 py-4 flex items-center justify-between">
+                        <div className="flex items-center gap-4">
+                            <div className={`p-3 rounded-xl transition-all ${debtConfig.isEnabled
+                                ? 'bg-gradient-to-br from-slate-500 to-gray-600 shadow-lg shadow-slate-300/40'
+                                : 'bg-stone-200'}`}>
+                                <Lock size={20} className={debtConfig.isEnabled ? 'text-white' : 'text-stone-400'} />
+                            </div>
+                            <div>
+                                <h3 className="font-bold text-stone-800 flex items-center gap-2">
+                                    Priority Deduction (Debt-First)
+                                    {debtConfig.isEnabled && (
+                                        <span className="text-xs px-2 py-0.5 bg-slate-500 text-white rounded-full font-medium">
+                                            Active
+                                        </span>
+                                    )}
+                                </h3>
+                                <p className="text-xs text-stone-500">หักหนี้ก่อนจัดสรร - ความปลอดภัยทางการเงิน</p>
+                            </div>
+                        </div>
+
+                        <div className="flex items-center gap-3">
+                            {/* Settings Toggle */}
+                            {debtConfig.isEnabled && (
+                                <button
+                                    onClick={() => setShowDebtSettings(!showDebtSettings)}
+                                    className={`p-2.5 rounded-xl border transition-all ${showDebtSettings
+                                        ? 'bg-slate-100 border-slate-300 text-slate-600'
+                                        : 'bg-white border-stone-200 text-stone-400 hover:text-stone-600 hover:border-stone-300'}`}
+                                >
+                                    <Settings2 size={18} />
+                                </button>
+                            )}
+
+                            {/* Enable/Disable Toggle */}
+                            <button
+                                onClick={() => updateDebtConfig({ isEnabled: !debtConfig.isEnabled })}
+                                className={`relative w-14 h-8 rounded-full transition-all duration-300 ${debtConfig.isEnabled
+                                    ? 'bg-gradient-to-r from-slate-500 to-gray-600 shadow-inner'
+                                    : 'bg-stone-300'}`}
+                            >
+                                <div className={`absolute top-1 w-6 h-6 bg-white rounded-full shadow-md transition-all duration-300 ${debtConfig.isEnabled
+                                    ? 'left-7'
+                                    : 'left-1'}`} />
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Progress Bar (Always visible when enabled) */}
+                    {debtConfig.isEnabled && (
+                        <div className="px-5 pb-4">
+                            <div className="bg-white rounded-xl p-4 border border-slate-100">
+                                <div className="flex items-center justify-between mb-2">
+                                    <div className="flex items-center gap-2">
+                                        <Target size={16} className="text-slate-500" />
+                                        <span className="text-sm font-medium text-stone-600">เป้าหมายปลดหนี้</span>
+                                    </div>
+                                    <div className="text-right">
+                                        <span className="text-lg font-black text-slate-700">
+                                            {formatCurrency(debtConfig.accumulatedAmount)}
+                                        </span>
+                                        <span className="text-stone-400 text-sm"> / {formatCurrency(debtConfig.targetAmount)}</span>
+                                        <span className="ml-2 text-xs font-bold text-slate-500">
+                                            ({debtProgress.toFixed(1)}%)
+                                        </span>
+                                    </div>
+                                </div>
+                                <div className="h-3 bg-stone-100 rounded-full overflow-hidden">
+                                    <div
+                                        className="h-full bg-gradient-to-r from-slate-500 to-gray-600 rounded-full transition-all duration-500 relative"
+                                        style={{ width: `${Math.min(debtProgress, 100)}%` }}
+                                    >
+                                        {debtProgress >= 100 && (
+                                            <div className="absolute inset-0 bg-gradient-to-r from-emerald-400 to-teal-500 animate-pulse" />
+                                        )}
+                                    </div>
+                                </div>
+                                {/* Milestones */}
+                                <div className="flex justify-between mt-1 text-[10px] text-stone-400 font-medium">
+                                    <span>0%</span>
+                                    <span className={debtProgress >= 25 ? 'text-slate-500' : ''}>25%</span>
+                                    <span className={debtProgress >= 50 ? 'text-slate-500' : ''}>50%</span>
+                                    <span className={debtProgress >= 75 ? 'text-slate-500' : ''}>75%</span>
+                                    <span className={debtProgress >= 100 ? 'text-emerald-500 font-bold' : ''}>🏆</span>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Settings Panel (Expandable) */}
+                    {debtConfig.isEnabled && showDebtSettings && (
+                        <div className="px-5 pb-4">
+                            <div className="bg-white rounded-xl p-4 border border-slate-100 space-y-4">
+                                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+                                    {/* Fixed Amount */}
+                                    <div>
+                                        <label className="text-xs font-medium text-stone-500 mb-1 block">
+                                            ยอดหักคงที่
+                                        </label>
+                                        <div className="relative">
+                                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 text-sm">฿</span>
+                                            <input
+                                                type="number"
+                                                value={localDebtConfig.fixedAmount}
+                                                onChange={(e) => setLocalDebtConfig(prev => ({ ...prev, fixedAmount: Number(e.target.value) }))}
+                                                className="w-full pl-8 pr-3 py-2.5 bg-stone-50 border border-stone-200 rounded-xl text-stone-700 font-bold focus:ring-2 focus:ring-slate-300 focus:border-slate-400 transition-all"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    {/* Safety Threshold */}
+                                    <div>
+                                        <label className="text-xs font-medium text-stone-500 mb-1 block">
+                                            จุดปลอดภัย
+                                        </label>
+                                        <div className="relative">
+                                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 text-sm">฿</span>
+                                            <input
+                                                type="number"
+                                                value={localDebtConfig.safetyThreshold}
+                                                onChange={(e) => setLocalDebtConfig(prev => ({ ...prev, safetyThreshold: Number(e.target.value) }))}
+                                                className="w-full pl-8 pr-3 py-2.5 bg-stone-50 border border-stone-200 rounded-xl text-stone-700 font-bold focus:ring-2 focus:ring-slate-300 focus:border-slate-400 transition-all"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    {/* Safety Ratio */}
+                                    <div>
+                                        <label className="text-xs font-medium text-stone-500 mb-1 block">
+                                            สัดส่วน Safety
+                                        </label>
+                                        <div className="relative">
+                                            <input
+                                                type="number"
+                                                value={localDebtConfig.safetyRatio}
+                                                onChange={(e) => setLocalDebtConfig(prev => ({ ...prev, safetyRatio: Number(e.target.value) }))}
+                                                className="w-full pl-3 pr-8 py-2.5 bg-stone-50 border border-stone-200 rounded-xl text-stone-700 font-bold focus:ring-2 focus:ring-slate-300 focus:border-slate-400 transition-all"
+                                            />
+                                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 text-sm">%</span>
+                                        </div>
+                                    </div>
+
+                                    {/* Target Amount */}
+                                    <div>
+                                        <label className="text-xs font-medium text-stone-500 mb-1 block">
+                                            เป้าหมาย
+                                        </label>
+                                        <div className="relative">
+                                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 text-sm">฿</span>
+                                            <input
+                                                type="number"
+                                                value={localDebtConfig.targetAmount}
+                                                onChange={(e) => setLocalDebtConfig(prev => ({ ...prev, targetAmount: Number(e.target.value) }))}
+                                                className="w-full pl-8 pr-3 py-2.5 bg-stone-50 border border-stone-200 rounded-xl text-stone-700 font-bold focus:ring-2 focus:ring-slate-300 focus:border-slate-400 transition-all"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    {/* Accumulated Amount (New) */}
+                                    <div>
+                                        <label className="text-xs font-medium text-stone-500 mb-1 block">
+                                            ยอดสะสมปัจจุบัน
+                                        </label>
+                                        <div className="relative">
+                                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 text-sm">฿</span>
+                                            <input
+                                                type="number"
+                                                value={localDebtConfig.accumulatedAmount}
+                                                onChange={(e) => setLocalDebtConfig(prev => ({ ...prev, accumulatedAmount: Number(e.target.value) }))}
+                                                className="w-full pl-8 pr-3 py-2.5 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-700 font-bold focus:ring-2 focus:ring-emerald-300 focus:border-emerald-400 transition-all"
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Save Button */}
+                                <div className="flex justify-end">
+                                    <button
+                                        onClick={() => {
+                                            updateDebtConfig({
+                                                fixedAmount: localDebtConfig.fixedAmount,
+                                                safetyThreshold: localDebtConfig.safetyThreshold,
+                                                safetyRatio: localDebtConfig.safetyRatio / 100, // Convert back to decimal
+                                                targetAmount: localDebtConfig.targetAmount,
+                                                accumulatedAmount: localDebtConfig.accumulatedAmount
+                                            });
+                                            setShowDebtSettings(false);
+                                        }}
+                                        className="px-4 py-2 bg-gradient-to-r from-slate-500 to-gray-600 text-white rounded-xl font-bold text-sm hover:shadow-lg transition-all flex items-center gap-2"
+                                    >
+                                        <Check size={16} />
+                                        บันทึกการตั้งค่า
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Help Text */}
+                            <div className="text-xs text-stone-400 bg-stone-50 rounded-lg p-3 mt-4">
+                                <p><span className="font-semibold text-stone-500">กฎการหัก:</span> ถ้ากำไร ≥ จุดปลอดภัย → หักยอดคงที่ | ถ้ากำไร &lt; จุดปลอดภัย → หักตามสัดส่วน</p>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            </div>
             {/* Rename Profile Modal */}
             {
                 renameModal.isOpen && (
@@ -1385,4 +1385,4 @@ export const AllocationStation: React.FC<AllocationStationProps> = ({ onAllocate
             )}
         </div >
     );
-};
+});

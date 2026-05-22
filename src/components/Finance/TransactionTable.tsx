@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Transaction } from '@/types';
 import { formatDate, formatCurrency } from '@/src/lib/utils';
 import { ArrowUpRight, ArrowDownLeft, ArrowRightLeft, Search, TrendingUp, Edit2, Trash2, Calendar, Tag, Wallet } from 'lucide-react';
@@ -9,7 +9,7 @@ interface TransactionTableProps {
     transactions: Transaction[];
 }
 
-export const TransactionTable: React.FC<TransactionTableProps> = ({ transactions }) => {
+export const TransactionTable: React.FC<TransactionTableProps> = React.memo(({ transactions }) => {
     const { deleteTransaction } = useStore();
     const [searchTerm, setSearchTerm] = useState('');
     const [typeFilter, setTypeFilter] = useState<string>('ALL');
@@ -70,26 +70,26 @@ export const TransactionTable: React.FC<TransactionTableProps> = ({ transactions
     };
 
     // Get unique categories from transactions
-    const categories: string[] = Array.from(new Set(transactions.map(t => t.category).filter((c): c is string => !!c)));
+    const categories: string[] = useMemo(() => Array.from(new Set(transactions.map(t => t.category).filter((c): c is string => !!c))), [transactions]);
 
     // Filter transactions
-    const filteredTransactions = transactions.filter(tx => {
+    const filteredTransactions = useMemo(() => transactions.filter(tx => {
         const matchesSearch = tx.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
             translateDescription(tx.description).toLowerCase().includes(searchTerm.toLowerCase());
         const matchesType = typeFilter === 'ALL' || tx.type === typeFilter;
         const matchesCategory = categoryFilter === 'ALL' || tx.category === categoryFilter;
         return matchesSearch && matchesType && matchesCategory;
-    });
+    }), [transactions, searchTerm, typeFilter, categoryFilter]);
 
     // Calculate totals
-    const totals = filteredTransactions.reduce((acc, tx) => {
+    const totals = useMemo(() => filteredTransactions.reduce((acc, tx) => {
         if (tx.type === 'INCOME') acc.income += tx.amount;
         if (tx.type === 'EXPENSE') acc.expense += tx.amount;
         return acc;
-    }, { income: 0, expense: 0 });
+    }, { income: 0, expense: 0 }), [filteredTransactions]);
 
     // Group transactions by date
-    const groupedTransactions = filteredTransactions.reduce((groups, tx) => {
+    const groupedTransactions = useMemo(() => filteredTransactions.reduce((groups, tx) => {
         const dateKey = new Date(tx.date).toLocaleDateString('th-TH', {
             weekday: 'long',
             year: 'numeric',
@@ -101,14 +101,14 @@ export const TransactionTable: React.FC<TransactionTableProps> = ({ transactions
         }
         groups[dateKey].push(tx);
         return groups;
-    }, {} as Record<string, Transaction[]>);
+    }, {} as Record<string, Transaction[]>), [filteredTransactions]);
 
     // Get sorted date keys (newest first)
-    const sortedDateKeys = Object.keys(groupedTransactions).sort((a, b) => {
+    const sortedDateKeys = useMemo(() => Object.keys(groupedTransactions).sort((a, b) => {
         const dateA = new Date(groupedTransactions[a][0].date);
         const dateB = new Date(groupedTransactions[b][0].date);
         return dateB.getTime() - dateA.getTime();
-    });
+    }), [groupedTransactions]);
 
     const getTypeIcon = (type: string) => {
         switch (type) {
@@ -419,4 +419,4 @@ export const TransactionTable: React.FC<TransactionTableProps> = ({ transactions
             )}
         </div>
     );
-};
+});

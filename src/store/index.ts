@@ -14,7 +14,7 @@ import { createSnackBoxOrderSlice } from './slices/snackBoxOrderSlice';
 import { createQuotationSlice } from './slices/quotationSlice';
 import { createInvoiceSlice } from './slices/invoiceSlice';
 import { createReceiptSlice } from './slices/receiptSlice';
-import { supabase } from '../lib/supabase';
+import { supabase, fetchAllRows } from '../lib/supabase';
 import {
     mapTransaction, mapIngredient, mapProductSaleLog,
     mapDailyInventory, mapProductionForecast
@@ -62,26 +62,36 @@ export const useStore = create<AppState>()(
 
             // ==================== FETCH DATA (Complete Logic) ====================
             fetchData: async () => {
-                const { data: products } = await supabase.from('products').select('*');
-                const { data: ingredients } = await supabase.from('ingredients').select('*');
-                const { data: markets } = await supabase.from('markets').select('*');
-                const { data: transactions } = await supabase.from('transactions').select('*').order('date', { ascending: false });
-                const { data: productSales } = await supabase.from('product_sales').select('*').order('sale_date', { ascending: false });
-                const { data: productionForecasts } = await supabase.from('production_forecasts').select('*').order('forecast_for_date', { ascending: false });
-                const { data: unallocatedProfitsData } = await supabase.from('unallocated_profits').select('*').order('date', { ascending: false });
-                const { data: allocationProfilesData } = await supabase.from('allocation_profiles').select('*').order('created_at', { ascending: true });
-                const { data: debtConfigData } = await supabase.from('debt_config').select('*').single();
+                // ⚡ ใช้ fetchAllRows() แทน .select('*') โดยตรง
+                // เพื่อป้องกัน Supabase 1000-row default cap อย่างถาวร
+                // ดึงข้อมูลทีละ page วนจนครบ ไม่ว่าจะมีกี่แถวก็ตาม
+                const [products, ingredients, markets, transactions, productSales,
+                    productionForecasts, unallocatedProfitsData, allocationProfilesData,
+                    promotionsData, bundlesData, bundleItemsData,
+                    specialOrdersData, specialOrderItemsData, marketSchedulesData,
+                    quotationsData, invoicesData, receiptsData
+                ] = await Promise.all([
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    fetchAllRows<any>('products'),
+                    fetchAllRows<any>('ingredients'),
+                    fetchAllRows<any>('markets'),
+                    fetchAllRows<any>('transactions', { orderBy: 'date', ascending: false }),
+                    fetchAllRows<any>('product_sales', { orderBy: 'sale_date', ascending: false }),
+                    fetchAllRows<any>('production_forecasts', { orderBy: 'forecast_for_date', ascending: false }),
+                    fetchAllRows<any>('unallocated_profits', { orderBy: 'date', ascending: false }),
+                    fetchAllRows<any>('allocation_profiles', { orderBy: 'created_at', ascending: true }),
+                    fetchAllRows<any>('promotions', { orderBy: 'created_at', ascending: false }),
+                    fetchAllRows<any>('bundles', { orderBy: 'created_at', ascending: false }),
+                    fetchAllRows<any>('bundle_items'),
+                    fetchAllRows<any>('special_orders', { orderBy: 'delivery_date', ascending: false }),
+                    fetchAllRows<any>('special_order_items'),
+                    fetchAllRows<any>('market_schedules'),
+                    fetchAllRows<any>('quotations', { orderBy: 'created_at', ascending: false }),
+                    fetchAllRows<any>('invoices', { orderBy: 'created_at', ascending: false }),
+                    fetchAllRows<any>('receipts', { orderBy: 'created_at', ascending: false }),
+                ]);
 
-                // Promotion & Snack Box System
-                const { data: promotionsData } = await supabase.from('promotions').select('*').order('created_at', { ascending: false });
-                const { data: bundlesData } = await supabase.from('bundles').select('*').order('created_at', { ascending: false });
-                const { data: bundleItemsData } = await supabase.from('bundle_items').select('*');
-                const { data: specialOrdersData } = await supabase.from('special_orders').select('*').order('delivery_date', { ascending: false });
-                const { data: specialOrderItemsData } = await supabase.from('special_order_items').select('*');
-                const { data: marketSchedulesData } = await supabase.from('market_schedules').select('*');
-                const { data: quotationsData } = await supabase.from('quotations').select('*').order('created_at', { ascending: false });
-                const { data: invoicesData } = await supabase.from('invoices').select('*').order('created_at', { ascending: false });
-                const { data: receiptsData } = await supabase.from('receipts').select('*').order('created_at', { ascending: false });
+                const { data: debtConfigData } = await supabase.from('debt_config').select('*').single();
 
                 // Map snake_case from DB to camelCase for App
                 const mappedIngredients = ingredients?.map(i => ({

@@ -1057,10 +1057,30 @@ export function generateMarketPDFReport(data: EnhancedMarketData): void {
 </body>
 </html>`;
 
-    // Open print window
-    const printWindow = window.open('', '_blank', 'width=1000,height=900');
-    if (printWindow) {
-        printWindow.document.write(html);
-        printWindow.document.close();
+    // Mobile-safe printing approach using an invisible iframe
+    // This prevents the app from crashing on mobile devices (e.g. iOS Safari / Chrome Android) 
+    // and bypasses popup blockers.
+    const iframe = document.createElement('iframe');
+    iframe.style.position = 'fixed';
+    iframe.style.right = '0';
+    iframe.style.bottom = '0';
+    iframe.style.width = '0';
+    iframe.style.height = '0';
+    iframe.style.border = '0';
+    document.body.appendChild(iframe);
+
+    const doc = iframe.contentWindow?.document;
+    if (doc) {
+        doc.open();
+        doc.write(html);
+        doc.close();
+
+        // The print action is triggered by the script inside the HTML itself
+        // But we need to clean up the iframe after printing is done
+        setTimeout(() => {
+            if (document.body.contains(iframe)) {
+                document.body.removeChild(iframe);
+            }
+        }, 10000); // Give it enough time to open the print dialog
     }
 }

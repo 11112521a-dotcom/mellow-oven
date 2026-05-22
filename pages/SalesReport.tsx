@@ -46,6 +46,8 @@ import { WeatherAnalysisCard, getWeatherIcon } from '@/src/components/SalesRepor
 
 import { Modal } from '@/src/components/ui/Modal';
 import { NumberInput } from '@/src/components/ui/NumberInput';
+import { AnimatedSelect } from '@/src/components/ui/AnimatedSelect';
+import { AnimatedButton } from '@/src/components/ui/AnimatedButton';
 import { MarketComparisonTable, EnhancedComparisonView, EnhancedMarketDetailView } from '@/src/components/Dashboard';
 import { DateRange } from '@/src/lib/dashboard/dashboardUtils';
 import { calculateEnhancedMarketData, generateMarketPDFReport } from '@/src/lib/dashboard/marketAnalysisUtils'; // Import new utils
@@ -582,9 +584,14 @@ export const SalesReport: React.FC = () => {
     return (
         <div className="space-y-6 animate-in fade-in duration-500 pb-20">
             {/* Warm Cafe Header */}
-            <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-amber-50 via-orange-50 to-yellow-50 border border-amber-100 p-6 sm:p-8">
-                {/* ... (existing header content) ... */}
-                <div className="relative flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+            <div className="relative rounded-3xl bg-gradient-to-br from-amber-50 via-orange-50 to-yellow-50 border border-amber-100 p-6 sm:p-8 z-20">
+                {/* Subtle decorative elements */}
+                <div className="absolute inset-0 overflow-hidden rounded-3xl pointer-events-none z-0">
+                    <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-amber-200/30 to-transparent rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl" />
+                    <div className="absolute bottom-0 left-0 w-48 h-48 bg-gradient-to-tr from-orange-200/20 to-transparent rounded-full translate-y-1/2 -translate-x-1/2 blur-2xl" />
+                </div>
+
+                <div className="relative flex flex-col lg:flex-row lg:items-center justify-between gap-6 z-10">
                     {/* ... (existing title) ... */}
                     <div className="flex items-center gap-4">
                         <div className="w-14 h-14 bg-gradient-to-br from-amber-400 to-orange-500 rounded-2xl flex items-center justify-center shadow-lg shadow-amber-200/50">
@@ -601,69 +608,64 @@ export const SalesReport: React.FC = () => {
 
                     {/* Filters in Header */}
                     <div className="flex flex-wrap gap-3">
-                        <div className="bg-white/80 backdrop-blur-sm rounded-xl p-3 flex items-center gap-2 border border-amber-100 shadow-sm">
-                            <Clock size={18} className="text-amber-600" />
-                            <select
-                                value={datePreset}
-                                onChange={(e) => applyDatePreset(e.target.value as 'today' | 'yesterday' | 'thisWeek' | 'lastWeek' | 'thisMonth' | 'lastMonth' | '3months' | '6months' | 'thisYear' | 'custom')}
-                                className="bg-transparent border-none text-stone-700 font-medium focus:ring-0 cursor-pointer"
-                            >
-                                <option value="today">วันนี้</option>
-                                <option value="yesterday">เมื่อวาน</option>
-                                <option value="thisWeek">สัปดาห์นี้</option>
-                                <option value="lastWeek">สัปดาห์ที่แล้ว</option>
-                                <option value="thisMonth">เดือนนี้</option>
-                                <option value="lastMonth">เดือนที่แล้ว</option>
-                                <option value="3months">3 เดือนล่าสุด</option>
-                                <option value="6months">6 เดือนล่าสุด</option>
-                                <option value="thisYear">ปีนี้ทั้งหมด</option>
-                                <option value="custom">📅 เลือกช่วงวัน...</option>
-                            </select>
-                        </div>
+                        <AnimatedSelect
+                            value={datePreset}
+                            onChange={(val) => applyDatePreset(val as 'today' | 'yesterday' | 'thisWeek' | 'lastWeek' | 'thisMonth' | 'lastMonth' | '3months' | '6months' | 'thisYear' | 'custom')}
+                            icon={Clock}
+                            options={[
+                                { value: 'today', label: 'วันนี้' },
+                                { value: 'yesterday', label: 'เมื่อวาน' },
+                                { value: 'thisWeek', label: 'สัปดาห์นี้' },
+                                { value: 'lastWeek', label: 'สัปดาห์ที่แล้ว' },
+                                { value: 'thisMonth', label: 'เดือนนี้' },
+                                { value: 'lastMonth', label: 'เดือนที่แล้ว' },
+                                { value: '3months', label: '3 เดือนล่าสุด' },
+                                { value: '6months', label: '6 เดือนล่าสุด' },
+                                { value: 'thisYear', label: 'ปีนี้ทั้งหมด' },
+                                { value: 'custom', label: '📅 เลือกช่วงวัน...' }
+                            ]}
+                        />
 
                         {/* Custom Date Range Picker */}
                         {datePreset === 'custom' && (
-                            <div className="bg-white/80 backdrop-blur-sm rounded-xl px-4 py-2 flex items-center gap-2 border border-amber-100 shadow-sm">
+                            <div className="bg-white/80 backdrop-blur-sm rounded-xl px-4 py-2 flex items-center gap-2 border border-amber-100 shadow-sm animate-in fade-in slide-in-from-left-4">
                                 <Calendar size={16} className="text-amber-600" />
                                 <input
                                     type="date"
                                     value={startDate}
                                     onChange={e => setStartDate(e.target.value)}
-                                    className="bg-transparent border-none text-stone-700 focus:ring-0 w-32"
+                                    className="bg-transparent border-none text-stone-700 focus:ring-0 w-32 cursor-pointer outline-none"
                                 />
                                 <span className="text-stone-400">ถึง</span>
                                 <input
                                     type="date"
                                     value={endDate}
                                     onChange={e => setEndDate(e.target.value)}
-                                    className="bg-transparent border-none text-stone-700 focus:ring-0 w-32"
+                                    className="bg-transparent border-none text-stone-700 focus:ring-0 w-32 cursor-pointer outline-none"
                                 />
                             </div>
                         )}
 
-                        <div className="bg-white/80 backdrop-blur-sm rounded-xl p-3 flex items-center gap-2 border border-amber-100 shadow-sm">
-                            <Store size={18} className="text-amber-600" />
-                            <select
-                                value={selectedMarket}
-                                onChange={(e) => setSelectedMarket(e.target.value)}
-                                className="bg-transparent border-none text-stone-700 font-medium focus:ring-0 cursor-pointer"
-                            >
-                                <option value="all">ทุกตลาด</option>
-                                {markets.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
-                            </select>
-                        </div>
+                        <AnimatedSelect
+                            value={selectedMarket}
+                            onChange={(val) => setSelectedMarket(val)}
+                            icon={Store}
+                            options={[
+                                { value: 'all', label: 'ทุกตลาด' },
+                                ...markets.map(m => ({ value: m.id, label: m.name }))
+                            ]}
+                        />
 
                         {/* Export PDF Button */}
-                        <button
+                        <AnimatedButton
                             onClick={handleExportPDF}
-                            className="bg-white/80 backdrop-blur-sm rounded-xl p-3 flex items-center gap-2 border border-amber-100 shadow-sm text-stone-700 hover:bg-white transition-all"
+                            icon={FileDown}
+                            variant="outline"
+                            glow
                             title="Export PDF"
                         >
-                            <FileDown size={18} className="text-amber-600" />
-                            <span className="font-medium">Export PDF</span>
-                        </button>
-
-
+                            Export PDF
+                        </AnimatedButton>
                     </div>
                 </div>
             </div>

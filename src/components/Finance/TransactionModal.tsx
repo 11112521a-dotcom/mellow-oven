@@ -2,7 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { Modal } from '../ui/Modal';
 import { useStore } from '@/src/store';
 import { JarType } from '@/types';
-import { ArrowRight, ArrowRightLeft, TrendingUp, TrendingDown, Wallet, Store, Tag, FileText, Plus } from 'lucide-react';
+import { 
+    ArrowRight, Wallet, Store, Tag, FileText, 
+    ShoppingBag, Package, Zap, Home, Users, Megaphone, Wrench 
+} from 'lucide-react';
 import { formatCurrency } from '@/src/lib/utils';
 import { NumberInput } from '@/src/components/ui/NumberInput';
 
@@ -13,6 +16,17 @@ interface TransactionModalProps {
     defaultJar?: JarType;
 }
 
+const EXPENSE_CATEGORIES = [
+    { id: 'General', label: 'ทั่วไป', icon: <Tag size={16} /> },
+    { id: 'Ingredients', label: 'วัตถุดิบ', icon: <ShoppingBag size={16} /> },
+    { id: 'Packaging', label: 'แพคเกจจิ้ง', icon: <Package size={16} /> },
+    { id: 'Utilities', label: 'ค่าน้ำ/ไฟ', icon: <Zap size={16} /> },
+    { id: 'Rent', label: 'ค่าเช่า', icon: <Home size={16} /> },
+    { id: 'Salary', label: 'เงินเดือน', icon: <Users size={16} /> },
+    { id: 'Marketing', label: 'โฆษณา', icon: <Megaphone size={16} /> },
+    { id: 'Maintenance', label: 'ซ่อมบำรุง', icon: <Wrench size={16} /> },
+];
+
 export const TransactionModal: React.FC<TransactionModalProps> = ({ isOpen, onClose, mode, defaultJar }) => {
     const { jars, addTransaction, updateJarBalance, transferFunds, markets } = useStore();
 
@@ -20,7 +34,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({ isOpen, onCl
     const [description, setDescription] = useState('');
     const [fromJar, setFromJar] = useState<JarType>('Working');
     const [toJar, setToJar] = useState<JarType>('Working');
-    const [marketId, setMarketId] = useState<string>('');
+    const [marketId, setMarketId] = useState<string>('general');
     const [category, setCategory] = useState('General');
 
     useEffect(() => {
@@ -28,11 +42,11 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({ isOpen, onCl
             setAmount('');
             setDescription('');
             setCategory('General');
+            setMarketId('general');
 
             // Set defaults based on mode
             if (mode === 'INCOME') {
                 setToJar(defaultJar || 'Working');
-                setMarketId(markets[0]?.id || '');
             } else if (mode === 'EXPENSE') {
                 setFromJar(defaultJar || 'Opex');
             } else if (mode === 'TRANSFER') {
@@ -40,7 +54,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({ isOpen, onCl
                 setToJar(defaultJar === 'Working' ? 'CapEx' : 'Working');
             }
         }
-    }, [isOpen, mode, defaultJar, markets]);
+    }, [isOpen, mode, defaultJar]);
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -55,7 +69,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({ isOpen, onCl
                 amount: numAmount,
                 type: 'INCOME',
                 toJar,
-                marketId: marketId || undefined,
+                marketId: marketId === 'general' ? undefined : marketId,
                 description: description || 'รายรับ',
                 category: 'Sales'
             });
@@ -83,47 +97,72 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({ isOpen, onCl
     };
 
     const getTitle = () => {
-        if (mode === 'INCOME') return 'บันทึกรายรับ (Income)';
-        if (mode === 'EXPENSE') return 'บันทึกรายจ่าย (Expense)';
-        return 'โอนเงินระหว่างกระเป๋า (Transfer)';
+        if (mode === 'INCOME') return 'รับเงิน (Income)';
+        if (mode === 'EXPENSE') return 'จ่ายเงิน (Expense)';
+        return 'โอนเงิน (Transfer)';
     };
 
-    const themeColor = mode === 'INCOME' ? 'green' : mode === 'EXPENSE' ? 'red' : 'blue';
+    // Style configs based on mode
+    const styles = {
+        INCOME: {
+            theme: 'green',
+            bg: 'bg-emerald-50',
+            border: 'border-emerald-200',
+            text: 'text-emerald-700',
+            focusRing: 'focus:ring-emerald-200 focus:border-emerald-400',
+            activeCard: 'border-emerald-400 bg-emerald-50 shadow-sm',
+            btnBg: 'bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600'
+        },
+        EXPENSE: {
+            theme: 'red',
+            bg: 'bg-rose-50',
+            border: 'border-rose-200',
+            text: 'text-rose-700',
+            focusRing: 'focus:ring-rose-200 focus:border-rose-400',
+            activeCard: 'border-rose-400 bg-rose-50 shadow-sm',
+            btnBg: 'bg-gradient-to-r from-rose-500 to-red-500 hover:from-rose-600 hover:to-red-600'
+        },
+        TRANSFER: {
+            theme: 'blue',
+            bg: 'bg-sky-50',
+            border: 'border-sky-200',
+            text: 'text-sky-700',
+            focusRing: 'focus:ring-sky-200 focus:border-sky-400',
+            activeCard: 'border-sky-400 bg-sky-50 shadow-sm',
+            btnBg: 'bg-gradient-to-r from-sky-500 to-blue-500 hover:from-sky-600 hover:to-blue-600'
+        }
+    }[mode];
 
     return (
         <Modal isOpen={isOpen} onClose={onClose} title={getTitle()}>
             <form onSubmit={handleSubmit} className="space-y-6">
 
-                {/* Amount Section */}
-                <div className="bg-gray-50 p-6 rounded-2xl text-center border border-gray-100">
-                    <label className="block text-sm font-medium text-gray-500 mb-2">จำนวนเงิน (บาท)</label>
-                    <div className="relative max-w-[200px] mx-auto">
+                {/* Amount Section - Huge & Clean */}
+                <div className={`p-6 rounded-[2rem] text-center border-2 ${styles.border} ${styles.bg} transition-all`}>
+                    <label className={`block text-xs font-bold uppercase tracking-wider mb-2 ${styles.text} opacity-80`}>
+                        จำนวนเงิน (บาท)
+                    </label>
+                    <div className="relative max-w-[240px] mx-auto">
                         <NumberInput
                             required
                             min="0"
                             value={parseFloat(amount) || 0}
                             onChange={(val) => setAmount(val === 0 ? '' : val.toString())}
-                            className={`w-full bg-transparent text-4xl font-bold text-center outline-none placeholder-gray-300 text-${themeColor}-600`}
-                            placeholder="0.00"
+                            className={`w-full bg-transparent text-5xl font-black text-center outline-none placeholder-stone-300 ${styles.text}`}
+                            placeholder="0"
                             autoFocus
                             allowDecimals
                         />
                     </div>
 
                     {/* Quick Amount Buttons */}
-                    <div className="flex justify-center gap-2 mt-4">
+                    <div className="flex justify-center gap-2 mt-6">
                         {[100, 500, 1000].map((val) => (
                             <button
                                 key={val}
                                 type="button"
                                 onClick={() => handleQuickAdd(val)}
-                                className={`px-3 py-1 rounded-full text-xs font-medium transition-colors border
-                                    ${mode === 'INCOME'
-                                        ? 'bg-green-50 text-green-600 border-green-200 hover:bg-green-100'
-                                        : mode === 'EXPENSE'
-                                            ? 'bg-red-50 text-red-600 border-red-200 hover:bg-red-100'
-                                            : 'bg-blue-50 text-blue-600 border-blue-200 hover:bg-blue-100'
-                                    }`}
+                                className={`px-4 py-2 rounded-xl text-sm font-bold bg-white border border-stone-200 shadow-sm hover:shadow-md hover:scale-105 active:scale-95 transition-all ${styles.text}`}
                             >
                                 +{val}
                             </button>
@@ -131,166 +170,177 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({ isOpen, onCl
                     </div>
                 </div>
 
-                {/* Form Fields */}
-                <div className="space-y-4">
+                {/* Form Fields - Pill/Card Selectors */}
+                <div className="space-y-6">
+
                     {mode === 'INCOME' && (
-                        <div className="grid grid-cols-1 gap-4">
-                            <div className="bg-white border border-gray-200 rounded-xl p-3 flex items-center gap-3">
-                                <div className="bg-green-100 p-2 rounded-lg text-green-600">
-                                    <Store size={20} />
-                                </div>
-                                <div className="flex-1">
-                                    <label className="block text-xs text-gray-500 mb-1">รับจาก (แหล่งที่มา)</label>
-                                    <select
-                                        value={marketId}
-                                        onChange={(e) => setMarketId(e.target.value)}
-                                        className="w-full bg-transparent font-medium text-gray-800 outline-none"
+                        <>
+                            {/* Source Selection (Markets) */}
+                            <div>
+                                <label className="flex items-center gap-2 text-sm font-bold text-stone-700 mb-3">
+                                    <Store size={18} className="text-stone-400" />
+                                    แหล่งที่มา (รับจาก)
+                                </label>
+                                <div className="flex flex-wrap gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => setMarketId('general')}
+                                        className={`px-4 py-2 rounded-xl border font-semibold text-sm transition-all ${marketId === 'general' ? styles.activeCard + ' ' + styles.text : 'border-stone-200 bg-white text-stone-600 hover:border-stone-300'}`}
                                     >
-                                        <option value="">ไม่ระบุ (ทั่วไป)</option>
-                                        {markets.map(m => (
-                                            <option key={m.id} value={m.id}>{m.name}</option>
-                                        ))}
-                                    </select>
+                                        ทั่วไป
+                                    </button>
+                                    {markets.map(m => (
+                                        <button
+                                            key={m.id}
+                                            type="button"
+                                            onClick={() => setMarketId(m.id)}
+                                            className={`px-4 py-2 rounded-xl border font-semibold text-sm transition-all ${marketId === m.id ? styles.activeCard + ' ' + styles.text : 'border-stone-200 bg-white text-stone-600 hover:border-stone-300'}`}
+                                        >
+                                            {m.name}
+                                        </button>
+                                    ))}
                                 </div>
                             </div>
 
-                            <div className="flex justify-center text-gray-300">
-                                <ArrowDownIcon />
-                            </div>
-
-                            <div className="bg-white border border-green-200 rounded-xl p-3 flex items-center gap-3 ring-1 ring-green-100">
-                                <div className="bg-green-100 p-2 rounded-lg text-green-600">
-                                    <Wallet size={20} />
+                            {/* Destination Jar */}
+                            <div>
+                                <label className="flex items-center gap-2 text-sm font-bold text-emerald-700 mb-3">
+                                    <Wallet size={18} />
+                                    เข้ากระเป๋า
+                                </label>
+                                <div className="grid grid-cols-2 gap-3">
+                                    {jars.map(jar => (
+                                        <button
+                                            key={jar.id}
+                                            type="button"
+                                            onClick={() => setToJar(jar.id as JarType)}
+                                            className={`p-3 rounded-xl border text-left transition-all flex flex-col gap-1 ${toJar === jar.id ? styles.activeCard : 'border-stone-200 bg-white hover:border-stone-300'}`}
+                                        >
+                                            <span className={`text-sm font-bold ${toJar === jar.id ? styles.text : 'text-stone-700'}`}>{jar.name}</span>
+                                            <span className="text-xs text-stone-500 font-medium">{formatCurrency(jar.balance)}</span>
+                                        </button>
+                                    ))}
                                 </div>
-                                <div className="flex-1">
-                                    <label className="block text-xs text-green-600 mb-1">เข้ากระเป๋า</label>
-                                    <select
-                                        value={toJar}
-                                        onChange={(e) => setToJar(e.target.value as JarType)}
-                                        className="w-full bg-transparent font-bold text-gray-800 outline-none"
-                                    >
-                                        {jars.map(jar => (
-                                            <option key={jar.id} value={jar.id}>{jar.name} (฿{jar.balance.toLocaleString()})</option>
-                                        ))}
-                                    </select>
-                                </div>
                             </div>
-                        </div>
+                        </>
                     )}
 
                     {mode === 'EXPENSE' && (
-                        <div className="space-y-4">
-                            <div className="bg-white border border-red-200 rounded-xl p-3 flex items-center gap-3 ring-1 ring-red-100">
-                                <div className="bg-red-100 p-2 rounded-lg text-red-600">
-                                    <Wallet size={20} />
-                                </div>
-                                <div className="flex-1">
-                                    <label className="block text-xs text-red-600 mb-1">จ่ายจากกระเป๋า</label>
-                                    <select
-                                        value={fromJar}
-                                        onChange={(e) => setFromJar(e.target.value as JarType)}
-                                        className="w-full bg-transparent font-bold text-gray-800 outline-none"
-                                    >
-                                        {jars.map(jar => (
-                                            <option key={jar.id} value={jar.id}>{jar.name} (฿{jar.balance.toLocaleString()})</option>
-                                        ))}
-                                    </select>
+                        <>
+                            {/* Source Jar */}
+                            <div>
+                                <label className="flex items-center gap-2 text-sm font-bold text-rose-700 mb-3">
+                                    <Wallet size={18} />
+                                    จ่ายจากกระเป๋า
+                                </label>
+                                <div className="grid grid-cols-2 gap-3">
+                                    {jars.map(jar => (
+                                        <button
+                                            key={jar.id}
+                                            type="button"
+                                            onClick={() => setFromJar(jar.id as JarType)}
+                                            className={`p-3 rounded-xl border text-left transition-all flex flex-col gap-1 ${fromJar === jar.id ? styles.activeCard : 'border-stone-200 bg-white hover:border-stone-300'}`}
+                                        >
+                                            <span className={`text-sm font-bold ${fromJar === jar.id ? styles.text : 'text-stone-700'}`}>{jar.name}</span>
+                                            <span className="text-xs text-stone-500 font-medium">{formatCurrency(jar.balance)}</span>
+                                        </button>
+                                    ))}
                                 </div>
                             </div>
 
-                            <div className="bg-white border border-gray-200 rounded-xl p-3 flex items-center gap-3">
-                                <div className="bg-gray-100 p-2 rounded-lg text-gray-600">
-                                    <Tag size={20} />
-                                </div>
-                                <div className="flex-1">
-                                    <label className="block text-xs text-gray-500 mb-1">หมวดหมู่</label>
-                                    <select
-                                        value={category}
-                                        onChange={(e) => setCategory(e.target.value)}
-                                        className="w-full bg-transparent font-medium text-gray-800 outline-none"
-                                    >
-                                        <option value="General">ทั่วไป</option>
-                                        <option value="Ingredients">วัตถุดิบ</option>
-                                        <option value="Packaging">บรรจุภัณฑ์</option>
-                                        <option value="Utilities">ค่าน้ำ/ไฟ</option>
-                                        <option value="Rent">ค่าเช่า</option>
-                                        <option value="Salary">เงินเดือน</option>
-                                        <option value="Marketing">การตลาด</option>
-                                        <option value="Maintenance">ซ่อมบำรุง</option>
-                                    </select>
+                            {/* Category Grid */}
+                            <div>
+                                <label className="flex items-center gap-2 text-sm font-bold text-stone-700 mb-3">
+                                    <Tag size={18} className="text-stone-400" />
+                                    หมวดหมู่รายจ่าย
+                                </label>
+                                <div className="grid grid-cols-4 gap-2">
+                                    {EXPENSE_CATEGORIES.map(cat => (
+                                        <button
+                                            key={cat.id}
+                                            type="button"
+                                            onClick={() => setCategory(cat.id)}
+                                            className={`flex flex-col items-center justify-center gap-2 p-3 rounded-xl border transition-all ${category === cat.id ? styles.activeCard + ' ' + styles.text : 'border-stone-200 bg-white text-stone-500 hover:border-stone-300'}`}
+                                        >
+                                            {cat.icon}
+                                            <span className="text-[10px] font-bold">{cat.label}</span>
+                                        </button>
+                                    ))}
                                 </div>
                             </div>
-                        </div>
+                        </>
                     )}
 
                     {mode === 'TRANSFER' && (
-                        <div className="bg-blue-50/50 p-4 rounded-2xl border border-blue-100">
-                            <div className="flex items-center justify-between gap-2">
-                                {/* From */}
-                                <div className="flex-1 bg-white p-3 rounded-xl border border-gray-200 shadow-sm">
-                                    <p className="text-xs text-gray-500 mb-1">จาก</p>
-                                    <select
-                                        value={fromJar}
-                                        onChange={(e) => setFromJar(e.target.value as JarType)}
-                                        className="w-full bg-transparent font-bold text-gray-800 outline-none text-sm"
-                                    >
-                                        {jars.map(jar => (
-                                            <option key={jar.id} value={jar.id} disabled={jar.id === toJar}>
-                                                {jar.name}
-                                            </option>
-                                        ))}
-                                    </select>
-                                    <p className="text-xs text-gray-400 mt-1">฿{jars.find(j => j.id === fromJar)?.balance.toLocaleString()}</p>
+                        <div className="bg-sky-50/50 p-5 rounded-2xl border border-sky-100 flex flex-col gap-4">
+                            {/* From Jar */}
+                            <div>
+                                <label className="text-xs font-bold text-stone-500 mb-2 block uppercase tracking-wider">โอนจาก</label>
+                                <div className="grid grid-cols-2 gap-2">
+                                    {jars.map(jar => (
+                                        <button
+                                            key={jar.id}
+                                            type="button"
+                                            disabled={jar.id === toJar}
+                                            onClick={() => setFromJar(jar.id as JarType)}
+                                            className={`p-2.5 rounded-xl border text-left transition-all flex items-center justify-between ${fromJar === jar.id ? 'border-sky-400 bg-white shadow-sm ring-1 ring-sky-400' : 'border-stone-200 bg-white hover:border-stone-300'} ${jar.id === toJar ? 'opacity-50 cursor-not-allowed bg-stone-50' : ''}`}
+                                        >
+                                            <span className={`text-sm font-bold ${fromJar === jar.id ? styles.text : 'text-stone-700'}`}>{jar.name}</span>
+                                        </button>
+                                    ))}
                                 </div>
+                            </div>
 
-                                {/* Arrow */}
-                                <div className="text-blue-500 bg-white p-2 rounded-full shadow-sm border border-blue-100">
-                                    <ArrowRight size={20} />
+                            <div className="flex justify-center -my-2 relative z-10">
+                                <div className="bg-white p-2 rounded-full shadow-sm border border-sky-100 text-sky-500">
+                                    <ArrowRight className="rotate-90 md:rotate-0" size={18} />
                                 </div>
+                            </div>
 
-                                {/* To */}
-                                <div className="flex-1 bg-white p-3 rounded-xl border border-blue-200 shadow-sm ring-1 ring-blue-100">
-                                    <p className="text-xs text-blue-600 mb-1">เข้า</p>
-                                    <select
-                                        value={toJar}
-                                        onChange={(e) => setToJar(e.target.value as JarType)}
-                                        className="w-full bg-transparent font-bold text-gray-800 outline-none text-sm"
-                                    >
-                                        {jars.map(jar => (
-                                            <option key={jar.id} value={jar.id} disabled={jar.id === fromJar}>
-                                                {jar.name}
-                                            </option>
-                                        ))}
-                                    </select>
-                                    <p className="text-xs text-gray-400 mt-1">฿{jars.find(j => j.id === toJar)?.balance.toLocaleString()}</p>
+                            {/* To Jar */}
+                            <div>
+                                <label className="text-xs font-bold text-sky-600 mb-2 block uppercase tracking-wider">โอนเข้า</label>
+                                <div className="grid grid-cols-2 gap-2">
+                                    {jars.map(jar => (
+                                        <button
+                                            key={jar.id}
+                                            type="button"
+                                            disabled={jar.id === fromJar}
+                                            onClick={() => setToJar(jar.id as JarType)}
+                                            className={`p-2.5 rounded-xl border text-left transition-all flex items-center justify-between ${toJar === jar.id ? 'border-sky-400 bg-white shadow-sm ring-1 ring-sky-400' : 'border-stone-200 bg-white hover:border-stone-300'} ${jar.id === fromJar ? 'opacity-50 cursor-not-allowed bg-stone-50' : ''}`}
+                                        >
+                                            <span className={`text-sm font-bold ${toJar === jar.id ? styles.text : 'text-stone-700'}`}>{jar.name}</span>
+                                        </button>
+                                    ))}
                                 </div>
                             </div>
                         </div>
                     )}
 
-                    {/* Description */}
-                    <div className="bg-white border border-gray-200 rounded-xl p-3 flex items-center gap-3">
-                        <div className="bg-gray-100 p-2 rounded-lg text-gray-600">
-                            <FileText size={20} />
+                    {/* Description - Cleaner look */}
+                    <div>
+                        <div className="flex items-center gap-3 bg-white border border-stone-200 p-1 rounded-xl focus-within:ring-2 transition-all focus-within:border-transparent mt-2">
+                            <div className="p-3 text-stone-400 bg-stone-50 rounded-lg">
+                                <FileText size={18} />
+                            </div>
+                            <input
+                                type="text"
+                                value={description}
+                                onChange={(e) => setDescription(e.target.value)}
+                                className="flex-1 bg-transparent border-none outline-none text-sm font-medium text-stone-800 placeholder-stone-400"
+                                placeholder={mode === 'TRANSFER' ? 'บันทึกช่วยจำ (เช่น เก็บสำรอง)' : 'รายละเอียดเพิ่มเติม (ไม่บังคับ)'}
+                            />
                         </div>
-                        <input
-                            type="text"
-                            value={description}
-                            onChange={(e) => setDescription(e.target.value)}
-                            className="flex-1 bg-transparent outline-none text-sm"
-                            placeholder={mode === 'TRANSFER' ? 'บันทึกช่วยจำ (เช่น สำรองจ่าย)' : 'รายละเอียดเพิ่มเติม (Optional)'}
-                        />
                     </div>
                 </div>
 
                 {/* Submit Button */}
                 <button
                     type="submit"
-                    className={`w-full py-4 rounded-xl text-white font-bold text-lg shadow-lg shadow-${themeColor}-200 transform transition-all active:scale-[0.98]
-                        ${mode === 'INCOME' ? 'bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700' :
-                            mode === 'EXPENSE' ? 'bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700' :
-                                'bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700'
-                        }`}
+                    disabled={parseFloat(amount) <= 0 || !amount}
+                    className={`w-full py-5 rounded-[1.25rem] text-white font-black text-lg shadow-xl transform transition-all 
+                        ${parseFloat(amount) > 0 ? styles.btnBg + ' active:scale-[0.98]' : 'bg-stone-300 cursor-not-allowed shadow-none'}
+                    `}
                 >
                     {mode === 'INCOME' ? 'ยืนยันรับเงิน' : mode === 'EXPENSE' ? 'ยืนยันจ่ายเงิน' : 'ยืนยันโอนเงิน'}
                 </button>
@@ -298,10 +348,3 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({ isOpen, onCl
         </Modal>
     );
 };
-
-// Helper Icon
-const ArrowDownIcon = () => (
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <path d="M12 5V19M12 19L19 12M12 19L5 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-);

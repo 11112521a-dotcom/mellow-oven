@@ -25,6 +25,8 @@ import { GoalCard } from '@/src/components/Finance/GoalCard';
 import { GoalModal } from '@/src/components/Finance/GoalModal';
 import { DebtProgressWidget } from '@/src/components/Finance/DebtProgressWidget'; // Enhanced import
 import { MarketDetailView, ComparisonView, MarketComparisonTable, EnhancedComparisonView, EnhancedMarketDetailView } from '@/src/components/Dashboard';
+import { AnimatedSelect } from '@/src/components/ui/AnimatedSelect';
+import { AnimatedButton } from '@/src/components/ui/AnimatedButton';
 import { calculateDetailedMarketData, DateRange } from '@/src/lib/dashboard/dashboardUtils';
 
 interface DashboardProps { onNavigate?: (page: string) => void; }
@@ -543,12 +545,14 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
       {/* ═══════════════════════════════════════════════════════════════
           🎨 WARM CAFE HEADER - Clean & Minimal
          ═══════════════════════════════════════════════════════════════ */}
-      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-amber-50 via-orange-50 to-yellow-50 border border-amber-100 p-6 sm:p-8">
+      <div className="relative rounded-3xl bg-gradient-to-br from-amber-50 via-orange-50 to-yellow-50 border border-amber-100 p-6 sm:p-8 z-20">
         {/* Subtle decorative elements */}
-        <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-amber-200/30 to-transparent rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl" />
-        <div className="absolute bottom-0 left-0 w-48 h-48 bg-gradient-to-tr from-orange-200/20 to-transparent rounded-full translate-y-1/2 -translate-x-1/2 blur-2xl" />
+        <div className="absolute inset-0 overflow-hidden rounded-3xl pointer-events-none z-0">
+            <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-amber-200/30 to-transparent rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl" />
+            <div className="absolute bottom-0 left-0 w-48 h-48 bg-gradient-to-tr from-orange-200/20 to-transparent rounded-full translate-y-1/2 -translate-x-1/2 blur-2xl" />
+        </div>
 
-        <div className="relative">
+        <div className="relative z-10">
           {/* Greeting */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
             <div className="flex items-center gap-4">
@@ -583,29 +587,30 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
               { key: 'week', label: 'สัปดาห์', check: 'สัปดาห์นี้' },
               { key: 'month', label: 'เดือนนี้', check: 'เดือนนี้' }
             ].map(({ key, label, check }) => (
-              <button
+              <AnimatedButton
                 key={key}
                 onClick={() => applyQuickDate(key)}
-                className={`px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200 min-h-[44px] ${dateRange.label === check
-                  ? 'bg-amber-500 text-white shadow-md shadow-amber-200'
-                  : 'bg-white/80 text-stone-600 hover:bg-white hover:shadow-sm border border-amber-100'
-                  }`}
+                variant={dateRange.label === check ? 'primary' : 'outline'}
+                className="min-h-[44px]"
+                glow={dateRange.label === check}
               >
                 {label}
-              </button>
+              </AnimatedButton>
             ))}
 
             {/* Market Filter */}
             {markets.length > 1 && (
-              <select
-                value={selectedMarket}
-                onChange={e => setSelectedMarket(e.target.value)}
-                className="px-4 py-2 rounded-xl text-sm font-medium bg-white/80 text-stone-600 border border-amber-100 outline-none focus:ring-2 focus:ring-amber-200 min-h-[44px]"
-                aria-label="เลือกตลาด"
-              >
-                <option value="all">🏪 ทุกตลาด</option>
-                {markets.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
-              </select>
+              <div className="min-w-[140px]">
+                <AnimatedSelect
+                  value={selectedMarket}
+                  onChange={(val) => setSelectedMarket(val)}
+                  icon={Store}
+                  options={[
+                    { value: 'all', label: '🏪 ทุกตลาด' },
+                    ...markets.map(m => ({ value: m.id, label: m.name }))
+                  ]}
+                />
+              </div>
             )}
           </div>
         </div>
