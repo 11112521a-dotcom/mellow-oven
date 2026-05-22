@@ -107,8 +107,17 @@ export const createInventorySlice: StateCreator<AppState, [], [], InventorySlice
 
         // Refund logic
         get().updateJarBalance('Working', po.totalCost);
-        for (const item of po.items) {
-            await get().updateStock(item.ingredientId, -item.quantity);
+        if (po.items.length > 0) {
+            const adjustments = po.items.map(item => ({
+                ingredientId: item.ingredientId,
+                quantity: -item.quantity,
+                reason: 'PO' as const,
+                note: `Refund from cancelled PO: ${poId.slice(0, 8)}`
+            }));
+            const res = await get().bulkAdjustStock(adjustments);
+            if (!res.success) {
+                throw new Error(`Failed to refund PO stock: ${res.errors.join(', ')}`);
+            }
         }
         get().addTransaction({
             id: crypto.randomUUID(),
@@ -278,6 +287,133 @@ export const createInventorySlice: StateCreator<AppState, [], [], InventorySlice
         }
     },
 
+    bulkUpsertDailyInventory: async (records) => {
+        if (records.length === 0) return;
+
+        const uniqueDates = Array.from(new Set(records.map(r => r.businessDate)));
+        const uniqueProductIds = Array.from(new Set(records.map(r => r.productId)));
+
+        const { data: existingRows, error: fetchError } = await supabase
+            .from('daily_inventory')
+            .select('*')
+            .in('business_date', uniqueDates)
+            .in('product_id', uniqueProductIds);
+
+        if (fetchError) {
+            throw new Error(`Failed to fetch existing daily inventory: ${fetchError.message}`);
+        }
+
+        const inserts: Record<string, unknown>[] = [];
+        const updates: Array<{ id: string; fields: Record<string, unknown> }> = [];
+
+        for (const record of records) {
+            const matches = existingRows?.filter(row =>
+                row.business_date === record.businessDate &&
+                row.product_id === record.productId &&
+                ((!row.variant_id && !record.variantId) || (row.variant_id === record.variantId))
+            ) || [];
+
+            if (matches.length > 1) {
+                matches.sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''));
+            }
+            const existingData = matches[0];
+
+            const stockYesterday = record.stockYesterday ?? existingData?.stock_yesterday ?? 0;
+            const produced = record.producedQty ?? existingData?.produced_qty ?? 0;
+            const toShop = record.toShopQty ?? existingData?.to_shop_qty ?? 0;
+            const sold = record.soldQty ?? existingData?.sold_qty ?? 0;
+            const waste = record.wasteQty ?? existingData?.waste_qty ?? 0;
+            const eat = record.eatQty ?? existingData?.eat_qty ?? 0; 
+            const giveaway = record.giveawayQty ?? existingData?.giveaway_qty ?? 0; 
+
+            const leftoverHome = stockYesterday + produced - toShop - waste - eat - giveaway;
+            const unsoldShop = toShop - sold;
+
+            const dbRecord: Record<string, unknown> = {
+                business_date: record.businessDate,
+                product_id: record.productId,
+                produced_qty: produced,
+                to_shop_qty: toShop,
+                sold_qty: sold,
+                waste_qty: waste,
+                eat_qty: eat,
+                giveaway_qty: giveaway,
+                stock_yesterday: stockYesterday,
+                leftover_home: leftoverHome,
+                unsold_shop: unsoldShop
+            };
+
+            if (record.variantId) dbRecord.variant_id = record.variantId;
+            if (record.variantName) dbRecord.variant_name = record.variantName;
+
+            if (existingData?.id) {
+                const updateFields = { ...dbRecord };
+                delete updateFields.stock_yesterday;
+                updates.push({ id: existingData.id, fields: updateFields });
+            } else {
+                inserts.push(dbRecord);
+            }
+        }
+
+        const results: any[] = [];
+
+        if (inserts.length > 0) {
+            const { data, error } = await supabase
+                .from('daily_inventory')
+                .insert(inserts)
+                .select();
+            if (error) {
+                throw new Error(`Failed to batch insert daily inventory: ${error.message}`);
+            }
+            if (data) {
+                results.push(...data);
+            }
+        }
+
+        if (updates.length > 0) {
+            const updateResults = await Promise.all(
+                updates.map(async (upd) => {
+                    const { data, error } = await supabase
+                        .from('daily_inventory')
+                        .update(upd.fields)
+                        .eq('id', upd.id)
+                        .select()
+                        .single();
+                    return { data, error };
+                })
+            );
+
+            for (const res of updateResults) {
+                if (res.error) {
+                    throw new Error(`Failed to update daily inventory: ${res.error.message}`);
+                }
+                if (res.data) {
+                    results.push(res.data);
+                }
+            }
+        }
+
+        if (results.length > 0) {
+            const mappedRecords = results.map(mapDailyInventory);
+            set(state => {
+                const updatedInventory = [...state.dailyInventory];
+                for (const newRecord of mappedRecords) {
+                    const index = updatedInventory.findIndex(d =>
+                        d.businessDate === newRecord.businessDate &&
+                        d.productId === newRecord.productId &&
+                        d.variantId === newRecord.variantId
+                    );
+                    if (index >= 0) {
+                        updatedInventory[index] = newRecord;
+                    } else {
+                        updatedInventory.push(newRecord);
+                    }
+                }
+                return { dailyInventory: updatedInventory };
+            });
+        }
+    },
+
     getYesterdayStock: (productId, todayDate, variantId) => {
         const state = get();
         const relevantRecords = state.dailyInventory.filter(
@@ -311,15 +447,53 @@ export const createInventorySlice: StateCreator<AppState, [], [], InventorySlice
         }
     },
 
+    bulkDeductStockByRecipes: async (deductions) => {
+        const { products, bulkAdjustStock } = get();
+        const adjustmentsMap = new Map<string, number>();
+
+        for (const dec of deductions) {
+            const product = products.find(p => p.id === dec.productId);
+            if (!product) continue;
+
+            let recipe = product.recipe;
+            if (dec.variantId && product.variants) {
+                const variant = product.variants.find(v => v.id === dec.variantId);
+                if (variant?.recipe) recipe = variant.recipe;
+            }
+
+            if (recipe) {
+                const factor = dec.quantity / recipe.yield;
+                recipe.items.forEach(item => {
+                    const currentAmount = adjustmentsMap.get(item.ingredientId) || 0;
+                    adjustmentsMap.set(item.ingredientId, currentAmount - (item.quantity * factor));
+                });
+            }
+        }
+
+        if (adjustmentsMap.size === 0) {
+            return { success: true, errors: [], updatedCount: 0 };
+        }
+
+        const adjustments = Array.from(adjustmentsMap.entries()).map(([ingredientId, qty]) => ({
+            ingredientId,
+            quantity: qty,
+            reason: 'USAGE' as const,
+            note: 'Deducted by recipe (bulk)'
+        }));
+
+        return await bulkAdjustStock(adjustments);
+    },
+
     // NEW: Deduct stock for Bundle orders (handles selectedOptions)
     deductStockForBundleOrder: async (orderId) => {
-        const { specialOrders, products, deductStockByRecipe } = get();
+        const { specialOrders, products } = get();
         const order = specialOrders.find(o => o.id === orderId);
 
         if (!order || order.stockDeducted) {
             return;
         }
 
+        const recipeDeductions: Array<{ productId: string; quantity: number; variantId?: string }> = [];
 
         for (const item of order.items) {
             const product = products.find(p => p.id === item.productId);
@@ -327,23 +501,29 @@ export const createInventorySlice: StateCreator<AppState, [], [], InventorySlice
 
             // CASE 1: Bundle Product - deduct each selected option
             if (product.bundleConfig?.isBundle && item.selectedOptions) {
-
                 // Deduct for each slot selection
                 Object.keys(item.selectedOptions).forEach(slotId => {
                     const selection = (item.selectedOptions as Record<string, { productId: string; productName: string; unitCost: number; surcharge: number }>)[slotId];
                     if (selection?.productId) {
-                        deductStockByRecipe(selection.productId, item.quantity);
+                        recipeDeductions.push({ productId: selection.productId, quantity: item.quantity });
                     }
                 });
 
                 // Also deduct packaging if product has recipe (the box itself)
                 if (product.recipe) {
-                    deductStockByRecipe(product.id, item.quantity);
+                    recipeDeductions.push({ productId: product.id, quantity: item.quantity });
                 }
             }
             // CASE 2: Regular Product - deduct by recipe
             else {
-                deductStockByRecipe(item.productId, item.quantity, item.variantId);
+                recipeDeductions.push({ productId: item.productId, quantity: item.quantity, variantId: item.variantId });
+            }
+        }
+
+        if (recipeDeductions.length > 0) {
+            const res = await get().bulkDeductStockByRecipes(recipeDeductions);
+            if (!res.success) {
+                throw new Error(`Failed to deduct stock for bundle order: ${res.errors.join(', ')}`);
             }
         }
 

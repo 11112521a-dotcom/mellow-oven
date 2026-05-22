@@ -172,12 +172,39 @@ export const createFinanceSlice: StateCreator<AppState, [], [], FinanceSlice> = 
         const state = get();
         const sortedProfits = [...state.unallocatedProfits].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
         let remaining = amount;
+
+        const dbUpdates: Array<{ id: string; amount: number }> = [];
+        const stateUpdates: Record<string, number> = {};
+
         for (const profit of sortedProfits) {
             if (remaining <= 0) break;
             const deduct = Math.min(profit.amount, remaining);
-            await state.deductUnallocatedProfit(profit.id, deduct);
+            const newAmount = Math.max(0, profit.amount - deduct);
+
+            dbUpdates.push({ id: profit.id, amount: newAmount });
+            stateUpdates[profit.id] = newAmount;
+
             remaining -= deduct;
         }
+
+        if (dbUpdates.length === 0) return;
+
+        // Run database updates in parallel
+        const updatePromises = dbUpdates.map(upd => 
+            supabase.from('unallocated_profits').update({ amount: upd.amount }).eq('id', upd.id)
+        );
+        const results = await Promise.all(updatePromises);
+        const errors = results.filter(r => r.error);
+        if (errors.length > 0) {
+            throw new Error(`Failed to update unallocated profits: ${errors.map(e => e.error?.message).join(', ')}`);
+        }
+
+        // Update Zustand state in a single batch set call
+        set((state) => ({
+            unallocatedProfits: state.unallocatedProfits.map(p => 
+                stateUpdates[p.id] !== undefined ? { ...p, amount: stateUpdates[p.id] } : p
+            )
+        }));
     },
 
     getUnallocatedBalance: () => get().unallocatedProfits.reduce((sum, p) => sum + p.amount, 0),

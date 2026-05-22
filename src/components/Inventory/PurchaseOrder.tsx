@@ -7,7 +7,7 @@ import { formatCurrency } from '@/src/lib/utils';
 import html2canvas from 'html2canvas';
 
 export const PurchaseOrderForm: React.FC = () => {
-    const { ingredients, createPurchaseOrder, updateStock, updateJarBalance, addTransaction } = useStore();
+    const { ingredients, createPurchaseOrder, bulkAdjustStock, updateJarBalance, addTransaction } = useStore();
 
     const [selectedIngredientId, setSelectedIngredientId] = useState('');
     const [quantity, setQuantity] = useState('');
@@ -133,7 +133,7 @@ export const PurchaseOrderForm: React.FC = () => {
         }
     };
 
-    const handleConfirmOrder = () => {
+    const handleConfirmOrder = async () => {
         if (cart.length === 0) return;
 
         const totalCost = cart.reduce((sum, item) => sum + item.cost, 0);
@@ -153,10 +153,14 @@ export const PurchaseOrderForm: React.FC = () => {
         };
         createPurchaseOrder(po);
 
-        // 2. Update Stock
-        cart.forEach(item => {
-            updateStock(item.ingredient.id, item.quantity, 'PO', `Purchase Order #${po.id.slice(0, 8)}`);
-        });
+        // 2. Update Stock in bulk
+        const adjustments = cart.map(item => ({
+            ingredientId: item.ingredient.id,
+            quantity: item.quantity,
+            reason: 'PO' as const,
+            note: `Purchase Order #${po.id.slice(0, 8)}`
+        }));
+        await bulkAdjustStock(adjustments);
 
         // 3. Deduct from Finance (Working Capital)
         updateJarBalance('Working', -totalCost);

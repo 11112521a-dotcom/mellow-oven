@@ -320,7 +320,7 @@ const EditInventoryModal: React.FC<{
 
 
 export const MenuStockPlanner: React.FC = () => {
-    const { products, dailyInventory, fetchDailyInventory, upsertDailyInventory, getYesterdayStock } = useStore();
+    const { products, dailyInventory, fetchDailyInventory, upsertDailyInventory, bulkUpsertDailyInventory, getYesterdayStock } = useStore();
 
     const [businessDate, setBusinessDate] = useState(() => new Date().toISOString().split('T')[0]);
     const [isSaving, setIsSaving] = useState(false);
@@ -815,24 +815,9 @@ export const MenuStockPlanner: React.FC = () => {
             }
 
 
-            // 🚀 PHASE 2: Single batch RPC call (if RPC exists) or fallback to Promise.all
+            // 🚀 PHASE 2: Single batch bulkUpsertDailyInventory call
             if (batchRecords.length > 0) {
-                // TEMP: Skip RPC and use fallback directly to debug
-                await Promise.all(batchRecords.map(record =>
-                    upsertDailyInventory({
-                        businessDate: record.businessDate,
-                        productId: record.productId,
-                        variantId: record.variantId || undefined,
-                        variantName: record.variantName || undefined,
-                        producedQty: record.producedQty,
-                        toShopQty: record.toShopQty,
-                        wasteQty: record.wasteQty,
-                        soldQty: record.soldQty,
-                        eatQty: record.eatQty,
-                        giveawayQty: record.giveawayQty,
-                        stockYesterday: record.stockYesterday
-                    })
-                ));
+                await bulkUpsertDailyInventory(batchRecords);
             }
 
             // Refresh data
@@ -964,15 +949,15 @@ export const MenuStockPlanner: React.FC = () => {
         // Condition 1: Add Value Mode (Priority) - if value is entered, just add it
         if (value > 0) {
             const items = inventoryItems.filter(i => i.productId === productId);
+            const recordsToUpsert = [];
             for (const item of items) {
                 const saved = getSavedRecord(item);
                 const stockYesterday = saved.stockYesterday ?? getYesterdayForItem(item);
 
-                // TODO: Refactor to Atomic Update or RPC to prevent Race Condition
-                await upsertDailyInventory({
+                recordsToUpsert.push({
                     businessDate,
                     productId: item.productId,
-                    variantId: item.variantId,
+                    variantId: item.variantId || undefined,
                     variantName: item.isVariant ? item.name : undefined,
                     producedQty: (saved.producedQty || 0) + value, // ADD mode
                     toShopQty: saved.toShopQty || 0,
@@ -980,6 +965,9 @@ export const MenuStockPlanner: React.FC = () => {
                     soldQty: saved.soldQty || 0,     // PRESERVE existing sold
                     stockYesterday
                 });
+            }
+            if (recordsToUpsert.length > 0) {
+                await bulkUpsertDailyInventory(recordsToUpsert);
             }
             // Clear bulk input
             setBulkProduction(prev => {
@@ -991,6 +979,7 @@ export const MenuStockPlanner: React.FC = () => {
         // Condition 2: Fill to Target Mode - if value is empty/0 but target is set
         else if (targetValue > 0) {
             const items = inventoryItems.filter(i => i.productId === productId);
+            const recordsToUpsert = [];
             for (const item of items) {
                 const saved = getSavedRecord(item);
                 const stockYesterday = saved.stockYesterday ?? getYesterdayForItem(item);
@@ -1002,11 +991,10 @@ export const MenuStockPlanner: React.FC = () => {
                 const needed = Math.max(0, targetValue - actualStock);
 
                 if (needed > 0) {
-                    // TODO: Refactor to Atomic Update or RPC to prevent Race Condition
-                    await upsertDailyInventory({
+                    recordsToUpsert.push({
                         businessDate,
                         productId: item.productId,
-                        variantId: item.variantId,
+                        variantId: item.variantId || undefined,
                         variantName: item.isVariant ? item.name : undefined,
                         producedQty: (saved.producedQty || 0) + needed, // Add ONLY what's needed
                         toShopQty: saved.toShopQty || 0,
@@ -1015,6 +1003,9 @@ export const MenuStockPlanner: React.FC = () => {
                         stockYesterday
                     });
                 }
+            }
+            if (recordsToUpsert.length > 0) {
+                await bulkUpsertDailyInventory(recordsToUpsert);
             }
             // Clear target input (optional, or keep it to show target?) -> Let's keep it based on user behavior usually
             // But maybe clear it to indicate action done? Let's clear for feedback
@@ -1033,16 +1024,16 @@ export const MenuStockPlanner: React.FC = () => {
         if (value <= 0) return;
 
         const items = inventoryItems.filter(i => i.productId === productId);
+        const recordsToUpsert = [];
 
         for (const item of items) {
             const saved = getSavedRecord(item);
             const stockYesterday = saved.stockYesterday ?? getYesterdayForItem(item);
 
-            // TODO: Refactor to Atomic Update or RPC to prevent Race Condition
-            await upsertDailyInventory({
+            recordsToUpsert.push({
                 businessDate,
                 productId: item.productId,
-                variantId: item.variantId,
+                variantId: item.variantId || undefined,
                 variantName: item.isVariant ? item.name : undefined,
                 producedQty: saved.producedQty || 0,
                 toShopQty: (saved.toShopQty || 0) + value,
@@ -1050,6 +1041,10 @@ export const MenuStockPlanner: React.FC = () => {
                 soldQty: saved.soldQty || 0,     // PRESERVE existing sold
                 stockYesterday
             });
+        }
+
+        if (recordsToUpsert.length > 0) {
+            await bulkUpsertDailyInventory(recordsToUpsert);
         }
 
         // Clear bulk input

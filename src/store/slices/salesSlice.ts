@@ -38,6 +38,40 @@ export const createSalesSlice: StateCreator<AppState, [], [], SalesSlice> = (set
         if (error) console.error('Error adding product sale log:', error);
     },
 
+    addProductSaleLogs: async (logs) => {
+        if (logs.length === 0) return;
+
+        set(state => ({ productSales: [...state.productSales, ...logs] }));
+
+        const dbLogs = logs.map(log => ({
+            id: log.id,
+            recorded_at: log.recordedAt,
+            sale_date: log.saleDate,
+            market_id: log.marketId,
+            market_name: log.marketName,
+            product_id: log.productId,
+            product_name: log.productName,
+            category: log.category,
+            quantity_sold: log.quantitySold,
+            price_per_unit: log.pricePerUnit,
+            total_revenue: log.totalRevenue,
+            cost_per_unit: log.costPerUnit,
+            total_cost: log.totalCost,
+            gross_profit: log.grossProfit,
+            variant_id: log.variantId,
+            variant_name: log.variantName,
+            waste_qty: log.wasteQty || 0,
+            eat_qty: log.eatQty || 0,
+            giveaway_qty: log.giveawayQty || 0,
+            weather_condition: log.weatherCondition || null
+        }));
+
+        const { error } = await supabase.from('product_sales').insert(dbLogs);
+        if (error) {
+            throw new Error(`Error adding product sale logs: ${error.message}`);
+        }
+    },
+
     fetchProductSales: async () => {
         const { data, error } = await supabase
             .from('product_sales')

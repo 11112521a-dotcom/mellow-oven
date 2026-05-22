@@ -96,9 +96,11 @@ export interface InventorySlice {
     fetchDailyInventory: (date: string) => Promise<void>;
     fetchInventoryByDateRange: (startDate: string, endDate: string) => Promise<void>; // NEW
     upsertDailyInventory: (record: Partial<DailyInventory> & { businessDate: string; productId: string; variantId?: string }) => Promise<void>;
+    bulkUpsertDailyInventory: (records: Array<Partial<DailyInventory> & { businessDate: string; productId: string; variantId?: string; variantName?: string }>) => Promise<void>;
     getYesterdayStock: (productId: string, todayDate: string, variantId?: string) => number;
     deductStockByRecipe: (productId: string, quantity: number, variantId?: string) => void;
     deductStockForBundleOrder: (orderId: string) => Promise<void>; // NEW: Deduct stock for Bundle orders
+    bulkDeductStockByRecipes: (deductions: Array<{ productId: string; quantity: number; variantId?: string }>) => Promise<{ success: boolean; errors: string[]; updatedCount: number }>;
     bulkAdjustStock: (adjustments: Array<{
         ingredientId: string;
         quantity: number;
@@ -150,6 +152,7 @@ export interface SalesSlice {
     marketSchedules: import('../../types').MarketSchedule[]; // NEW
 
     addProductSaleLog: (log: ProductSaleLog) => Promise<void>;
+    addProductSaleLogs: (logs: ProductSaleLog[]) => Promise<void>;
     fetchProductSales: () => Promise<void>;
     getProductSalesByDate: (date: string) => ProductSaleLog[];
     getProductSalesByDateRange: (fromDate: string, toDate: string) => ProductSaleLog[];

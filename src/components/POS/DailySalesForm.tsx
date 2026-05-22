@@ -130,9 +130,9 @@ const SuccessModal: React.FC<{
 
 export const DailySalesForm: React.FC = () => {
     const {
-        products, addTransaction, updateJarBalance, deductStockByRecipe, markets,
-        addDailyReport, addProductSaleLog, fetchData,
-        dailyInventory, fetchDailyInventory, upsertDailyInventory // NEW: Integration with Stock Log
+        products, addTransaction, updateJarBalance, bulkDeductStockByRecipes, markets,
+        addDailyReport, addProductSaleLogs, fetchData,
+        dailyInventory, fetchDailyInventory, bulkUpsertDailyInventory // NEW: Integration with Stock Log
     } = useStore();
 
     const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
@@ -332,6 +332,7 @@ export const DailySalesForm: React.FC = () => {
     const confirmSave = async () => {
         // Update daily_inventory with sold_qty for each product/variant (VARIANT-AWARE!)
         // FIX: Always update soldQty, even if no inventory record exists (creates one if needed)
+        const inventoryRecordsToUpsert = [];
         for (const log of logs) {
             // Only process items that had sales or waste
             if (log.soldQty > 0 || log.wasteQty > 0) {
@@ -343,21 +344,24 @@ export const DailySalesForm: React.FC = () => {
                 );
 
                 // FIX: Always call upsert - use existing values or defaults, and ADD new waste/free from sales
-                await upsertDailyInventory({
+                inventoryRecordsToUpsert.push({
                     businessDate: date,
                     productId: log.productId,
                     variantId: log.variantId,
                     variantName: log.variant?.name,
                     producedQty: inventoryRecord?.producedQty || 0,
                     toShopQty: inventoryRecord?.toShopQty || log.preparedQty || 0, // Use preparedQty as fallback
-                    soldQty: log.soldQty, // soldQty is cumulative per market, but dailyInventory might need to accumulate if multiple markets exist. Actually, let's keep it simple or accumulate if needed. For now, we assume soldQty is additive if multiple saves happen? Usually DailySalesForm represents the whole day's sales for that market.
-                    // To be safe with multiple markets:
+                    soldQty: log.soldQty,
                     wasteQty: (inventoryRecord?.wasteQty || 0) + (log.wasteQty || 0), // 🔥 ADD waste from shop
                     eatQty: (inventoryRecord?.eatQty || 0) + (log.freeQty || 0),      // 🔥 ADD free/eat from shop (fixes Ghost Stock)
                     giveawayQty: inventoryRecord?.giveawayQty || 0,                   // 🔥 Preserve existing giveaway
                     stockYesterday: inventoryRecord?.stockYesterday || 0
                 });
             }
+        }
+
+        if (inventoryRecordsToUpsert.length > 0) {
+            await bulkUpsertDailyInventory(inventoryRecordsToUpsert);
         }
 
         // FIX: Add Gross Profit to Unallocated (for user to allocate later)
@@ -390,9 +394,12 @@ export const DailySalesForm: React.FC = () => {
         }
 
         // Log individual sales
+        const salesLogsToInsert = [];
+        const recipeDeductions = [];
+
         for (const log of logs) {
             if (log.soldQty > 0 || log.wasteQty > 0) { // FIX: Also log if there's waste
-                await addProductSaleLog({
+                salesLogsToInsert.push({
                     id: crypto.randomUUID(),
                     recordedAt: new Date().toISOString(),
                     saleDate: date,
@@ -417,8 +424,23 @@ export const DailySalesForm: React.FC = () => {
 
                 // Deduct from stock (only if sold)
                 if (log.soldQty > 0) {
-                    deductStockByRecipe(log.productId, log.soldQty, log.variantId);
+                    recipeDeductions.push({
+                        productId: log.productId,
+                        quantity: log.soldQty,
+                        variantId: log.variantId
+                    });
                 }
+            }
+        }
+
+        if (salesLogsToInsert.length > 0) {
+            await addProductSaleLogs(salesLogsToInsert);
+        }
+
+        if (recipeDeductions.length > 0) {
+            const deductRes = await bulkDeductStockByRecipes(recipeDeductions);
+            if (!deductRes.success) {
+                throw new Error(`Failed to deduct stock by recipes: ${deductRes.errors.join(', ')}`);
             }
         }
 
