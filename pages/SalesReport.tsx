@@ -1281,7 +1281,6 @@ export const SalesReport: React.FC = () => {
                                         <BarChart3 size={20} />
                                         รายละเอียดการขายรายเมนู
                                     </h3>
-                                    <p className="text-sm text-cafe-500 mt-1">คลิกแถวเพื่อดูรายละเอียดและแก้ไขยอดขาย</p>
                                 </div>
 
                                 {productGroups.length === 0 ? (
