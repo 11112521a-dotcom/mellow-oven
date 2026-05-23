@@ -4,6 +4,8 @@ export interface NewsvendorParams {
     sellingPrice: number;
     unitCost: number;
     disposalCost: number; // Cost to dispose waste (usually 0 or negative for salvage value)
+    wasteRate?: number;    // Dynamic Profit Maximizer: recent waste rate (0.0 - 1.0)
+    stockoutRate?: number; // Dynamic Profit Maximizer: recent stockout rate (0.0 - 1.0)
 }
 
 export interface DistributionParams {
@@ -29,16 +31,28 @@ export function calculateCriticalRatio(params: NewsvendorParams): number {
     const Cu = params.sellingPrice - params.unitCost; // Cost of Underage (profit lost)
     const Co = params.unitCost + params.disposalCost; // Cost of Overage (waste cost)
 
-    // Critical Ratio (CR) = Cu / (Cu + Co)
-    // Edge Case: guard against Cu + Co = 0
-    const denominator = Cu + Co;
+    // 💰 Dynamic Profit Maximizer (DPM) Adjustments:
+    // If wasteRate is high (> 20%), increase the cost of overage Co to penalize overproduction.
+    // If stockoutRate is high (> 20%), increase the cost of underage Cu (goodwill loss) to encourage production.
+    let adjustedCo = Co;
+    let adjustedCu = Cu;
+
+    if (params.wasteRate && params.wasteRate > 0.20) {
+        const wastePenalty = 1.0 + Math.min(0.60, (params.wasteRate - 0.20) * 1.5);
+        adjustedCo = Co * wastePenalty;
+    }
+
+    if (params.stockoutRate && params.stockoutRate > 0.20) {
+        const goodwillBonus = Math.min(0.40, (params.stockoutRate - 0.20) * 1.0) * params.sellingPrice;
+        adjustedCu = Cu + goodwillBonus;
+    }
+
+    const denominator = adjustedCu + adjustedCo;
     if (denominator <= 0) return 0.5; // Default to 50% service level
 
-    let cr = Cu / denominator;
+    let cr = adjustedCu / denominator;
 
     // FIX: Cap critical ratio at 0.90 for perishable goods
-    // 99% was too aggressive and caused over-production
-    // 90% means we accept 10% stockout risk to avoid excessive waste
     cr = Math.min(cr, 0.90);
     cr = Math.max(cr, 0.10);
 

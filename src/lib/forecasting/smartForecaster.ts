@@ -52,6 +52,8 @@ export interface SmartForecastInput {
     autoFetchWeather?: boolean;
     location?: string; // For weather API
     weatherCondition?: WeatherCondition; // Custom override weather
+    wasteRate?: number;    // Dynamic Profit Maximizer: recent waste rate
+    stockoutRate?: number; // Dynamic Profit Maximizer: recent stockout rate
 }
 
 export interface SmartForecastOutput extends ForecastOutput {
@@ -158,7 +160,9 @@ export async function calculateSmartForecast(
         marketName,
         targetDate,
         productSales,
-        weatherForecast: weather
+        weatherForecast: weather,
+        wasteRate: input.wasteRate,
+        stockoutRate: input.stockoutRate
     };
 
     const baseForecast = await calculateOptimalProduction(baseForecastInput);

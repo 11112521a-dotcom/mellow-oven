@@ -18,6 +18,7 @@ export * from './thaiCalendar';
 export * from './marketProfile';
 export * from './autoSeasonality';
 export { calculateSmartForecast, calculateBatchSmartForecasts } from './smartForecaster';
+export { calculateEcosystemForecast } from './aiEcosystem';
 export type { SmartForecastInput, SmartForecastOutput, SmartForecastSummary } from './smartForecaster';
 
 export interface ForecastInput {
@@ -29,6 +30,8 @@ export interface ForecastInput {
     product: Product;
     productSales: ProductSaleLog[];
     targetDate?: string; // NEW: Date we're forecasting for
+    wasteRate?: number;    // Dynamic Profit Maximizer: recent waste rate
+    stockoutRate?: number; // Dynamic Profit Maximizer: recent stockout rate
 }
 
 export interface ForecastOutput {
@@ -258,11 +261,13 @@ export async function calculateOptimalProduction(
             distribution = { type: 'poisson', lambda: mean };
         }
 
-        // Newsvendor Optimization (using sanitized price/cost)
+        // Newsvendor Optimization (using sanitized price/cost and DPM metrics)
         const newsvendorParams: NewsvendorParams = {
             sellingPrice: safePrice,
             unitCost: safeCost,
-            disposalCost: 0
+            disposalCost: 0,
+            wasteRate: input.wasteRate,
+            stockoutRate: input.stockoutRate
         };
 
         const newsvendorResult = calculateOptimalQuantity(distribution, newsvendorParams);

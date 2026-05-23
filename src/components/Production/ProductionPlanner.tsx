@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { useStore } from '@/src/store';
-import { calculateOptimalProduction, calculateSmartForecast } from '@/src/lib/forecasting';
+import { calculateOptimalProduction, calculateSmartForecast, calculateEcosystemForecast } from '@/src/lib/forecasting';
 import type { ForecastOutput } from '@/src/lib/forecasting';
 import {
     getCalendarFactors,
@@ -144,7 +144,7 @@ export const ProductionPlanner: React.FC = () => {
             try {
                 let forecast: any;
                 if (smartMode) {
-                    forecast = await calculateSmartForecast({
+                    forecast = await calculateEcosystemForecast({
                         product: item.variant ? { ...item.product, price: item.variant.price, cost: item.variant.cost } : item.product,
                         productId: item.product.id,
                         variantId: item.variant?.id,
@@ -186,6 +186,28 @@ export const ProductionPlanner: React.FC = () => {
 
         setResults(forecastResults);
         setIsCalculating(false);
+
+        // ⚡ BACKGROUND AUTO-SAVER (Ecosystem Integration)
+        // Automatically save calculated forecasts to the database in the background
+        setTimeout(async () => {
+            try {
+                const savePromises = forecastResults
+                    .filter(result => !result.error && result.forecast)
+                    .map(result => saveForecast(
+                        result.forecast,
+                        result.productId,
+                        result.productName,
+                        selectedMarket,
+                        getMarketName(selectedMarket),
+                        selectedDate,
+                        selectedWeather
+                    ));
+                await Promise.all(savePromises);
+                console.log('[Auto-Saver] Successfully auto-saved predictions in background.');
+            } catch (err) {
+                console.warn('[Auto-Saver] Failed to auto-save predictions in background:', err);
+            }
+        }, 1500);
     }, [products, selectedMarket, selectedWeather, selectedDate]); // Added dependencies
 
     // Trigger calculation on input change

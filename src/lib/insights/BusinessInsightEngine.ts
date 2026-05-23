@@ -34,6 +34,7 @@ export interface InsightEngineInput {
     purchaseOrders: PurchaseOrder[];
     stockLogs: StockLog[];
     todayStr: string;
+    productionForecasts?: any[]; // Dynamic Procurement: next 7 days forecasts
 }
 
 // ============================================================
@@ -134,28 +135,74 @@ function generateProductionInsights(
 
 /**
  * 📦 Stock Prediction Insights
- * Predicts when ingredients will run out
+ * Predicts when ingredients will run out using a Demand-Driven Ecosystem approach (AI Forecasts).
  */
 function generateStockInsights(
     ingredients: Ingredient[],
-    stockLogs: StockLog[]
+    stockLogs: StockLog[],
+    products: Product[],
+    productionForecasts?: any[]
 ): BusinessInsight[] {
     const insights: BusinessInsight[] = [];
 
-    // Calculate average daily usage for each ingredient
+    // 1. Calculate future ingredient demand based on next 7 days forecasts (Ecosystem integration)
+    const futureIngredientDemand: Record<string, number> = {};
+    let usingForecastData = false;
+
+    if (productionForecasts && productionForecasts.length > 0) {
+        // Map products and variants for recipe lookups
+        const productRecipes = new Map<string, any>();
+        products.forEach(p => {
+            if (p.recipe) productRecipes.set(p.id, p.recipe);
+            if (p.variants) {
+                p.variants.forEach(v => {
+                    if (v.recipe) productRecipes.set(v.id, v.recipe);
+                    else if (p.recipe) productRecipes.set(v.id, p.recipe); // fallback to parent recipe
+                });
+            }
+        });
+
+        // Sum predicted ingredient usage from forecasts
+        let hasForecastUsage = false;
+        productionForecasts.forEach(f => {
+            const recipe = productRecipes.get(f.productId);
+            if (recipe && recipe.items && recipe.yield > 0) {
+                hasForecastUsage = true;
+                recipe.items.forEach((item: any) => {
+                    const qtyPerPiece = item.quantity / recipe.yield;
+                    const needed = f.optimalQuantity * qtyPerPiece;
+                    futureIngredientDemand[item.ingredientId] = (futureIngredientDemand[item.ingredientId] || 0) + needed;
+                });
+            }
+        });
+
+        if (hasForecastUsage) {
+            usingForecastData = true;
+        }
+    }
+
+    // Calculate historical 7-day usage
     const last7Days = new Date();
     last7Days.setDate(last7Days.getDate() - 7);
     const last7DaysStr = last7Days.toISOString().split('T')[0];
 
     ingredients.forEach(ing => {
-        const recentLogs = stockLogs.filter(log =>
-            log.ingredientId === ing.id &&
-            log.date >= last7DaysStr &&
-            log.amount < 0 // Usage (negative amount)
-        );
+        let avgDailyUsage = 0;
 
-        const totalUsed = Math.abs(recentLogs.reduce((sum, log) => sum + log.amount, 0));
-        const avgDailyUsage = totalUsed / 7;
+        if (usingForecastData) {
+            // Demand-Driven: AI forecasted usage divided by 7 days
+            const totalForecastedUsed = futureIngredientDemand[ing.id] || 0;
+            avgDailyUsage = totalForecastedUsed / 7;
+        } else {
+            // Historical fallback
+            const recentLogs = stockLogs.filter(log =>
+                log.ingredientId === ing.id &&
+                log.date >= last7DaysStr &&
+                log.amount < 0
+            );
+            const totalUsed = Math.abs(recentLogs.reduce((sum, log) => sum + log.amount, 0));
+            avgDailyUsage = totalUsed / 7;
+        }
 
         if (avgDailyUsage > 0 && ing.currentStock > 0) {
             const daysUntilEmpty = ing.currentStock / avgDailyUsage;
@@ -167,7 +214,7 @@ function generateStockInsights(
                     severity: daysUntilEmpty <= 1 ? 'critical' : 'warning',
                     title: daysUntilEmpty <= 1 ? '🔴 จะหมดวันนี้!' : '⚠️ ใกล้หมด',
                     message: `${ing.name} เหลือ ${ing.currentStock} ${ing.unit}`,
-                    recommendation: `จะหมดใน ${daysUntilEmpty.toFixed(1)} วัน - ควรสั่งซื้อเพิ่ม`,
+                    recommendation: `จะหมดใน ${daysUntilEmpty.toFixed(1)} วัน (${usingForecastData ? 'AI คาดการณ์ล่วงหน้า' : 'คำนวณจากประวัติเฉลี่ย'}) - ควรสั่งซื้อเพิ่ม`,
                     action: { label: 'สั่งของ', navigateTo: 'inventory' },
                     data: { daysUntilEmpty, avgDailyUsage }
                 });
@@ -283,7 +330,7 @@ export function generateBusinessInsights(input: InsightEngineInput): BusinessIns
 
     // Generate insights from all categories
     allInsights.push(...generateProductionInsights(input.dailyInventory, input.products, input.todayStr));
-    allInsights.push(...generateStockInsights(input.ingredients, input.stockLogs));
+    allInsights.push(...generateStockInsights(input.ingredients, input.stockLogs, input.products, input.productionForecasts));
     allInsights.push(...generateTrendInsights(input.productSales, input.todayStr));
     allInsights.push(...generateProfitInsights(input.productSales, input.todayStr));
 
