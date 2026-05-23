@@ -177,11 +177,12 @@ export async function calculateSmartForecast(
     if (historicalForecasts.length >= 5) {
         // Calculate past errors
         const errors = calculateForecastErrors(historicalForecasts, productSales);
-        const productErrors = errors.filter(e => e.productId === productId);
+        const forecastId = variantId || productId;
+        const productErrors = errors.filter(e => e.productId === forecastId);
 
         if (productErrors.length >= 3) {
             // Get detailed stats (Self-Learning 4.0)
-            const biasStats = calculateBiasCorrection(productErrors, productId, marketId);
+            const biasStats = calculateBiasCorrection(productErrors, forecastId, marketId);
             if (biasStats) {
                 momentumTrend = biasStats.momentumSlope;
                 volatility = biasStats.volatility;
@@ -193,7 +194,7 @@ export async function calculateSmartForecast(
             const targetDayOfMonth = new Date(targetDate).getDate();
             const smartAdj = getSmartAdjustment(
                 smartQty,
-                productId,
+                forecastId,
                 marketId,
                 targetDayOfWeek,
                 targetDayOfMonth,

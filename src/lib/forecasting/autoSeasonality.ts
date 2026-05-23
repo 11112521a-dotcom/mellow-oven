@@ -9,6 +9,7 @@ import { ProductSaleLog } from '@/types';
 export interface SeasonalityFactors {
     productId: string;
     marketId: string;
+    variantId?: string;
 
     // Layer 1: Rolling Baseline (30-day MA)
     baseline: number;
@@ -58,14 +59,17 @@ export function calculateSeasonalityFactors(
     sales: ProductSaleLog[],
     productId: string,
     marketId: string,
+    variantId?: string,
     lookbackDays: number = 90
 ): SeasonalityFactors {
-    // Filter & Sort History
+    // Filter & Sort History - Match variant precisely if specified, otherwise only match parent product without variants
     const history = sales
-        .filter(s =>
-            (s.productId === productId || s.variantId === productId) &&
-            s.marketId === marketId
-        )
+        .filter(s => {
+            const productMatch = s.productId === productId;
+            const variantMatch = variantId ? s.variantId === variantId : !s.variantId;
+            const marketMatch = s.marketId === marketId;
+            return productMatch && variantMatch && marketMatch;
+        })
         .sort((a, b) => a.saleDate.localeCompare(b.saleDate));
 
     // Default return if not enough data
@@ -73,6 +77,7 @@ export function calculateSeasonalityFactors(
         return {
             productId,
             marketId,
+            variantId,
             baseline: 0,
             weekdayFactors: { 0: 1, 1: 1, 2: 1, 3: 1, 4: 1, 5: 1, 6: 1 },
             weatherFactors: {},
@@ -231,6 +236,7 @@ export function calculateSeasonalityFactors(
     return {
         productId,
         marketId,
+        variantId,
         baseline: currentBaseline,
         weekdayFactors: finalWeekdayFactors,
         weatherFactors: finalWeatherFactors,

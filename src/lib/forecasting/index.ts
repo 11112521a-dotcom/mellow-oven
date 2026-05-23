@@ -199,7 +199,8 @@ export async function calculateOptimalProduction(
         const seasonalityFactors = calculateSeasonalityFactors(
             input.productSales,
             input.productId,
-            input.marketId
+            input.marketId,
+            input.variantId
         );
 
         // Apply self-learned factors
