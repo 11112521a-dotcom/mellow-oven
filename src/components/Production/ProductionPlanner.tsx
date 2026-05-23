@@ -118,9 +118,17 @@ export const ProductionPlanner: React.FC = () => {
         return analyzeAccuracy(filteredForecasts as any, productSales, products, dailyInventory);
     }, [viewingMarketId, accuracyAnalysis, productionForecasts, productSales, products, dailyInventory]);
 
+    // Debounce reference for background auto-saver
+    const autoSaveTimeoutRef = React.useRef<any>(null);
+
     // Auto-Calculate Logic
     const calculateForecasts = useCallback(async () => {
         if (products.length === 0) return;
+
+        // Clear any existing background save timers before calculating new ones
+        if (autoSaveTimeoutRef.current) {
+            clearTimeout(autoSaveTimeoutRef.current);
+        }
 
         setIsCalculating(true);
         // Small delay to prevent UI flickering on fast inputs and allow loading state to show
@@ -189,7 +197,7 @@ export const ProductionPlanner: React.FC = () => {
 
         // ⚡ BACKGROUND AUTO-SAVER (Ecosystem Integration)
         // Automatically save calculated forecasts to the database in the background
-        setTimeout(async () => {
+        autoSaveTimeoutRef.current = setTimeout(async () => {
             try {
                 const savePromises = forecastResults
                     .filter(result => !result.error && result.forecast)
