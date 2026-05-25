@@ -43,8 +43,10 @@ const PRESET_OPTIONS = [
     { id: EXTENDED_COMPARISON_PRESETS.TODAY_VS_YESTERDAY, label: '📅 วันนี้ vs เมื่อวาน', shortLabel: 'วันนี้' },
     { id: EXTENDED_COMPARISON_PRESETS.THIS_WEEK_VS_LAST, label: '📆 สัปดาห์นี้ vs ก่อน', shortLabel: 'สัปดาห์' },
     { id: EXTENDED_COMPARISON_PRESETS.THIS_MONTH_VS_LAST, label: '🗓️ เดือนนี้ vs ก่อน', shortLabel: 'เดือน' },
+    { id: EXTENDED_COMPARISON_PRESETS.YEAR_OVER_YEAR_MONTH, label: '🎆 เทียบเดือนเดียวกันปีก่อน', shortLabel: 'เทียบปีก่อน' },
     { id: EXTENDED_COMPARISON_PRESETS.LAST_7_DAYS_VS_PREVIOUS, label: '📊 7 วันล่าสุด', shortLabel: '7 วัน' },
     { id: EXTENDED_COMPARISON_PRESETS.LAST_30_DAYS_VS_PREVIOUS, label: '📈 30 วันล่าสุด', shortLabel: '30 วัน' },
+    { id: EXTENDED_COMPARISON_PRESETS.CUSTOM, label: '⚙️ กำหนดเอง (Custom)', shortLabel: 'กำหนดเอง' },
 ];
 
 const PRODUCT_DISPLAY_LIMIT = 10;
@@ -57,24 +59,100 @@ export const EnhancedComparisonView: React.FC<EnhancedComparisonViewProps> = ({
 }) => {
     const [activePreset, setActivePreset] = useState<string>(EXTENDED_COMPARISON_PRESETS.THIS_MONTH_VS_LAST);
     const [showAllProducts, setShowAllProducts] = useState(false);
-    const [customDateA, setCustomDateA] = useState<string>('');
-    const [customDateB, setCustomDateB] = useState<string>('');
+    
+    // Custom Date Range states initialized with sensible defaults (last 7 days vs previous 7 days)
+    const [customStartA, setCustomStartA] = useState<string>(() => {
+        const d = new Date();
+        d.setDate(d.getDate() - 7);
+        return d.toISOString().split('T')[0];
+    });
+    const [customEndA, setCustomEndA] = useState<string>(() => {
+        return new Date().toISOString().split('T')[0];
+    });
+    const [customStartB, setCustomStartB] = useState<string>(() => {
+        const d = new Date();
+        d.setDate(d.getDate() - 15);
+        return d.toISOString().split('T')[0];
+    });
+    const [customEndB, setCustomEndB] = useState<string>(() => {
+        const d = new Date();
+        d.setDate(d.getDate() - 8);
+        return d.toISOString().split('T')[0];
+    });
+
+    // Get durations of periods in days
+    const durationA = useMemo(() => {
+        if (!customStartA || !customEndA) return 0;
+        const start = new Date(customStartA);
+        const end = new Date(customEndA);
+        if (isNaN(start.getTime()) || isNaN(end.getTime())) return 0;
+        return Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+    }, [customStartA, customEndA]);
+
+    const durationB = useMemo(() => {
+        if (!customStartB || !customEndB) return 0;
+        const start = new Date(customStartB);
+        const end = new Date(customEndB);
+        if (isNaN(start.getTime()) || isNaN(end.getTime())) return 0;
+        return Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+    }, [customStartB, customEndB]);
+
+    // Handlers for automatic calculation of Period B based on A
+    const handleSetSameLengthB = () => {
+        if (durationA <= 0 || !customStartA) return;
+        const startA = new Date(customStartA);
+        const startB = new Date(startA);
+        startB.setDate(startB.getDate() - durationA);
+        const endB = new Date(startA);
+        endB.setDate(endB.getDate() - 1);
+        
+        setCustomStartB(startB.toISOString().split('T')[0]);
+        setCustomEndB(endB.toISOString().split('T')[0]);
+    };
+
+    const handleSetPrevMonthB = () => {
+        if (!customStartA || !customEndA) return;
+        const startA = new Date(customStartA);
+        const endA = new Date(customEndA);
+        
+        const startB = new Date(startA);
+        startB.setMonth(startB.getMonth() - 1);
+        const endB = new Date(endA);
+        endB.setMonth(endB.getMonth() - 1);
+        
+        setCustomStartB(startB.toISOString().split('T')[0]);
+        setCustomEndB(endB.toISOString().split('T')[0]);
+    };
+
+    const handleSetPrevYearB = () => {
+        if (!customStartA || !customEndA) return;
+        const startA = new Date(customStartA);
+        const endA = new Date(customEndA);
+        
+        const startB = new Date(startA);
+        startB.setFullYear(startB.getFullYear() - 1);
+        const endB = new Date(endA);
+        endB.setFullYear(endB.getFullYear() - 1);
+        
+        setCustomStartB(startB.toISOString().split('T')[0]);
+        setCustomEndB(endB.toISOString().split('T')[0]);
+    };
 
     // Get comparison periods
     const comparisonPeriod = useMemo(() => {
-        if (activePreset === EXTENDED_COMPARISON_PRESETS.CUSTOM && customDateA && customDateB) {
+        if (activePreset === EXTENDED_COMPARISON_PRESETS.CUSTOM && customStartA && customEndA && customStartB && customEndB) {
             return getExtendedComparisonPeriod(activePreset, {
-                from: startOfDay(new Date(customDateA)),
-                to: endOfDay(new Date(customDateA)),
-                label: format(new Date(customDateA), 'd MMM yyyy', { locale: th })
+                from: startOfDay(new Date(customStartA)),
+                to: endOfDay(new Date(customEndA)),
+                label: `ช่วง A (${format(new Date(customStartA), 'd MMM', { locale: th })} - ${format(new Date(customEndA), 'd MMM yy', { locale: th })})`
             }, {
-                from: startOfDay(new Date(customDateB)),
-                to: endOfDay(new Date(customDateB)),
-                label: format(new Date(customDateB), 'd MMM yyyy', { locale: th })
+                from: startOfDay(new Date(customStartB)),
+                to: endOfDay(new Date(customEndB)),
+                label: `ช่วง B (${format(new Date(customStartB), 'd MMM', { locale: th })} - ${format(new Date(customEndB), 'd MMM yy', { locale: th })})`
             });
         }
         return getExtendedComparisonPeriod(activePreset);
-    }, [activePreset, customDateA, customDateB]);
+    }, [activePreset, customStartA, customEndA, customStartB, customEndB]);
 
     // Calculate enhanced metrics
     const metrics = useMemo(() =>
@@ -110,26 +188,34 @@ export const EnhancedComparisonView: React.FC<EnhancedComparisonViewProps> = ({
             {/* ═══════════════════════════════════════════════════════════════
                 🎨 HEADER - Title, Period Selector, Filters
                ═══════════════════════════════════════════════════════════════ */}
-            <div className="bg-gradient-to-r from-indigo-500 via-violet-500 to-purple-500 p-5 text-white">
+            <div className="bg-gradient-to-r from-indigo-600 via-violet-600 to-purple-600 p-5 text-white">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div>
                         <h3 className="text-xl font-bold flex items-center gap-2">
-                            <RefreshCw size={22} className="opacity-80" />
-                            เปรียบเทียบช่วงเวลา
+                            <RefreshCw size={22} className="opacity-90 animate-spin-slow" />
+                            เปรียบเทียบยอดขาย & กำไรต่างช่วงเวลา
                         </h3>
-                        <p className="text-indigo-100 mt-1 text-sm">
-                            {formatDateRange(comparisonPeriod.periodA)} vs {formatDateRange(comparisonPeriod.periodB)}
-                        </p>
+                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs mt-2 text-indigo-100 bg-black/10 px-3 py-2 rounded-lg border border-white/10">
+                            <span className="flex items-center gap-1">
+                                <span className="w-2.5 h-2.5 rounded-full bg-indigo-400"></span>
+                                <strong>ช่วงหลัก (A):</strong> {formatDateRange(comparisonPeriod.periodA)}
+                            </span>
+                            <span className="opacity-50">vs</span>
+                            <span className="flex items-center gap-1">
+                                <span className="w-2.5 h-2.5 rounded-full bg-amber-400"></span>
+                                <strong>ช่วงเปรียบเทียบ (B):</strong> {formatDateRange(comparisonPeriod.periodB)}
+                            </span>
+                        </div>
                     </div>
 
                     <div className="flex flex-wrap gap-2 items-center">
                         {/* Preset Buttons */}
-                        <div className="flex gap-1 bg-white/20 rounded-xl p-1">
+                        <div className="flex flex-wrap gap-1 bg-white/20 rounded-xl p-1">
                             {PRESET_OPTIONS.map((preset) => (
                                 <button
                                     key={preset.id}
                                     onClick={() => setActivePreset(preset.id)}
-                                    className={`px-3 py-2 rounded-lg font-medium text-sm transition-all min-h-[40px] ${activePreset === preset.id
+                                    className={`px-3 py-2 rounded-lg font-medium text-xs transition-all min-h-[36px] ${activePreset === preset.id
                                         ? 'bg-white text-violet-700 shadow-sm'
                                         : 'text-white/90 hover:bg-white/20'
                                         }`}
@@ -169,6 +255,139 @@ export const EnhancedComparisonView: React.FC<EnhancedComparisonViewProps> = ({
                     </div>
                 </div>
             </div>
+
+            {/* ═══════════════════════════════════════════════════════════════
+                ⚙️ CUSTOM DATE RANGE SELECTOR PANEL
+               ═══════════════════════════════════════════════════════════════ */}
+            {activePreset === EXTENDED_COMPARISON_PRESETS.CUSTOM && (
+                <div className="bg-stone-50 border-b border-stone-200 p-4">
+                    <div className="max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {/* Period A Selection */}
+                        <div className="bg-white p-4 rounded-xl border border-indigo-100 shadow-sm relative flex flex-col justify-between">
+                            <div>
+                                <div className="absolute top-2.5 right-2.5 bg-indigo-50 text-indigo-700 text-[10px] font-bold px-2.5 py-0.5 rounded-full border border-indigo-200">
+                                    ช่วง A (ช่วงหลัก)
+                                </div>
+                                <h4 className="text-xs font-bold text-stone-700 mb-3 flex items-center gap-1.5">
+                                    <Calendar size={14} className="text-indigo-500" />
+                                    ระบุวันที่ช่วงเวลาหลัก (A)
+                                </h4>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <label className="block text-[10px] text-stone-400 font-semibold mb-1">วันที่เริ่มต้น</label>
+                                        <input
+                                            type="date"
+                                            value={customStartA}
+                                            onChange={(e) => setCustomStartA(e.target.value)}
+                                            className="w-full px-2.5 py-1.5 text-xs bg-stone-50 border border-stone-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 font-medium"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-[10px] text-stone-400 font-semibold mb-1">วันที่สิ้นสุด</label>
+                                        <input
+                                            type="date"
+                                            value={customEndA}
+                                            onChange={(e) => setCustomEndA(e.target.value)}
+                                            className="w-full px-2.5 py-1.5 text-xs bg-stone-50 border border-stone-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 font-medium"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="mt-3 text-[10px] text-indigo-700 font-bold flex items-center gap-1 bg-indigo-50/70 border border-indigo-100 px-2.5 py-1 rounded-lg w-fit">
+                                ⏱️ ระยะเวลาช่วง A: <span className="text-xs">{durationA}</span> วัน
+                            </div>
+                        </div>
+
+                        {/* Period B Selection */}
+                        <div className="bg-white p-4 rounded-xl border border-amber-100 shadow-sm relative flex flex-col justify-between">
+                            <div>
+                                <div className="absolute top-2.5 right-2.5 bg-amber-50 text-amber-800 text-[10px] font-bold px-2.5 py-0.5 rounded-full border border-amber-200">
+                                    ช่วง B (ช่วงเทียบ)
+                                </div>
+                                <h4 className="text-xs font-bold text-stone-700 mb-3 flex items-center gap-1.5">
+                                    <Calendar size={14} className="text-amber-600" />
+                                    ระบุวันที่ช่วงเปรียบเทียบ (B)
+                                </h4>
+                                <div className="grid grid-cols-2 gap-3 mb-3">
+                                    <div>
+                                        <label className="block text-[10px] text-stone-400 font-semibold mb-1">วันที่เริ่มต้น</label>
+                                        <input
+                                            type="date"
+                                            value={customStartB}
+                                            onChange={(e) => setCustomStartB(e.target.value)}
+                                            className="w-full px-2.5 py-1.5 text-xs bg-stone-50 border border-stone-200 rounded-lg outline-none focus:ring-2 focus:ring-amber-500 font-medium"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-[10px] text-stone-400 font-semibold mb-1">วันที่สิ้นสุด</label>
+                                        <input
+                                            type="date"
+                                            value={customEndB}
+                                            onChange={(e) => setCustomEndB(e.target.value)}
+                                            className="w-full px-2.5 py-1.5 text-xs bg-stone-50 border border-stone-200 rounded-lg outline-none focus:ring-2 focus:ring-amber-500 font-medium"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div className="flex items-center justify-between gap-2 mt-2 pt-3 border-t border-stone-100 flex-wrap">
+                                <div className="text-[10px] text-amber-800 font-bold flex items-center gap-1 bg-amber-50/70 border border-amber-100 px-2.5 py-1 rounded-lg w-fit">
+                                    ⏱️ ระยะเวลาช่วง B: <span className="text-xs">{durationB}</span> วัน
+                                </div>
+                                <div className="flex flex-wrap gap-1.5">
+                                    <button
+                                        type="button"
+                                        onClick={handleSetSameLengthB}
+                                        disabled={durationA <= 0}
+                                        className="px-2 py-1 text-[10px] font-bold bg-amber-500 text-white hover:bg-amber-600 active:scale-95 disabled:opacity-50 disabled:pointer-events-none rounded-lg shadow-sm transition-all min-h-[28px] flex items-center gap-1"
+                                    >
+                                        ⚡ ความยาวเท่ากับ A
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={handleSetPrevMonthB}
+                                        className="px-2 py-1 text-[10px] font-bold bg-stone-100 text-stone-700 hover:bg-stone-200 active:scale-95 rounded-lg transition-all min-h-[28px] flex items-center gap-1 border border-stone-200"
+                                    >
+                                        🌙 ย้อนไป 1 เดือน
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={handleSetPrevYearB}
+                                        className="px-2 py-1 text-[10px] font-bold bg-stone-100 text-stone-700 hover:bg-stone-200 active:scale-95 rounded-lg transition-all min-h-[28px] flex items-center gap-1 border border-stone-200"
+                                    >
+                                        🎆 ย้อนไป 1 ปี
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Validation/Feedback Banner */}
+                    <div className="max-w-4xl mx-auto mt-4 px-1">
+                        {durationA !== durationB ? (
+                            <div className="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-xl p-3 flex items-start gap-2.5 text-xs text-amber-900 shadow-sm animate-pulse-subtle">
+                                <span className="text-base select-none">⚠️</span>
+                                <div className="flex-1">
+                                    <p className="font-bold text-amber-800">จำนวนวันเปรียบเทียบไม่เท่ากัน (Apple-to-Orange)</p>
+                                    <p className="text-amber-700 mt-0.5 leading-relaxed">
+                                        ช่วง A ({durationA} วัน) และ ช่วง B ({durationB} วัน) มีระยะเวลาไม่เท่ากัน ข้อมูลยอดขายรวมและกำไรสะสมอาจถูกเปรียบเทียบอย่างไม่สมเหตุสมผล แนะนำให้กดปุ่ม <strong className="text-amber-900 font-extrabold font-mono bg-amber-100 px-1 py-0.5 rounded">"⚡ ความยาวเท่ากับ A"</strong> เพื่อให้ข้อมูลจับคู่เทียบวันต่อวันได้อย่างแม่นยำ
+                                    </p>
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 rounded-xl p-3 flex items-start gap-2.5 text-xs text-emerald-955 shadow-sm">
+                                <span className="text-base select-none">✨</span>
+                                <div className="flex-1">
+                                    <p className="font-bold text-emerald-800">ช่วงเวลาเทียบเท่ากันพอดี (Apple-to-Apple)</p>
+                                    <p className="text-emerald-700 mt-0.5 leading-relaxed">
+                                        ทั้งสองช่วงเวลามีระยะเวลาเท่ากันคือ {durationA} วัน การแสดงผลตัวชี้วัด สรุปวิเคราะห์ เปอร์เซ็นต์การเติบโต และความเคลื่อนไหวสินค้าจะมีความแม่นยำระดับ Geek สูงสุด!
+                                    </p>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
 
             {/* ═══════════════════════════════════════════════════════════════
                 💡 INSIGHTS BADGES
@@ -392,8 +611,14 @@ export const EnhancedComparisonView: React.FC<EnhancedComparisonViewProps> = ({
                             <thead className="bg-stone-100 text-stone-600">
                                 <tr>
                                     <th className="text-left px-4 py-3 font-medium">สินค้า</th>
-                                    <th className="text-right px-4 py-3 font-medium">{comparisonPeriod.periodA.label}</th>
-                                    <th className="text-right px-4 py-3 font-medium">{comparisonPeriod.periodB.label}</th>
+                                    <th className="text-right px-4 py-3 font-medium">
+                                        <span className="inline-block w-2 h-2 rounded-full bg-indigo-500 mr-1.5"></span>
+                                        {comparisonPeriod.periodA.label}
+                                    </th>
+                                    <th className="text-right px-4 py-3 font-medium">
+                                        <span className="inline-block w-2 h-2 rounded-full bg-amber-500 mr-1.5"></span>
+                                        {comparisonPeriod.periodB.label}
+                                    </th>
                                     <th className="text-right px-4 py-3 font-medium w-32">เปลี่ยนแปลง</th>
                                 </tr>
                             </thead>
@@ -496,34 +721,41 @@ const MetricCard: React.FC<MetricCardProps> = ({
             ? 'bg-gradient-to-br from-emerald-50 to-teal-50 border-emerald-200'
             : 'bg-white border-stone-200'
             }`}>
-            <div className="flex items-center gap-2 mb-2">
-                <div className={`w-8 h-8 rounded-lg ${iconBg} flex items-center justify-center`}>
-                    {icon}
+            <div className="flex items-center justify-between gap-2 mb-3">
+                <div className="flex items-center gap-2">
+                    <div className={`w-7 h-7 rounded-lg ${iconBg} flex items-center justify-center flex-shrink-0`}>
+                        {icon}
+                    </div>
+                    <span className="text-xs text-stone-600 font-semibold">{label}</span>
                 </div>
-                <span className="text-sm text-stone-600 font-medium">{label}</span>
-            </div>
-
-            {/* Current Value */}
-            <p className={`font-bold text-stone-800 ${compact ? 'text-lg' : 'text-2xl'}`}>
-                {formatValue(metric.current)}
-            </p>
-
-            {/* Previous Value */}
-            <p className="text-xs text-stone-400 mt-0.5">
-                {periodB}: {formatValue(metric.previous)}
-            </p>
-
-            {subLabel && (
-                <p className="text-xs text-stone-400">{subLabel}</p>
-            )}
-
-            {/* Change Badge */}
-            <div className="mt-2 flex items-center gap-2">
-                <div className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs font-bold ${changeBg} ${changeColor}`}>
-                    {isPositive ? <ArrowUpRight size={12} /> : <ArrowDownRight size={12} />}
+                {/* Change Badge */}
+                <div className={`flex items-center gap-0.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold ${changeBg} ${changeColor}`}>
+                    {isPositive ? <ArrowUpRight size={10} /> : <ArrowDownRight size={10} />}
                     {metric.changePercent >= 0 ? '+' : ''}{metric.changePercent.toFixed(1)}%
                 </div>
             </div>
+
+            {/* Comparison values list */}
+            <div className="space-y-1.5 border-t border-stone-100 pt-2.5">
+                <div className="flex justify-between items-center text-xs">
+                    <span className="text-stone-500 flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full bg-indigo-500"></span>
+                        {periodA}
+                    </span>
+                    <span className="font-bold text-indigo-700">{formatValue(metric.current)}</span>
+                </div>
+                <div className="flex justify-between items-center text-xs">
+                    <span className="text-stone-500 flex items-center gap-1.5">
+                        <span className="w-2.5 h-2.5 rounded-full bg-amber-500"></span>
+                        {periodB}
+                    </span>
+                    <span className="font-semibold text-amber-800">{formatValue(metric.previous)}</span>
+                </div>
+            </div>
+
+            {subLabel && (
+                <p className="text-[10px] text-stone-400 mt-1">{subLabel}</p>
+            )}
         </div>
     );
 };
@@ -577,13 +809,13 @@ const ProductTableRow: React.FC<ProductComparisonRowProps> = ({ product, rank })
                     </div>
                 </div>
             </td>
-            <td className="px-4 py-3 text-right font-bold text-stone-800">
+            <td className="px-4 py-3 text-right font-bold text-indigo-700 bg-indigo-50/10">
                 {formatCurrency(product.current.revenue)}
-                <span className="block text-xs text-stone-400 font-normal">{product.current.soldQty} ชิ้น</span>
+                <span className="block text-[11px] text-indigo-500 font-normal">{product.current.soldQty} ชิ้น</span>
             </td>
-            <td className="px-4 py-3 text-right text-stone-500">
+            <td className="px-4 py-3 text-right font-semibold text-amber-800 bg-amber-50/10">
                 {formatCurrency(product.previous.revenue)}
-                <span className="block text-xs text-stone-400">{product.previous.soldQty} ชิ้น</span>
+                <span className="block text-[11px] text-amber-600 font-normal">{product.previous.soldQty} ชิ้น</span>
             </td>
             <td className="px-4 py-3 text-right">
                 <div className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-bold ${isPositive ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'
