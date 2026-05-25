@@ -118,17 +118,9 @@ export const ProductionPlanner: React.FC = () => {
         return analyzeAccuracy(filteredForecasts as any, productSales, products, dailyInventory);
     }, [viewingMarketId, accuracyAnalysis, productionForecasts, productSales, products, dailyInventory]);
 
-    // Debounce reference for background auto-saver
-    const autoSaveTimeoutRef = React.useRef<any>(null);
-
     // Auto-Calculate Logic
     const calculateForecasts = useCallback(async () => {
         if (products.length === 0) return;
-
-        // Clear any existing background save timers before calculating new ones
-        if (autoSaveTimeoutRef.current) {
-            clearTimeout(autoSaveTimeoutRef.current);
-        }
 
         setIsCalculating(true);
         // Small delay to prevent UI flickering on fast inputs and allow loading state to show
@@ -194,28 +186,6 @@ export const ProductionPlanner: React.FC = () => {
 
         setResults(forecastResults);
         setIsCalculating(false);
-
-        // ⚡ BACKGROUND AUTO-SAVER (Ecosystem Integration)
-        // Automatically save calculated forecasts to the database in the background
-        autoSaveTimeoutRef.current = setTimeout(async () => {
-            try {
-                const savePromises = forecastResults
-                    .filter(result => !result.error && result.forecast)
-                    .map(result => saveForecast(
-                        result.forecast,
-                        result.productId,
-                        result.productName,
-                        selectedMarket,
-                        getMarketName(selectedMarket),
-                        selectedDate,
-                        selectedWeather
-                    ));
-                await Promise.all(savePromises);
-                console.log('[Auto-Saver] Successfully auto-saved predictions in background.');
-            } catch (err) {
-                console.warn('[Auto-Saver] Failed to auto-save predictions in background:', err);
-            }
-        }, 1500);
     }, [products, selectedMarket, selectedWeather, selectedDate]); // Added dependencies
 
     // Trigger calculation on input change
