@@ -45,21 +45,21 @@ export const DayOfWeekChart: React.FC<DayOfWeekChartProps> = ({ data, mode = 're
 
     return (
         <div className="space-y-6 bg-white rounded-3xl shadow-sm border border-cafe-100 p-6 hover:shadow-lg transition-all duration-300 h-full flex flex-col">
-            <div className="flex justify-between items-center mb-2">
-                <h3 className="text-lg font-bold text-cafe-800 flex items-center gap-2">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-0 mb-2">
+                <h3 className="text-lg font-bold text-cafe-800 flex items-center gap-2 whitespace-nowrap">
                     <span className="bg-cafe-100 p-2 rounded-xl">📅</span> ยอดขายแยกตามวัน
                 </h3>
-                <div className="flex gap-2 text-xs">
-                    <span className="bg-green-50 text-green-700 px-3 py-1.5 rounded-full border border-green-100 flex items-center gap-1 shadow-sm">
+                <div className="flex flex-wrap gap-2 text-xs w-full sm:w-auto">
+                    <span className="bg-green-50 text-green-700 px-3 py-1.5 rounded-full border border-green-100 flex items-center gap-1 shadow-sm flex-1 sm:flex-none justify-center">
                         <span>🏆</span> <span className="font-semibold">{bestDay?.day}</span> ขายดีสุด
                     </span>
-                    <span className="bg-red-50 text-red-700 px-3 py-1.5 rounded-full border border-red-100 flex items-center gap-1 shadow-sm">
+                    <span className="bg-red-50 text-red-700 px-3 py-1.5 rounded-full border border-red-100 flex items-center gap-1 shadow-sm flex-1 sm:flex-none justify-center">
                         <span>📉</span> <span className="font-semibold">{worstDay?.day}</span> ขายน้อยสุด
                     </span>
                 </div>
             </div>
 
-            <div className="flex items-end justify-between gap-3 flex-1 px-2 mt-4">
+            <div className="flex items-end justify-between gap-1 sm:gap-3 flex-1 px-0 sm:px-2 mt-4">
                 {dayNames.map((dayName, index) => {
                     const dayData = sortedData.find(d => d.dayIndex === index);
                     const value = dayData ? getValue(dayData) : 0;
@@ -70,7 +70,7 @@ export const DayOfWeekChart: React.FC<DayOfWeekChartProps> = ({ data, mode = 're
                     return (
                         <div key={index} className="flex-1 flex flex-col items-center gap-2 h-full justify-end">
                             {/* Value Label */}
-                            <div className="text-xs font-semibold text-cafe-500 h-6 flex items-end">
+                            <div className="text-[9px] sm:text-xs font-semibold text-cafe-500 h-6 flex items-end tracking-tighter">
                                 {mode === 'quantity'
                                     ? (value > 0 ? value : '-')
                                     : (value > 0 ? `฿${(value / 1000).toFixed(1)}k` : '-')
@@ -83,7 +83,7 @@ export const DayOfWeekChart: React.FC<DayOfWeekChartProps> = ({ data, mode = 're
                                 <div className="absolute inset-0 z-20"></div>
 
                                 <div
-                                    className={`w-full max-w-[40px] rounded-t-xl bg-gradient-to-t ${dayColors[index]} transition-all duration-700 delay-[${index * 50}ms] shadow-sm relative z-10 
+                                    className={`w-full max-w-[28px] sm:max-w-[40px] rounded-t-xl bg-gradient-to-t ${dayColors[index]} transition-all duration-700 delay-[${index * 50}ms] shadow-sm relative z-10 
                                     ${isBest ? 'ring-2 ring-yellow-400 ring-offset-2 shadow-yellow-200/50 shadow-lg' : ''} 
                                     ${isWorst ? 'opacity-50 saturate-50' : 'group-hover:opacity-90 group-hover:-translate-y-1'}`}
                                     style={{ height: `${Math.max(height, 8)}%` }}
@@ -123,7 +123,7 @@ export const DayOfWeekChart: React.FC<DayOfWeekChartProps> = ({ data, mode = 're
                             </div>
 
                             {/* Day Label */}
-                            <div className={`text-sm font-bold mt-1 px-2 py-1 rounded-lg w-full text-center
+                            <div className={`text-[10px] sm:text-sm font-bold mt-1 px-1 sm:px-2 py-1 rounded-lg w-full text-center
                                 ${isBest ? 'bg-yellow-50 text-yellow-700 border border-yellow-100' :
                                     isWorst ? 'text-cafe-400' :
                                         'text-cafe-600 bg-cafe-50/50 border border-transparent group-hover:bg-cafe-50 group-hover:border-cafe-100 transition-colors'}`}>
