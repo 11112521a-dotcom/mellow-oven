@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { useStore } from '@/src/store';
 import { calculateOptimalProduction, calculateSmartForecast, calculateEcosystemForecast } from '@/src/lib/forecasting';
 import type { ForecastOutput } from '@/src/lib/forecasting';
+import { forecasterEngine } from '@/src/lib/forecasting/forecasterEngine';
 import {
     getCalendarFactors,
     getMonthSeasonality,
@@ -140,53 +141,50 @@ export const ProductionPlanner: React.FC = () => {
             }
         });
 
-        for (const item of forecastItems) {
-            try {
-                let forecast: any;
-                if (smartMode) {
-                    forecast = await calculateEcosystemForecast({
-                        product: item.variant ? { ...item.product, price: item.variant.price, cost: item.variant.cost } : item.product,
-                        productId: item.product.id,
-                        variantId: item.variant?.id,
-                        marketId: selectedMarket,
-                        marketName: getMarketName(selectedMarket),
-                        targetDate: selectedDate,
-                        productSales: productSales,
-                        historicalForecasts: productionForecasts as any,
-                        autoFetchWeather: false,
-                        weatherCondition: selectedWeather as any
-                    });
-                } else {
-                    forecast = await calculateOptimalProduction({
-                        productId: item.product.id,
-                        variantId: item.variant?.id,
-                        marketId: selectedMarket,
-                        marketName: getMarketName(selectedMarket),
-                        weatherForecast: selectedWeather as any,
-                        product: item.variant ? { ...item.product, price: item.variant.price, cost: item.variant.cost } : item.product,
-                        productSales: productSales,
-                        targetDate: selectedDate
-                    });
-                }
-
-                forecastResults.push({
-                    productId: item.id,
-                    productName: item.name,
-                    forecast
-                });
-            } catch (error) {
-                forecastResults.push({
-                    productId: item.id,
-                    productName: item.name,
-                    forecast: {} as ForecastOutput,
-                    error: error instanceof Error ? error.message : 'Calculation failed'
-                });
+        const inputsToProcess = forecastItems.map(item => {
+            if (smartMode) {
+                return {
+                    product: item.variant ? { ...item.product, price: item.variant.price, cost: item.variant.cost } : item.product,
+                    productId: item.product.id,
+                    variantId: item.variant?.id,
+                    marketId: selectedMarket,
+                    marketName: getMarketName(selectedMarket),
+                    targetDate: selectedDate,
+                    productSales: productSales,
+                    historicalForecasts: productionForecasts as any,
+                    autoFetchWeather: false,
+                    weatherCondition: selectedWeather as any
+                };
+            } else {
+                return {
+                    productId: item.product.id,
+                    variantId: item.variant?.id,
+                    marketId: selectedMarket,
+                    marketName: getMarketName(selectedMarket),
+                    weatherForecast: selectedWeather as any,
+                    product: item.variant ? { ...item.product, price: item.variant.price, cost: item.variant.cost } : item.product,
+                    productSales: productSales,
+                    targetDate: selectedDate
+                };
             }
+        });
+
+        try {
+            const resultsFromWorker = await forecasterEngine.calculateBatchForecasts(inputsToProcess, smartMode);
+            setResults(resultsFromWorker);
+        } catch (error) {
+            console.error('Worker failed:', error);
+            // Fallback empty state
+            setResults(forecastItems.map(item => ({
+                productId: item.id,
+                productName: item.name,
+                forecast: {} as ForecastOutput,
+                error: 'Worker calculation failed'
+            })));
         }
 
-        setResults(forecastResults);
         setIsCalculating(false);
-    }, [products, selectedMarket, selectedWeather, selectedDate]); // Added dependencies
+    }, [products, selectedMarket, selectedWeather, selectedDate, smartMode, productionForecasts, productSales]); // Added dependencies
 
     // Trigger calculation on input change
     useEffect(() => {
