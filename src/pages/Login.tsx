@@ -1,60 +1,38 @@
 import React, { useState } from 'react';
 import { useStore } from '@/src/store';
-import { ChefHat, Loader2, AlertCircle, Delete } from 'lucide-react';
+import { ChefHat, Lock, Mail, Loader2, AlertCircle } from 'lucide-react';
 
 export const Login: React.FC = () => {
     const { signIn } = useStore();
-    const [pin, setPin] = useState('');
+    const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    const handleNumberClick = (num: string) => {
-        if (pin.length < 8) {
-            setPin(prev => prev + num);
-            setError(null);
-        }
-    };
-
-    const handleDelete = () => {
-        setPin(prev => prev.slice(0, -1));
-        setError(null);
-    };
-
-    const handleClear = () => {
-        setPin('');
-        setError(null);
-    };
-
-    const handleLogin = async () => {
-        if (pin.length !== 8) {
-            setError('กรุณากรอกรหัสพนักงานให้ครบ 8 หลัก');
-            return;
-        }
-
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
         setIsLoading(true);
         setError(null);
 
-        // Security Adapter: Map 8-digit PIN to secure backend email/password
-        const loginEmail = `mellowoven.${pin}@gmail.com`;
-        const loginPassword = pin;
+        // Allow login with Username (auto-append domain)
+        let loginEmail = email;
+        if (!email.includes('@')) {
+            loginEmail = `${email}@mellowoven.com`;
+        }
 
         try {
-            await signIn(loginEmail, loginPassword);
+            await signIn(loginEmail, password);
         } catch (err: any) {
             console.error(err);
-            setError('รหัสผ่านไม่ถูกต้อง หรือยังไม่มีสิทธิ์เข้าใช้งาน');
-            setPin(''); // Clear PIN on failure
+            setError('ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง');
         } finally {
             setIsLoading(false);
         }
     };
 
-    // Auto-login when 8 digits are entered (Optional, but manual button is safer)
-    // We will use a prominent manual button
-
     return (
         <div className="min-h-screen bg-gradient-to-br from-cafe-50 to-amber-50 flex items-center justify-center p-4">
-            <div className="bg-white w-full max-w-sm rounded-[2rem] shadow-xl overflow-hidden border border-cafe-100">
+            <div className="bg-white w-full max-w-md rounded-3xl shadow-xl overflow-hidden border border-cafe-100">
                 {/* Header */}
                 <div className="bg-cafe-900 p-8 text-center relative overflow-hidden">
                     <div className="absolute top-0 left-0 w-full h-full opacity-10">
@@ -67,84 +45,73 @@ export const Login: React.FC = () => {
                             <ChefHat size={32} className="text-amber-400" />
                         </div>
                         <h1 className="text-2xl font-bold text-white mb-1">Mellow Oven</h1>
-                        <p className="text-cafe-300 text-sm">เข้าสู่ระบบพนักงาน</p>
+                        <p className="text-cafe-300 text-sm">Bakery Management System</p>
                     </div>
                 </div>
 
-                {/* Numpad Form */}
-                <div className="p-6">
-                    {/* PIN Display */}
-                    <div className="mb-6 flex justify-center gap-3">
-                        {[...Array(8)].map((_, i) => (
-                            <div
-                                key={i}
-                                className={`w-6 h-6 rounded-full transition-all duration-300 flex items-center justify-center
-                                    ${pin.length > i 
-                                        ? 'bg-cafe-900 text-white' 
-                                        : 'bg-cafe-100 border border-cafe-200'}`}
-                            >
-                                {pin.length > i && <span className="w-2.5 h-2.5 bg-white rounded-full"></span>}
-                            </div>
-                        ))}
-                    </div>
+                {/* Form */}
+                <div className="p-8">
+                    <h2 className="text-xl font-bold text-cafe-900 mb-6 text-center">เข้าสู่ระบบ</h2>
 
                     {error && (
-                        <div className="mb-4 bg-red-50 text-red-600 px-4 py-3 rounded-xl flex items-start gap-3 text-xs font-medium animate-pulse">
-                            <AlertCircle size={16} className="mt-0.5 flex-shrink-0" />
+                        <div className="mb-6 bg-red-50 border border-red-100 text-red-600 px-4 py-3 rounded-xl flex items-start gap-3 text-sm">
+                            <AlertCircle size={18} className="mt-0.5 flex-shrink-0" />
                             <p>{error}</p>
                         </div>
                     )}
 
-                    {/* Numpad Grid */}
-                    <div className="grid grid-cols-3 gap-3 mb-6">
-                        {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (
-                            <button
-                                key={num}
-                                onClick={() => handleNumberClick(num.toString())}
-                                disabled={isLoading}
-                                className="h-16 rounded-2xl bg-cafe-50 hover:bg-cafe-100 active:bg-cafe-200 text-cafe-900 font-bold text-2xl transition-all shadow-sm active:scale-95 disabled:opacity-50"
-                            >
-                                {num}
-                            </button>
-                        ))}
-                        
-                        <button
-                            onClick={handleClear}
-                            disabled={isLoading || pin.length === 0}
-                            className="h-16 rounded-2xl bg-gray-50 hover:bg-gray-100 active:bg-gray-200 text-gray-600 font-bold text-lg transition-all shadow-sm active:scale-95 disabled:opacity-50"
-                        >
-                            C
-                        </button>
-                        <button
-                            onClick={() => handleNumberClick('0')}
-                            disabled={isLoading}
-                            className="h-16 rounded-2xl bg-cafe-50 hover:bg-cafe-100 active:bg-cafe-200 text-cafe-900 font-bold text-2xl transition-all shadow-sm active:scale-95 disabled:opacity-50"
-                        >
-                            0
-                        </button>
-                        <button
-                            onClick={handleDelete}
-                            disabled={isLoading || pin.length === 0}
-                            className="h-16 rounded-2xl bg-red-50 hover:bg-red-100 active:bg-red-200 text-red-600 font-bold text-lg transition-all shadow-sm active:scale-95 flex items-center justify-center disabled:opacity-50"
-                        >
-                            <Delete size={24} />
-                        </button>
-                    </div>
+                    <form onSubmit={handleSubmit} className="space-y-4">
+                        <div className="space-y-1">
+                            <label className="text-sm font-medium text-cafe-700 ml-1">ชื่อผู้ใช้ หรือ อีเมล (Username/Email)</label>
+                            <div className="relative">
+                                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-cafe-400" size={18} />
+                                <input
+                                    type="text"
+                                    required
+                                    value={email}
+                                    onChange={(e) => setEmail(e.target.value)}
+                                    className="w-full pl-12 pr-4 py-3 bg-cafe-50 border border-cafe-200 rounded-xl focus:ring-2 focus:ring-cafe-500 focus:border-transparent outline-none transition-all"
+                                    placeholder="เช่น Pond40744"
+                                />
+                            </div>
+                        </div>
 
-                    <button
-                        onClick={handleLogin}
-                        disabled={isLoading || pin.length !== 8}
-                        className="w-full bg-cafe-900 text-white py-4 rounded-2xl font-bold shadow-lg shadow-cafe-200 hover:bg-cafe-800 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                    >
-                        {isLoading ? (
-                            <>
-                                <Loader2 size={20} className="animate-spin" />
-                                กำลังเข้าสู่ระบบ...
-                            </>
-                        ) : (
-                            'เข้าสู่ระบบ'
-                        )}
-                    </button>
+                        <div className="space-y-1">
+                            <label className="text-sm font-medium text-cafe-700 ml-1">รหัสผ่าน</label>
+                            <div className="relative">
+                                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-cafe-400" size={18} />
+                                <input
+                                    type="password"
+                                    required
+                                    value={password}
+                                    onChange={(e) => setPassword(e.target.value)}
+                                    className="w-full pl-12 pr-4 py-3 bg-cafe-50 border border-cafe-200 rounded-xl focus:ring-2 focus:ring-cafe-500 focus:border-transparent outline-none transition-all"
+                                    placeholder="••••••••"
+                                />
+                            </div>
+                        </div>
+
+                        <button
+                            type="submit"
+                            disabled={isLoading}
+                            className="w-full bg-cafe-900 text-white py-3.5 rounded-xl font-bold shadow-lg shadow-cafe-200 hover:bg-cafe-800 active:scale-[0.98] transition-all disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2 mt-2"
+                        >
+                            {isLoading ? (
+                                <>
+                                    <Loader2 size={20} className="animate-spin" />
+                                    กำลังเข้าสู่ระบบ...
+                                </>
+                            ) : (
+                                'เข้าสู่ระบบ'
+                            )}
+                        </button>
+                    </form>
+
+                    <div className="mt-8 text-center">
+                        <p className="text-xs text-cafe-400">
+                            © 2024 Mellow Oven. All rights reserved.
+                        </p>
+                    </div>
                 </div>
             </div>
         </div>
