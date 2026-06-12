@@ -4,7 +4,7 @@
 // Sales channel management with mini revenue stats per market
 // ============================================================
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useStore } from '@/src/store';
 import { Market } from '@/types';
 import {
@@ -20,12 +20,24 @@ import { Modal } from '@/src/components/ui/Modal';
 interface MarketCardProps {
     market: Market;
     stats: { revenue: number; orders: number; lastSaleDate: string | null };
+    marketSchedules: import('@/types').MarketSchedule[];
     onEdit: (market: Market) => void;
     onDelete: (market: Market) => void;
+    onToggleDay: (marketId: string, dayNum: number) => void;
 }
 
-const MarketCard: React.FC<MarketCardProps> = ({ market, stats, onEdit, onDelete }) => {
+const MarketCard: React.FC<MarketCardProps> = ({ market, stats, marketSchedules, onEdit, onDelete, onToggleDay }) => {
     const marketColor = market.color || '#b08968';
+
+    const days = [
+        { label: 'จ', num: 1, name: 'วันจันทร์' },
+        { label: 'อ', num: 2, name: 'วันอังคาร' },
+        { label: 'พ', num: 3, name: 'วันพุธ' },
+        { label: 'พฤ', num: 4, name: 'วันพฤหัสบดี' },
+        { label: 'ศ', num: 5, name: 'วันศุกร์' },
+        { label: 'ส', num: 6, name: 'วันเสาร์' },
+        { label: 'อา', num: 0, name: 'วันอาทิตย์' }
+    ];
 
     return (
         <div
@@ -62,14 +74,14 @@ const MarketCard: React.FC<MarketCardProps> = ({ market, stats, onEdit, onDelete
                     {/* Action Buttons - always visible on mobile, hover on desktop */}
                     <div className="flex gap-2 opacity-100 sm:opacity-0 group-hover:opacity-100 transition-opacity">
                         <button
-                            onClick={() => onEdit(market)}
+                            onClick={(e) => { e.stopPropagation(); onEdit(market); }}
                             className="p-2.5 min-w-[40px] min-h-[40px] flex items-center justify-center bg-stone-50 text-stone-500 hover:bg-blue-50 hover:text-blue-600 rounded-lg transition-colors"
                             title="แก้ไข"
                         >
                             <Edit2 size={15} />
                         </button>
                         <button
-                            onClick={() => onDelete(market)}
+                            onClick={(e) => { e.stopPropagation(); onDelete(market); }}
                             className="p-2.5 min-w-[40px] min-h-[40px] flex items-center justify-center bg-stone-50 text-stone-500 hover:bg-red-50 hover:text-red-500 rounded-lg transition-colors"
                             title="ลบ"
                         >
@@ -107,6 +119,32 @@ const MarketCard: React.FC<MarketCardProps> = ({ market, stats, onEdit, onDelete
                     </div>
                 </div>
 
+                {/* Day of Week Schedules */}
+                <div className="mt-4 pt-3 border-t border-stone-100">
+                    <span className="block text-[10px] text-stone-400 font-bold uppercase tracking-wider mb-2">📅 ตารางเปิดขาย (จ-อา)</span>
+                    <div className="flex flex-wrap gap-1">
+                        {days.map(d => {
+                            const sched = marketSchedules.find(s => s.marketId === market.id && s.dayOfWeek === d.num);
+                            const isActive = sched ? sched.isActive : false;
+                            return (
+                                <button
+                                    key={d.num}
+                                    type="button"
+                                    onClick={(e) => { e.stopPropagation(); onToggleDay(market.id, d.num); }}
+                                    className={`w-7 h-7 rounded-lg text-[10px] font-extrabold transition-all flex items-center justify-center border ${
+                                        isActive
+                                            ? 'bg-amber-500 text-white border-amber-600 shadow-sm scale-105 active:scale-95'
+                                            : 'bg-stone-50 text-stone-300 border-stone-200 hover:bg-stone-100 hover:text-stone-400 active:scale-95'
+                                    }`}
+                                    title={`คลิกเพื่อเปิด/ปิด ${d.name}`}
+                                >
+                                    {d.label}
+                                </button>
+                            );
+                        })}
+                    </div>
+                </div>
+
                 {/* Last Sale */}
                 <div className="flex items-center justify-between mt-3 pt-3 border-t border-stone-100">
                     <div className="flex items-center gap-2">
@@ -135,7 +173,11 @@ const MarketCard: React.FC<MarketCardProps> = ({ market, stats, onEdit, onDelete
 // ============================================================
 
 export const MarketManager: React.FC = () => {
-    const { markets, addMarket, updateMarket, removeMarket, dailyReports } = useStore();
+    const { 
+        markets, addMarket, updateMarket, removeMarket, dailyReports,
+        marketSchedules, fetchMarketSchedules, addMarketSchedule, updateMarketSchedule, removeMarketSchedule 
+    } = useStore();
+    
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
     const [marketToDelete, setMarketToDelete] = useState<Market | null>(null);
@@ -148,6 +190,23 @@ export const MarketManager: React.FC = () => {
         description: '',
         color: '#b08968'
     });
+
+    useEffect(() => {
+        fetchMarketSchedules();
+    }, [fetchMarketSchedules]);
+
+    const handleToggleDay = async (marketId: string, dayNum: number) => {
+        const existing = marketSchedules.find(s => s.marketId === marketId && s.dayOfWeek === dayNum);
+        if (existing) {
+            await updateMarketSchedule(existing.id, { isActive: !existing.isActive });
+        } else {
+            await addMarketSchedule({
+                marketId,
+                dayOfWeek: dayNum,
+                isActive: true
+            });
+        }
+    };
 
     // ============================================================
     // Calculate stats per market from daily reports
@@ -345,8 +404,10 @@ export const MarketManager: React.FC = () => {
                                 key={market.id}
                                 market={market}
                                 stats={marketStats.get(market.id) || { revenue: 0, orders: 0, lastSaleDate: null }}
+                                marketSchedules={marketSchedules}
                                 onEdit={handleOpenEdit}
                                 onDelete={handleDeleteClick}
+                                onToggleDay={handleToggleDay}
                             />
                         ))}
 

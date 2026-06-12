@@ -1,7 +1,10 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Plus, Image as ImageIcon } from 'lucide-react';
-import { Product } from '@/types';
+import { X, Plus, Image as ImageIcon, Loader2 } from 'lucide-react';
+import { Product, Market } from '@/types';
+import { useStore } from '@/src/store';
+import { supabase } from '@/src/lib/supabase';
+import { compressImage } from '@/src/lib/imageCompression';
 
 interface AddProductModalProps {
     isOpen: boolean;
@@ -12,24 +15,73 @@ interface AddProductModalProps {
         cost: string;
         category: string;
         flavor: string;
+        marketIds: string[];
+        imageUrl?: string;
     }) => void;
 }
 
 export const AddProductModal: React.FC<AddProductModalProps> = ({ isOpen, onClose, onAdd }) => {
+    const { markets } = useStore();
+
     // Form states for add modal
     const [newName, setNewName] = useState('');
     const [newPrice, setNewPrice] = useState('');
     const [newCost, setNewCost] = useState('');
     const [newCategory, setNewCategory] = useState('Cake');
     const [newFlavor, setNewFlavor] = useState('');
+    const [sellEverywhere, setSellEverywhere] = useState(true);
+    const [selectedMarkets, setSelectedMarkets] = useState<string[]>([]);
+    const [imageFile, setImageFile] = useState<File | null>(null);
+    const [imagePreview, setImagePreview] = useState<string | null>(null);
+    const [isUploading, setIsUploading] = useState(false);
 
-    const handleAdd = () => {
+    const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files && e.target.files[0]) {
+            const file = e.target.files[0];
+            setImagePreview(URL.createObjectURL(file));
+            try {
+                // Compress image before setting to state
+                const compressed = await compressImage(file, { maxWidth: 800, maxHeight: 800, quality: 0.8 });
+                setImageFile(compressed);
+            } catch (err) {
+                console.error("Image compression failed:", err);
+                setImageFile(file); // fallback to original
+            }
+        }
+    };
+
+    const uploadImage = async (): Promise<string | undefined> => {
+        if (!imageFile) return undefined;
+        const fileExt = imageFile.name.split('.').pop();
+        const fileName = `${crypto.randomUUID()}.${fileExt}`;
+        const filePath = `products/${fileName}`;
+
+        const { error: uploadError } = await supabase.storage
+            .from('product-images')
+            .upload(filePath, imageFile, { upsert: true });
+
+        if (uploadError) {
+            console.error('Error uploading image:', uploadError);
+            return undefined;
+        }
+
+        const { data } = supabase.storage.from('product-images').getPublicUrl(filePath);
+        return data.publicUrl;
+    };
+
+    const handleAdd = async () => {
+        setIsUploading(true);
+        const imageUrl = await uploadImage();
+        setIsUploading(false);
+
         onAdd({
             name: newName,
             price: newPrice,
             cost: newCost,
             category: newCategory,
             flavor: newFlavor,
+            marketIds: sellEverywhere ? [] : selectedMarkets,
+            imageUrl
         });
 
         // Reset form
@@ -38,6 +90,10 @@ export const AddProductModal: React.FC<AddProductModalProps> = ({ isOpen, onClos
         setNewCost('');
         setNewCategory('Cake');
         setNewFlavor('');
+        setSellEverywhere(true);
+        setSelectedMarkets([]);
+        setImageFile(null);
+        setImagePreview(null);
     };
 
     return (
@@ -84,13 +140,31 @@ export const AddProductModal: React.FC<AddProductModalProps> = ({ isOpen, onClos
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8">
                                 {/* Left Col - Image Upload Placeholder */}
                                 <div className="md:col-span-1">
-                                    <div className="h-40 md:h-auto md:aspect-square bg-slate-50 border-2 border-dashed border-slate-200 rounded-2xl flex flex-col items-center justify-center text-slate-400 group hover:bg-slate-100 hover:border-cafe-300 transition-colors cursor-pointer">
-                                        <div className="w-16 h-16 bg-white rounded-full shadow-sm flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
-                                            <ImageIcon size={28} className="text-slate-300 group-hover:text-cafe-500" />
-                                        </div>
-                                        <p className="font-bold text-sm text-slate-500">อัพโหลดรูปภาพ</p>
-                                        <p className="text-[10px] mt-1 text-center px-4">รองรับ JPG, PNG, WEBP<br />ขนาดไม่เกิน 5MB</p>
-                                    </div>
+                                    <label className="relative h-40 md:h-auto md:aspect-square bg-slate-50 border-2 border-dashed border-slate-200 rounded-2xl flex flex-col items-center justify-center text-slate-400 group hover:bg-slate-100 hover:border-cafe-300 transition-colors cursor-pointer overflow-hidden block">
+                                        <input 
+                                            type="file" 
+                                            accept="image/jpeg, image/png, image/webp" 
+                                            className="hidden" 
+                                            onChange={handleImageChange}
+                                            disabled={isUploading}
+                                        />
+                                        {imagePreview ? (
+                                            <div className="absolute inset-0 w-full h-full">
+                                                <img src={imagePreview} alt="Preview" className="w-full h-full object-cover" />
+                                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                                    <span className="text-white font-medium text-sm">เปลี่ยนรูปภาพ</span>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <>
+                                                <div className="w-16 h-16 bg-white rounded-full shadow-sm flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
+                                                    <ImageIcon size={28} className="text-slate-300 group-hover:text-cafe-500" />
+                                                </div>
+                                                <p className="font-bold text-sm text-slate-500">อัพโหลดรูปภาพ</p>
+                                                <p className="text-[10px] mt-1 text-center px-4">รองรับ JPG, PNG, WEBP<br />ย่อขนาดอัตโนมัติ</p>
+                                            </>
+                                        )}
+                                    </label>
                                 </div>
 
                                 {/* Right Col - Form Fields */}
@@ -173,6 +247,49 @@ export const AddProductModal: React.FC<AddProductModalProps> = ({ isOpen, onClos
                                             />
                                         </div>
                                     </div>
+
+                                    {/* Markets / Branch Mapping */}
+                                    <div className="border-t border-slate-100 pt-4 mt-2">
+                                        <label className="block text-sm font-bold text-gray-700 mb-2 flex items-center gap-1.5">
+                                            <span>🏪 ช่องทางการขาย / สาขา</span>
+                                        </label>
+                                        <div className="bg-slate-50 rounded-2xl p-4 space-y-3 border border-slate-100">
+                                            <label className="flex items-center gap-3 cursor-pointer select-none">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={sellEverywhere}
+                                                    onChange={(e) => {
+                                                        setSellEverywhere(e.target.checked);
+                                                        if (e.target.checked) setSelectedMarkets([]);
+                                                    }}
+                                                    className="w-4.5 h-4.5 rounded text-cafe-600 focus:ring-cafe-500 border-slate-300"
+                                                />
+                                                <span className="text-sm font-bold text-slate-700">วางขายทุกสาขา / ทุกตลาด (ค่าเริ่มต้น)</span>
+                                            </label>
+
+                                            {!sellEverywhere && (
+                                                <div className="grid grid-cols-2 gap-2 pl-7 pt-3 border-t border-slate-200/50 mt-2">
+                                                    {markets.map((market) => (
+                                                        <label key={market.id} className="flex items-center gap-2 cursor-pointer select-none py-1 hover:bg-slate-100/50 rounded px-1.5 transition-colors">
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={selectedMarkets.includes(market.id)}
+                                                                onChange={(e) => {
+                                                                    if (e.target.checked) {
+                                                                        setSelectedMarkets([...selectedMarkets, market.id]);
+                                                                    } else {
+                                                                        setSelectedMarkets(selectedMarkets.filter(id => id !== market.id));
+                                                                    }
+                                                                }}
+                                                                className="w-4 h-4 rounded text-cafe-600 focus:ring-cafe-500 border-slate-300"
+                                                            />
+                                                            <span className="text-xs font-semibold text-slate-600">{market.name}</span>
+                                                        </label>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -187,14 +304,23 @@ export const AddProductModal: React.FC<AddProductModalProps> = ({ isOpen, onClos
                             </button>
                             <button
                                 onClick={handleAdd}
-                                disabled={!newName.trim() || !newPrice}
-                                className={`flex items-center justify-center gap-2 px-8 py-2.5 rounded-xl font-bold shadow-lg transition-all text-base md:text-sm ${(!newName.trim() || !newPrice)
+                                disabled={!newName.trim() || !newPrice || isUploading}
+                                className={`flex items-center justify-center gap-2 px-8 py-2.5 rounded-xl font-bold shadow-lg transition-all text-base md:text-sm ${(!newName.trim() || !newPrice || isUploading)
                                     ? 'bg-gray-200 text-gray-400 cursor-not-allowed shadow-none'
                                     : 'bg-cafe-600 text-white shadow-cafe-200 hover:bg-cafe-700 active:scale-95'
                                     }`}
                             >
-                                <Plus size={18} />
-                                เพิ่มสินค้านี้
+                                {isUploading ? (
+                                    <>
+                                        <Loader2 size={18} className="animate-spin" />
+                                        กำลังบันทึก...
+                                    </>
+                                ) : (
+                                    <>
+                                        <Plus size={18} />
+                                        เพิ่มสินค้านี้
+                                    </>
+                                )}
                             </button>
                         </div>
                     </motion.div>

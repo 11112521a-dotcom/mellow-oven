@@ -1,5 +1,5 @@
 // src/store/helpers/mappers.ts
-import { Transaction, Ingredient, ProductSaleLog, DailyInventory } from '../../../types';
+import { Transaction, Ingredient, ProductSaleLog, DailyInventory, Product } from '../../../types';
 import { ProductionForecast } from '../../lib/forecasting/types';
 import { JarType } from '../../../types';
 
@@ -93,4 +93,19 @@ export const mapDailyInventory = (d: Record<string, any>): DailyInventory => ({
     stockYesterday: d.stock_yesterday,
     leftoverHome: d.leftover_home,
     unsoldShop: d.unsold_shop
+});
+
+export const mapProduct = (p: Record<string, any>): Product => ({
+    id: p.id,
+    name: p.name,
+    category: p.category,
+    flavor: p.flavor ?? undefined,
+    price: Number(p.price),
+    cost: Number(p.cost),
+    recipe: p.recipe || undefined,
+    variants: p.variants || [],
+    bundleConfig: p.bundle_config || null,
+    isActive: p.is_active !== false,
+    marketIds: p.market_ids || [],
+    imageUrl: p.image_url || undefined
 });

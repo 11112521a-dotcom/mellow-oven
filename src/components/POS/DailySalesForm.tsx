@@ -169,10 +169,19 @@ export const DailySalesForm: React.FC = () => {
         if (products.length > 0) {
             const initialLogs: (DailyProductionLog & { product: Product, variant?: Variant })[] = [];
 
-            products.forEach(p => {
-                // 🆕 Skip inactive products (พักขาย)
-                if (p.isActive === false) return;
+            // กรองสินค้าตามสาขา/ตลาดที่เลือก (ถ้าไม่ระบุตลาด จะให้แสดงทั้งหมด)
+            const filteredProducts = products.filter(p => {
+                if (p.isActive === false) return false;
+                // ป้องกันบั๊ก: หากไม่มีการระบุตลาด หรือตัวแปร marketIds ว่างเปล่า ให้ถือว่าขายทุกสาขา (All Markets)
+                if (!p.marketIds || p.marketIds.length === 0) return true;
+                // ถ้าเลือกตลาดนัดแล้ว ให้เช็คว่าสินค้านี้รองรับตลาดนี้หรือไม่
+                if (selectedMarketId) {
+                    return p.marketIds.includes(selectedMarketId);
+                }
+                return true;
+            });
 
+            filteredProducts.forEach(p => {
                 if (p.variants && p.variants.length > 0) {
                     // For products WITH variants - look up each variant separately
                     p.variants.forEach(v => {
@@ -227,7 +236,7 @@ export const DailySalesForm: React.FC = () => {
             });
             setLogs(initialLogs);
         }
-    }, [products, dailyInventory, date]);
+    }, [products, dailyInventory, date, selectedMarketId]);
 
     const handleLogChange = <K extends keyof DailyProductionLog>(
         index: number,

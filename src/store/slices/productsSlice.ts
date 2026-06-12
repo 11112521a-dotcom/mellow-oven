@@ -4,6 +4,7 @@ import { supabase } from '../../lib/supabase';
 import { Product } from '../../../types';
 import { ProductionForecast } from '../../lib/forecasting/types';
 import { forecastOutputToDbFormat } from '../../lib/forecasting/types';
+import { mapProduct } from '../helpers/mappers';
 
 export const createProductsSlice: StateCreator<AppState, [], [], ProductsSlice> = (set, get) => ({
     products: [],
@@ -24,7 +25,9 @@ export const createProductsSlice: StateCreator<AppState, [], [], ProductsSlice> 
             recipe: product.recipe || null,
             variants: product.variants || [],
             bundle_config: product.bundleConfig || null,
-            is_active: product.isActive !== undefined ? product.isActive : true
+            is_active: product.isActive !== undefined ? product.isActive : true,
+            market_ids: product.marketIds || [],
+            image_url: product.imageUrl || null
         };
 
         const { data, error } = await supabase.from('products').insert(dbProduct).select().single();
@@ -34,7 +37,7 @@ export const createProductsSlice: StateCreator<AppState, [], [], ProductsSlice> 
             set((state) => ({ products: state.products.filter(p => p.id !== tempId) }));
         } else if (data) {
             set((state) => ({
-                products: state.products.map((p) => p.id === tempId ? { ...p, id: data.id } : p)
+                products: state.products.map((p) => p.id === tempId ? mapProduct(data) : p)
             }));
         }
     },
@@ -43,8 +46,22 @@ export const createProductsSlice: StateCreator<AppState, [], [], ProductsSlice> 
         set((state) => ({
             products: state.products.map((p) => p.id === id ? { ...p, ...updates } : p)
         }));
-        // Now include variants in DB update (JSONB column)
-        const { error } = await supabase.from('products').update(updates).eq('id', id);
+        
+        // Map updates to snake_case for database
+        const dbUpdates: Record<string, any> = {};
+        if (updates.name !== undefined) dbUpdates.name = updates.name;
+        if (updates.price !== undefined) dbUpdates.price = updates.price;
+        if (updates.cost !== undefined) dbUpdates.cost = updates.cost;
+        if (updates.category !== undefined) dbUpdates.category = updates.category;
+        if (updates.flavor !== undefined) dbUpdates.flavor = updates.flavor;
+        if (updates.recipe !== undefined) dbUpdates.recipe = updates.recipe;
+        if (updates.variants !== undefined) dbUpdates.variants = updates.variants;
+        if (updates.bundleConfig !== undefined) dbUpdates.bundle_config = updates.bundleConfig;
+        if (updates.isActive !== undefined) dbUpdates.is_active = updates.isActive;
+        if (updates.marketIds !== undefined) dbUpdates.market_ids = updates.marketIds;
+        if (updates.imageUrl !== undefined) dbUpdates.image_url = updates.imageUrl;
+
+        const { error } = await supabase.from('products').update(dbUpdates).eq('id', id);
         if (error) {
             console.error('[updateProduct] DB update failed:', error);
         }

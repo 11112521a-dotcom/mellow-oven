@@ -152,6 +152,8 @@ export interface Product {
   variants?: Variant[]; // List of variants
   bundleConfig?: BundleConfig | null; // NEW: Config for composite products (Snack Box)
   isActive?: boolean; // NEW: Toggle to pause sales (defaults to true)
+  marketIds?: string[]; // 🆕 List of market/branch IDs where product is sold
+  imageUrl?: string; // 🖼️ URL for product image from Supabase Storage
 }
 
 export interface Variant {

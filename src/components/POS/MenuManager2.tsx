@@ -20,7 +20,8 @@ import {
     BookOpen,
     X,
     Filter,
-    Power
+    Power,
+    Store
 } from 'lucide-react';
 import { useStore } from '@/src/store';
 import { Product, Variant } from '@/types';
@@ -198,10 +199,16 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onClick, onEdit, onD
                     <p className="text-lg font-bold text-gray-900 leading-none mt-1">฿{minPrice}</p>
                 </div>
                 <div className="text-right">
-                    <p className={`text-[10px] font-bold px-2 py-0.5 rounded ${hasEstimatedCost ? 'bg-amber-50 text-amber-600' : 'bg-emerald-50 text-emerald-500'}`}>
-                        {hasEstimatedCost && '~'}กำไร ฿{profit.toFixed(0)} ({profitMargin.toFixed(0)}%)
+                    <p className={`text-[10px] font-extrabold px-2.5 py-0.5 rounded-full inline-block ${
+                        profitMargin >= 50
+                            ? 'bg-emerald-50 text-emerald-600 border border-emerald-100'
+                            : profitMargin >= 30
+                            ? 'bg-amber-50 text-amber-600 border border-amber-100'
+                            : 'bg-rose-50 text-rose-600 border border-rose-100'
+                    }`}>
+                        {hasEstimatedCost && '~'}กำไร {profitMargin.toFixed(0)}%
                     </p>
-                    <p className="text-[10px] text-gray-400 mt-1">
+                    <p className="text-[10px] text-gray-400 mt-1 font-semibold">
                         {hasEstimatedCost && '~'}ต้นทุน ฿{avgCost.toFixed(0)}
                         {hasEstimatedCost && <span className="text-amber-500 ml-1" title="ใช้ต้นทุนจากเมนูหลัก">*</span>}
                     </p>
@@ -232,8 +239,8 @@ const DetailModal: React.FC<DetailModalProps> = ({
     onToggleProduct,
     onSave
 }) => {
-    const { ingredients } = useStore();
-    const [activeTab, setActiveTab] = useState<'info' | 'variants' | 'recipe'>('variants');
+    const { ingredients, markets } = useStore();
+    const [activeTab, setActiveTab] = useState<'info' | 'variants' | 'recipe' | 'markets'>('variants');
 
     // Form states
     const [name, setName] = useState('');
@@ -248,6 +255,8 @@ const DetailModal: React.FC<DetailModalProps> = ({
     const [hasChanges, setHasChanges] = useState(false);
     const [editingVariantId, setEditingVariantId] = useState<string | null>(null);
     const [editingVariantName, setEditingVariantName] = useState('');
+    const [sellEverywhere, setSellEverywhere] = useState(true);
+    const [selectedMarkets, setSelectedMarkets] = useState<string[]>([]);
 
     // Initialize form when product changes
     React.useEffect(() => {
@@ -261,6 +270,9 @@ const DetailModal: React.FC<DetailModalProps> = ({
             setRecipe(product.recipe || null);
             setActiveTab('variants');
             setHasChanges(false);
+            const pMarkets = product.marketIds || [];
+            setSellEverywhere(pMarkets.length === 0);
+            setSelectedMarkets(pMarkets);
         }
     }, [product]);
 
@@ -333,7 +345,8 @@ const DetailModal: React.FC<DetailModalProps> = ({
             category,
             flavor,
             variants: localVariants,
-            recipe: recipe || undefined
+            recipe: recipe || undefined,
+            marketIds: sellEverywhere ? [] : selectedMarkets
         };
 
         onSave(product.id, updates);
@@ -349,12 +362,12 @@ const DetailModal: React.FC<DetailModalProps> = ({
                     {/* Backdrop */}
                     <div
                         onClick={onClose}
-                        className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[100] flex items-end md:items-center justify-center p-0 md:p-4 transition-opacity"
+                        className="fixed inset-0 bg-stone-900/40 backdrop-blur-xs z-[100] flex items-end md:items-center justify-center p-0 md:p-4 transition-opacity"
                     />
 
-                    {/* Modal */}
+                    {/* Side Drawer Container */}
                     <div
-                        className="fixed inset-x-0 bottom-0 md:inset-0 m-auto w-full md:max-w-xl h-[85vh] md:h-fit md:max-h-[90vh] bg-white rounded-t-3xl md:rounded-3xl shadow-2xl z-[101] overflow-hidden flex flex-col animate-in slide-in-from-bottom-10 md:zoom-in-95 duration-200"
+                        className="fixed right-0 top-0 bottom-0 w-full md:max-w-xl h-full bg-white shadow-2xl z-[101] overflow-hidden flex flex-col animate-in slide-in-from-right duration-300 rounded-l-3xl max-sm:rounded-t-3xl max-sm:bottom-0 max-sm:top-auto max-sm:h-[90vh] max-sm:slide-in-from-bottom"
                     >
                         {/* Header */}
                         <div className="p-6 border-b flex justify-between items-center bg-gradient-to-r from-cafe-50 to-amber-50 flex-shrink-0">
@@ -390,6 +403,7 @@ const DetailModal: React.FC<DetailModalProps> = ({
                                 { id: 'info' as const, icon: Info, label: 'ข้อมูลทั่วไป' },
                                 { id: 'variants' as const, icon: Layers, label: 'ตัวเลือกสินค้า' },
                                 { id: 'recipe' as const, icon: BookOpen, label: 'สูตรผลิต' },
+                                { id: 'markets' as const, icon: Store, label: 'สาขาที่วางขาย' },
                             ].map(tab => (
                                 <button
                                     key={tab.id}
@@ -592,6 +606,61 @@ const DetailModal: React.FC<DetailModalProps> = ({
                                     />
                                 </div>
                             )}
+
+                            {/* Markets Tab */}
+                            {activeTab === 'markets' && (
+                                <div className="space-y-4 animate-in fade-in duration-200">
+                                    <div className="flex items-center gap-2 p-3 bg-cafe-50 text-cafe-700 rounded-xl text-xs mb-4 border border-cafe-100">
+                                        <Store size={14} />
+                                        <span>กำหนดว่าสินค้านี้จะพร้อมจำหน่ายที่สาขาหรือตลาดนัดแห่งใดบ้าง</span>
+                                    </div>
+                                    
+                                    {markets.length > 0 ? (
+                                        <div className="bg-stone-50 rounded-xl p-4 space-y-3 border border-stone-200">
+                                            <label className="flex items-center gap-3 cursor-pointer select-none">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={sellEverywhere}
+                                                    onChange={(e) => {
+                                                        setSellEverywhere(e.target.checked);
+                                                        if (e.target.checked) setSelectedMarkets([]);
+                                                        setHasChanges(true);
+                                                    }}
+                                                    className="w-4 h-4 rounded text-cafe-600 focus:ring-cafe-500 border-gray-300"
+                                                />
+                                                <span className="text-sm font-bold text-stone-700">วางขายทุกสาขา / ทุกตลาด</span>
+                                            </label>
+
+                                            {!sellEverywhere && (
+                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pl-7 pt-3 border-t border-stone-200/50 mt-2">
+                                                    {markets.map((market) => (
+                                                        <label key={market.id} className="flex items-center gap-2.5 cursor-pointer select-none py-2 hover:bg-white rounded-lg px-2 transition-colors border border-transparent hover:border-stone-100">
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={selectedMarkets.includes(market.id)}
+                                                                onChange={(e) => {
+                                                                    if (e.target.checked) {
+                                                                        setSelectedMarkets([...selectedMarkets, market.id]);
+                                                                    } else {
+                                                                        setSelectedMarkets(selectedMarkets.filter(id => id !== market.id));
+                                                                    }
+                                                                    setHasChanges(true);
+                                                                }}
+                                                                className="w-4 h-4 rounded text-cafe-600 focus:ring-cafe-500 border-gray-300"
+                                                            />
+                                                            <span className="text-xs font-semibold text-stone-700">{market.name}</span>
+                                                        </label>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                    ) : (
+                                        <div className="text-center py-8 text-gray-400">
+                                            <p className="text-xs">ยังไม่มีข้อมูลตลาดนัดในระบบ</p>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
                         </div>
 
                         {/* Footer */}
@@ -663,19 +732,21 @@ export const MenuManager2: React.FC = () => {
         cost: string;
         category: string;
         flavor: string;
+        marketIds: string[];
     }) => {
-        const { name, price, cost, category, flavor } = newProductData;
+        const { name, price, cost, category, flavor, marketIds } = newProductData;
         if (!name.trim() || !price) return;
 
         const newProduct: Product = {
             id: crypto.randomUUID(),
             name: name.trim(),
             price: Number(price),
-            cost: cost ? Number(cost) : undefined,
+            cost: cost ? Number(cost) : 0,
             category,
             flavor: flavor.trim() || undefined,
             variants: [],
-            isActive: true
+            isActive: true,
+            marketIds: marketIds || []
         };
 
         addProduct(newProduct);

@@ -17,7 +17,7 @@ import { createReceiptSlice } from './slices/receiptSlice';
 import { supabase, fetchAllRows } from '../lib/supabase';
 import {
     mapTransaction, mapIngredient, mapProductSaleLog,
-    mapDailyInventory, mapProductionForecast
+    mapDailyInventory, mapProductionForecast, mapProduct
 } from './helpers/mappers';
 import { Promotion, Bundle, SpecialOrder, Market, Product } from '../../types';
 
@@ -357,19 +357,15 @@ export const useStore = create<AppState>()(
                 set((state) => {
                     // Merge products with local state to preserve variants
                     const mergedProducts = products?.map(dbProduct => {
-                        const localProduct = state.products.find(p => p.id === dbProduct.id);
-                        // 🆕 Map is_active -> isActive (defaults to true if undefined)
-                        const mappedProduct = {
-                            ...dbProduct,
-                            isActive: dbProduct.is_active !== false // undefined/null = true
-                        };
+                        const mappedProduct = mapProduct(dbProduct);
+                        const localProduct = state.products.find(p => p.id === mappedProduct.id);
 
                         if (localProduct) {
                             return {
                                 ...mappedProduct,
-                                variants: (localProduct.variants && (!dbProduct.variants || dbProduct.variants.length === 0))
+                                variants: (localProduct.variants && (!mappedProduct.variants || mappedProduct.variants.length === 0))
                                     ? localProduct.variants
-                                    : dbProduct.variants
+                                    : mappedProduct.variants
                             };
                         }
                         return mappedProduct;
@@ -495,10 +491,10 @@ export const useStore = create<AppState>()(
                         if (payload.eventType === 'INSERT') {
                             set(state => {
                                 if (state.products.some(p => p.id === payload.new.id)) return state;
-                                return { products: [...state.products, payload.new as Product] };
+                                return { products: [...state.products, mapProduct(payload.new as any)] };
                             });
                         } else if (payload.eventType === 'UPDATE') {
-                            set(state => ({ products: state.products.map(p => p.id === payload.new.id ? payload.new as Product : p) }));
+                            set(state => ({ products: state.products.map(p => p.id === payload.new.id ? mapProduct(payload.new as any) : p) }));
                         } else if (payload.eventType === 'DELETE') {
                             set(state => ({ products: state.products.filter(p => p.id !== payload.old.id) }));
                         }
