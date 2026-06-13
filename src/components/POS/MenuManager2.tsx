@@ -21,13 +21,17 @@ import {
     X,
     Filter,
     Power,
-    Store
+    Store,
+    Image as ImageIcon,
+    Loader2
 } from 'lucide-react';
 import { useStore } from '@/src/store';
 import { Product, Variant } from '@/types';
 import { formatCurrency } from '@/src/lib/utils';
 import { RecipeBuilder } from './RecipeBuilder';
 import { AddProductModal } from './AddProductModal';
+import { supabase } from '@/src/lib/supabase';
+import { compressImage } from '@/src/lib/imageCompression';
 
 // ============================================================
 // Sub-Components
@@ -139,9 +143,15 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onClick, onEdit, onD
             {/* Header */}
             <div className="flex justify-between items-start mb-3">
                 <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 bg-cafe-50 rounded-xl flex items-center justify-center text-2xl">
-                        {getCategoryIcon(product.category)}
-                    </div>
+                    {product.imageUrl ? (
+                        <div className="w-12 h-12 rounded-xl flex items-center justify-center overflow-hidden border border-gray-100 flex-shrink-0">
+                            <img src={product.imageUrl} alt={product.name} className="w-full h-full object-cover" />
+                        </div>
+                    ) : (
+                        <div className="w-12 h-12 bg-cafe-50 rounded-xl flex items-center justify-center text-2xl flex-shrink-0">
+                            {getCategoryIcon(product.category)}
+                        </div>
+                    )}
                     <div>
                         <h3 className="font-bold text-gray-800 flex items-center gap-2">
                             {product.name}
@@ -257,6 +267,11 @@ const DetailModal: React.FC<DetailModalProps> = ({
     const [editingVariantName, setEditingVariantName] = useState('');
     const [sellEverywhere, setSellEverywhere] = useState(true);
     const [selectedMarkets, setSelectedMarkets] = useState<string[]>([]);
+    
+    // Image states
+    const [imageFile, setImageFile] = useState<File | null>(null);
+    const [imagePreview, setImagePreview] = useState<string | null>(null);
+    const [isUploading, setIsUploading] = useState(false);
 
     // Initialize form when product changes
     React.useEffect(() => {
@@ -273,6 +288,8 @@ const DetailModal: React.FC<DetailModalProps> = ({
             const pMarkets = product.marketIds || [];
             setSellEverywhere(pMarkets.length === 0);
             setSelectedMarkets(pMarkets);
+            setImagePreview(product.imageUrl || null);
+            setImageFile(null);
         }
     }, [product]);
 
@@ -335,8 +352,50 @@ const DetailModal: React.FC<DetailModalProps> = ({
         }
     };
 
-    const handleSave = () => {
+    const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files && e.target.files[0]) {
+            const file = e.target.files[0];
+            setImagePreview(URL.createObjectURL(file));
+            setHasChanges(true);
+            try {
+                const compressed = await compressImage(file, { maxWidth: 800, maxHeight: 800, quality: 0.8 });
+                setImageFile(compressed);
+            } catch (err) {
+                console.error("Image compression failed:", err);
+                setImageFile(file);
+            }
+        }
+    };
+
+    const uploadImage = async (): Promise<string | undefined> => {
+        if (!imageFile) return undefined;
+        const fileExt = imageFile.name.split('.').pop();
+        const fileName = `${crypto.randomUUID()}.${fileExt}`;
+        const filePath = `products/${fileName}`;
+
+        const { error: uploadError } = await supabase.storage
+            .from('product-images')
+            .upload(filePath, imageFile, { upsert: true });
+
+        if (uploadError) {
+            console.error('Error uploading image:', uploadError);
+            return undefined;
+        }
+
+        const { data } = supabase.storage.from('product-images').getPublicUrl(filePath);
+        return data.publicUrl;
+    };
+
+    const handleSave = async () => {
         if (!product) return;
+
+        setIsUploading(true);
+        let finalImageUrl = product.imageUrl;
+        if (imageFile) {
+            const uploadedUrl = await uploadImage();
+            if (uploadedUrl) finalImageUrl = uploadedUrl;
+        }
+        setIsUploading(false);
 
         const updates: Partial<Product> = {
             name,
@@ -346,7 +405,8 @@ const DetailModal: React.FC<DetailModalProps> = ({
             flavor,
             variants: localVariants,
             recipe: recipe || undefined,
-            marketIds: sellEverywhere ? [] : selectedMarkets
+            marketIds: sellEverywhere ? [] : selectedMarkets,
+            imageUrl: finalImageUrl
         };
 
         onSave(product.id, updates);
@@ -372,11 +432,17 @@ const DetailModal: React.FC<DetailModalProps> = ({
                         {/* Header */}
                         <div className="p-6 border-b flex justify-between items-center bg-gradient-to-r from-cafe-50 to-amber-50 flex-shrink-0">
                             <div className="flex items-center gap-4">
-                                <div className="text-4xl">
-                                    {product.category === 'Cake' ? '🍰' :
-                                        product.category === 'Bakery' ? '🥐' :
-                                            product.category === 'Coffee' ? '☕' : '🍽️'}
-                                </div>
+                                {product.imageUrl ? (
+                                    <div className="w-16 h-16 rounded-xl flex items-center justify-center overflow-hidden border border-white shadow-sm flex-shrink-0">
+                                        <img src={product.imageUrl} alt={product.name} className="w-full h-full object-cover" />
+                                    </div>
+                                ) : (
+                                    <div className="text-4xl w-16 h-16 flex items-center justify-center bg-white rounded-xl shadow-sm">
+                                        {product.category === 'Cake' ? '🍰' :
+                                            product.category === 'Bakery' ? '🥐' :
+                                                product.category === 'Coffee' ? '☕' : '🍽️'}
+                                    </div>
+                                )}
                                 <div>
                                     <h2 className="text-xl font-bold text-gray-900">{product.name}</h2>
                                     <div className="flex items-center gap-2 mt-1">
@@ -426,16 +492,73 @@ const DetailModal: React.FC<DetailModalProps> = ({
                                 <div
                                     className="space-y-4"
                                 >
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">ชื่อสินค้า</label>
-                                        <input
-                                            type="text"
-                                            value={name}
-                                            onChange={(e) => { setName(e.target.value); setHasChanges(true); }}
-                                            className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-cafe-500 focus:border-cafe-500 outline-none text-base md:text-sm"
-                                        />
+                                    <div className="flex flex-col sm:flex-row gap-6">
+                                        {/* Image Upload Area */}
+                                        <div className="sm:w-1/3">
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">รูปภาพสินค้า</label>
+                                            <div className="relative aspect-square w-full max-w-[200px] bg-slate-50 border-2 border-dashed border-slate-200 rounded-2xl flex flex-col items-center justify-center text-slate-400 group hover:bg-slate-100 hover:border-cafe-300 transition-colors cursor-pointer overflow-hidden">
+                                                <input 
+                                                    type="file" 
+                                                    accept="image/jpeg, image/png, image/webp" 
+                                                    className="hidden" 
+                                                    onChange={handleImageChange}
+                                                    disabled={isUploading}
+                                                />
+                                                {imagePreview ? (
+                                                    <div className="absolute inset-0 w-full h-full">
+                                                        <img src={imagePreview} alt="Preview" className="w-full h-full object-cover" />
+                                                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                                            <span className="text-white font-medium text-sm">เปลี่ยนรูปภาพ</span>
+                                                        </div>
+                                                    </div>
+                                                ) : (
+                                                    <div className="flex flex-col items-center p-4">
+                                                        <div className="w-12 h-12 bg-white rounded-full shadow-sm flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
+                                                            <ImageIcon size={24} className="text-slate-300 group-hover:text-cafe-500" />
+                                                        </div>
+                                                        <p className="font-medium text-xs text-slate-500 text-center">อัพโหลดรูปภาพ</p>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        {/* Text Fields Area */}
+                                        <div className="sm:w-2/3 space-y-4">
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 mb-1">ชื่อสินค้า</label>
+                                                <input
+                                                    type="text"
+                                                    value={name}
+                                                    onChange={(e) => { setName(e.target.value); setHasChanges(true); }}
+                                                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-cafe-500 focus:border-cafe-500 outline-none text-base md:text-sm"
+                                                />
+                                            </div>
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                                <div>
+                                                    <label className="block text-sm font-medium text-gray-700 mb-1">หมวดหมู่</label>
+                                                    <input
+                                                        type="text"
+                                                        value={category}
+                                                        onChange={(e) => { setCategory(e.target.value); setHasChanges(true); }}
+                                                        className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-cafe-500 focus:border-cafe-500 outline-none text-base md:text-sm"
+                                                        placeholder="Cake, Bakery, Coffee..."
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-sm font-medium text-gray-700 mb-1">รสชาติ/แบบ</label>
+                                                    <input
+                                                        type="text"
+                                                        value={flavor}
+                                                        onChange={(e) => { setFlavor(e.target.value); setHasChanges(true); }}
+                                                        className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-cafe-500 focus:border-cafe-500 outline-none text-base md:text-sm"
+                                                        placeholder="Chocolate, Plain..."
+                                                    />
+                                                </div>
+                                            </div>
+                                        </div>
                                     </div>
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4 border-t pt-4">
                                         <div>
                                             <label className="block text-sm font-medium text-gray-700 mb-1">ราคาขาย</label>
                                             <input
@@ -453,28 +576,6 @@ const DetailModal: React.FC<DetailModalProps> = ({
                                                 readOnly={!!recipe}
                                                 onChange={(e) => { setCost(e.target.value); setHasChanges(true); }}
                                                 className={`w-full px-4 py-2.5 border border-gray-200 rounded-xl outline-none text-base md:text-sm ${recipe ? 'bg-gray-100 text-gray-500' : 'focus:ring-2 focus:ring-cafe-500 focus:border-cafe-500'}`}
-                                            />
-                                        </div>
-                                    </div>
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                        <div>
-                                            <label className="block text-sm font-medium text-gray-700 mb-1">หมวดหมู่</label>
-                                            <input
-                                                type="text"
-                                                value={category}
-                                                onChange={(e) => { setCategory(e.target.value); setHasChanges(true); }}
-                                                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-cafe-500 focus:border-cafe-500 outline-none text-base md:text-sm"
-                                                placeholder="Cake, Bakery, Coffee..."
-                                            />
-                                        </div>
-                                        <div>
-                                            <label className="block text-sm font-medium text-gray-700 mb-1">รสชาติ/แบบ</label>
-                                            <input
-                                                type="text"
-                                                value={flavor}
-                                                onChange={(e) => { setFlavor(e.target.value); setHasChanges(true); }}
-                                                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-cafe-500 focus:border-cafe-500 outline-none text-base md:text-sm"
-                                                placeholder="Chocolate, Plain..."
                                             />
                                         </div>
                                     </div>
@@ -733,8 +834,9 @@ export const MenuManager2: React.FC = () => {
         category: string;
         flavor: string;
         marketIds: string[];
+        imageUrl?: string;
     }) => {
-        const { name, price, cost, category, flavor, marketIds } = newProductData;
+        const { name, price, cost, category, flavor, marketIds, imageUrl } = newProductData;
         if (!name.trim() || !price) return;
 
         const newProduct: Product = {
@@ -746,7 +848,8 @@ export const MenuManager2: React.FC = () => {
             flavor: flavor.trim() || undefined,
             variants: [],
             isActive: true,
-            marketIds: marketIds || []
+            marketIds: marketIds || [],
+            imageUrl: imageUrl || undefined
         };
 
         addProduct(newProduct);

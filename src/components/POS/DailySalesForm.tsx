@@ -169,16 +169,14 @@ export const DailySalesForm: React.FC = () => {
         if (products.length > 0) {
             const initialLogs: (DailyProductionLog & { product: Product, variant?: Variant })[] = [];
 
-            // กรองสินค้าตามสาขา/ตลาดที่เลือก (ถ้าไม่ระบุตลาด จะให้แสดงทั้งหมด)
+            // กรองสินค้าตามสาขา/ตลาดที่เลือก (แสดงเฉพาะเมื่อเลือกตลาดแล้วเท่านั้น ป้องกันแสดงข้อมูลมั่ว)
             const filteredProducts = products.filter(p => {
                 if (p.isActive === false) return false;
+                if (!selectedMarketId) return false; // ไม่เลือกตลาด จะไม่แสดงสินค้าเพื่อป้อนข้อมูล
                 // ป้องกันบั๊ก: หากไม่มีการระบุตลาด หรือตัวแปร marketIds ว่างเปล่า ให้ถือว่าขายทุกสาขา (All Markets)
                 if (!p.marketIds || p.marketIds.length === 0) return true;
                 // ถ้าเลือกตลาดนัดแล้ว ให้เช็คว่าสินค้านี้รองรับตลาดนี้หรือไม่
-                if (selectedMarketId) {
-                    return p.marketIds.includes(selectedMarketId);
-                }
-                return true;
+                return p.marketIds.includes(selectedMarketId);
             });
 
             filteredProducts.forEach(p => {
@@ -188,11 +186,12 @@ export const DailySalesForm: React.FC = () => {
                         // 🆕 Skip inactive variants (พักขาย)
                         if (v.isActive === false) return;
 
-                        // Match by BOTH productId AND variantId
+                        // Match by BOTH productId, variantId AND marketId
                         const inventoryRecord = dailyInventory.find(
                             d => d.businessDate === date &&
                                 d.productId === p.id &&
-                                d.variantId === v.id
+                                d.variantId === v.id &&
+                                (selectedMarketId ? d.marketId === selectedMarketId : !d.marketId)
                         );
                         // FIX: Show REMAINING stock = toShopQty - already sold
                         const alreadySold = inventoryRecord?.soldQty || 0;
@@ -212,11 +211,12 @@ export const DailySalesForm: React.FC = () => {
                         });
                     });
                 } else {
-                    // For products WITHOUT variants - look up by productId only (variantId = null/undefined)
+                    // For products WITHOUT variants - look up by productId, variantId AND marketId
                     const inventoryRecord = dailyInventory.find(
                         d => d.businessDate === date &&
                             d.productId === p.id &&
-                            !d.variantId
+                            !d.variantId &&
+                            (selectedMarketId ? d.marketId === selectedMarketId : !d.marketId)
                     );
                     // FIX: Show REMAINING stock = toShopQty - already sold
                     const alreadySold = inventoryRecord?.soldQty || 0;
@@ -345,11 +345,12 @@ export const DailySalesForm: React.FC = () => {
         for (const log of logs) {
             // Only process items that had sales or waste
             if (log.soldQty > 0 || log.wasteQty > 0) {
-                // Find existing inventory record matching BOTH productId AND variantId
+                // Find existing inventory record matching BOTH productId, variantId AND marketId
                 const inventoryRecord = dailyInventory.find(
                     d => d.businessDate === date &&
                         d.productId === log.productId &&
-                        (d.variantId || '') === (log.variantId || '')
+                        (d.variantId || '') === (log.variantId || '') &&
+                        (selectedMarketId ? d.marketId === selectedMarketId : !d.marketId)
                 );
 
                 // FIX: Always call upsert - use existing values or defaults, and ADD new waste/free from sales
@@ -358,6 +359,7 @@ export const DailySalesForm: React.FC = () => {
                     productId: log.productId,
                     variantId: log.variantId,
                     variantName: log.variant?.name,
+                    marketId: selectedMarketId || undefined, // 🆕 PASS THE MARKET ID!
                     producedQty: inventoryRecord?.producedQty || 0,
                     toShopQty: inventoryRecord?.toShopQty || log.preparedQty || 0, // Use preparedQty as fallback
                     soldQty: log.soldQty,
@@ -475,7 +477,8 @@ export const DailySalesForm: React.FC = () => {
             const invRecord = dailyInventory.find(d =>
                 d.businessDate === date &&
                 d.productId === log.productId &&
-                (d.variantId || '') === (log.variantId || '')
+                (d.variantId || '') === (log.variantId || '') &&
+                (selectedMarketId ? d.marketId === selectedMarketId : !d.marketId)
             );
             if (invRecord?.wasteQty) {
                 const unitCost = log.variant ? (log.variant.cost || log.product.cost) : log.product.cost;
@@ -592,124 +595,146 @@ export const DailySalesForm: React.FC = () => {
             )}
 
             {/* Product Cards - Grouped Grid Layout */}
-            <div className="space-y-4">
-                {Array.from(groupedLogs.entries()).map(([productId, group]) => {
-                    const isExpanded = expandedGroups.has(productId);
-                    const hasVariants = group.hasVariants;
+            {!selectedMarketId ? (
+                <div className="bg-white rounded-2xl p-12 text-center border border-amber-100 shadow-sm flex flex-col items-center justify-center gap-4">
+                    <div className="w-16 h-16 bg-amber-50 rounded-full flex items-center justify-center text-amber-500 animate-pulse">
+                        <Store size={32} />
+                    </div>
+                    <div>
+                        <h3 className="text-lg font-bold text-stone-700">กรุณาเลือกตลาด/สาขา</h3>
+                        <p className="text-stone-400 text-sm mt-1">กรุณาเลือกตลาดหรือสาขาที่ต้องการบันทึกยอดขายจากเมนูด้านบนก่อนนะครับ</p>
+                    </div>
+                </div>
+            ) : logs.length === 0 ? (
+                <div className="bg-white rounded-2xl p-12 text-center border border-cafe-100 shadow-sm flex flex-col items-center justify-center gap-4">
+                    <div className="w-16 h-16 bg-stone-50 rounded-full flex items-center justify-center text-stone-400">
+                        <Package size={32} />
+                    </div>
+                    <div>
+                        <h3 className="text-lg font-bold text-stone-700">ไม่พบเมนูที่ส่งมาขาย</h3>
+                        <p className="text-stone-400 text-sm mt-1">ไม่มีสินค้าที่พร้อมขายส่งมาที่ตลาดนี้นะครับ (กรุณากรอก "ส่งไปร้าน" ในหน้าสต็อกเมนูก่อน)</p>
+                    </div>
+                </div>
+            ) : (
+                <div className="space-y-4">
+                    {Array.from(groupedLogs.entries()).map(([productId, group]) => {
+                        const isExpanded = expandedGroups.has(productId);
+                        const hasVariants = group.hasVariants;
 
-                    return (
-                        <div key={productId} className="bg-white rounded-2xl shadow-sm border border-cafe-100 overflow-hidden">
-                            {/* Group Header */}
-                            <div
-                                className="px-4 py-3 flex items-center justify-between cursor-pointer transition-colors bg-gradient-to-r from-cafe-600 to-cafe-700 text-white hover:from-cafe-700 hover:to-cafe-800"
-                                onClick={() => hasVariants && toggleGroup(productId)}
-                            >
-                                <div className="flex items-center gap-3">
-                                    <span className="font-bold text-white">
-                                        {group.product.name}
-                                    </span>
-                                    {hasVariants && (
-                                        <span className="text-xs bg-white/20 px-2 py-0.5 rounded-full">
-                                            {group.items.length} รส
+                        return (
+                            <div key={productId} className="bg-white rounded-2xl shadow-sm border border-cafe-100 overflow-hidden">
+                                {/* Group Header */}
+                                <div
+                                    className="px-4 py-3 flex items-center justify-between cursor-pointer transition-colors bg-gradient-to-r from-cafe-600 to-cafe-700 text-white hover:from-cafe-700 hover:to-cafe-800"
+                                    onClick={() => hasVariants && toggleGroup(productId)}
+                                >
+                                    <div className="flex items-center gap-3">
+                                        <span className="font-bold text-white">
+                                            {group.product.name}
                                         </span>
-                                    )}
-                                </div>
-                                <div className="flex items-center gap-2">
-                                    <span className="text-xs px-2 py-1 rounded-full font-bold bg-blue-400/30 text-white">
-                                        📦 {group.totalAvailable}
-                                    </span>
-                                    <span className="text-xs px-2 py-1 rounded-full font-bold bg-green-400/30 text-white">
-                                        ✅ {group.totalSold}
-                                    </span>
-                                    {hasVariants && (
-                                        isExpanded ? <ChevronUp size={20} /> : <ChevronDown size={20} />
-                                    )}
-                                </div>
-                            </div>
-
-                            {/* Items Grid - Always show for single products, toggle for groups */}
-                            {(!hasVariants || isExpanded) && (
-                                <div className={`p-3 ${hasVariants ? 'bg-cafe-50' : ''}`}>
-                                    <div className={`grid gap-3 ${hasVariants ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3' : ''}`}>
-                                        {group.items.map(item => {
-                                            const available = item.preparedQty || 0;
-                                            const waste = item.wasteQty || 0;
-                                            const leftover = item.leftoverQty || 0;
-                                            const free = item.freeQty || 0;
-                                            const sold = item.soldQty || 0;
-                                            const isOverflow = (waste + leftover + free) > available;
-
-                                            return (
-                                                <div
-                                                    key={`${item.productId}-${item.variantId || ''}`}
-                                                    className={`bg-white rounded-xl shadow-sm border p-3 ${isOverflow ? 'border-red-400 ring-2 ring-red-200' : 'border-cafe-100'}`}
-                                                >
-                                                    {/* Header Row */}
-                                                    <div className="flex items-center justify-between mb-2">
-                                                        <div className="flex items-center gap-2 min-w-0 flex-1">
-                                                            {item.variant && (
-                                                                <span className="font-bold text-cafe-800 truncate">{item.variant.name}</span>
-                                                            )}
-                                                            {!item.variant && (
-                                                                <span className="text-xs text-cafe-400">{item.product.category}</span>
-                                                            )}
-                                                        </div>
-                                                        <div className="flex items-center gap-2 shrink-0">
-                                                            <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-bold">{available}</span>
-                                                            <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${isOverflow ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>{sold}</span>
-                                                        </div>
-                                                    </div>
-
-                                                    {/* Overflow Warning */}
-                                                    {isOverflow && (
-                                                        <div className="text-xs text-red-600 bg-red-50 rounded-lg px-2 py-1 mb-2 flex items-center gap-1">
-                                                            <AlertCircle size={12} /> ยอดรวมเกินจำนวนของ!
-                                                        </div>
-                                                    )}
-
-                                                    {/* Input Row */}
-                                                    <div className="flex items-center gap-2">
-                                                        {/* Waste */}
-                                                        <div className="flex items-center gap-1 bg-red-50 rounded-lg px-2 py-1.5 flex-1">
-                                                            <span className="text-xs text-red-600">🗑️ เสีย</span>
-                                                            <NumberInput
-                                                                value={waste}
-                                                                onChange={val => handleLogChange(item.logIndex, 'wasteQty', val)}
-                                                                className="w-12 text-center text-sm font-bold bg-white border border-red-200 rounded ml-auto"
-                                                            />
-                                                        </div>
-
-                                                        {/* กินแจก (Free) */}
-                                                        <div className="flex items-center gap-1 bg-violet-50 rounded-lg px-2 py-1.5 flex-1">
-                                                            <UtensilsCrossed size={12} className="text-violet-500 shrink-0" />
-                                                            <span className="text-xs text-violet-600">กินแจก</span>
-                                                            <NumberInput
-                                                                value={free}
-                                                                onChange={val => handleLogChange(item.logIndex, 'freeQty', val)}
-                                                                className="w-12 text-center text-sm font-bold bg-white border border-violet-200 rounded ml-auto"
-                                                            />
-                                                        </div>
-
-                                                        {/* Leftover */}
-                                                        <div className="flex items-center gap-1 bg-amber-50 rounded-lg px-2 py-1.5 flex-1">
-                                                            <span className="text-xs text-amber-600">📦 เหลือ</span>
-                                                            <NumberInput
-                                                                value={leftover}
-                                                                onChange={val => handleLogChange(item.logIndex, 'leftoverQty', val)}
-                                                                className="w-12 text-center text-sm font-bold bg-white border border-amber-200 rounded ml-auto"
-                                                            />
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            );
-                                        })}
+                                        {hasVariants && (
+                                            <span className="text-xs bg-white/20 px-2 py-0.5 rounded-full">
+                                                {group.items.length} รส
+                                            </span>
+                                        )}
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-xs px-2 py-1 rounded-full font-bold bg-blue-400/30 text-white">
+                                            📦 {group.totalAvailable}
+                                        </span>
+                                        <span className="text-xs px-2 py-1 rounded-full font-bold bg-green-400/30 text-white">
+                                            ✅ {group.totalSold}
+                                        </span>
+                                        {hasVariants && (
+                                            isExpanded ? <ChevronUp size={20} /> : <ChevronDown size={20} />
+                                        )}
                                     </div>
                                 </div>
-                            )}
-                        </div>
-                    );
-                })}
-            </div>
+
+                                {/* Items Grid - Always show for single products, toggle for groups */}
+                                {(!hasVariants || isExpanded) && (
+                                    <div className={`p-3 ${hasVariants ? 'bg-cafe-50' : ''}`}>
+                                        <div className={`grid gap-3 ${hasVariants ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3' : ''}`}>
+                                            {group.items.map(item => {
+                                                const available = item.preparedQty || 0;
+                                                const waste = item.wasteQty || 0;
+                                                const leftover = item.leftoverQty || 0;
+                                                const free = item.freeQty || 0;
+                                                const sold = item.soldQty || 0;
+                                                const isOverflow = (waste + leftover + free) > available;
+
+                                                return (
+                                                    <div
+                                                        key={`${item.productId}-${item.variantId || ''}`}
+                                                        className={`bg-white rounded-xl shadow-sm border p-3 ${isOverflow ? 'border-red-400 ring-2 ring-red-200' : 'border-cafe-100'}`}
+                                                    >
+                                                        {/* Header Row */}
+                                                        <div className="flex items-center justify-between mb-2">
+                                                            <div className="flex items-center gap-2 min-w-0 flex-1">
+                                                                {item.variant && (
+                                                                    <span className="font-bold text-cafe-800 truncate">{item.variant.name}</span>
+                                                                )}
+                                                                {!item.variant && (
+                                                                    <span className="text-xs text-cafe-400">{item.product.category}</span>
+                                                                )}
+                                                            </div>
+                                                            <div className="flex items-center gap-2 shrink-0">
+                                                                <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-bold">{available}</span>
+                                                                <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${isOverflow ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>{sold}</span>
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Overflow Warning */}
+                                                        {isOverflow && (
+                                                            <div className="text-xs text-red-600 bg-red-50 rounded-lg px-2 py-1 mb-2 flex items-center gap-1">
+                                                                <AlertCircle size={12} /> ยอดรวมเกินจำนวนของ!
+                                                            </div>
+                                                        )}
+
+                                                        {/* Input Row */}
+                                                        <div className="flex items-center gap-2">
+                                                            {/* Waste */}
+                                                            <div className="flex items-center gap-1 bg-red-50 rounded-lg px-2 py-1.5 flex-1">
+                                                                <span className="text-xs text-red-600">🗑️ เสีย</span>
+                                                                <NumberInput
+                                                                    value={waste}
+                                                                    onChange={val => handleLogChange(item.logIndex, 'wasteQty', val)}
+                                                                    className="w-12 text-center text-sm font-bold bg-white border border-red-200 rounded ml-auto"
+                                                                />
+                                                            </div>
+
+                                                            {/* กินแจก (Free) */}
+                                                            <div className="flex items-center gap-1 bg-violet-50 rounded-lg px-2 py-1.5 flex-1">
+                                                                <UtensilsCrossed size={12} className="text-violet-500 shrink-0" />
+                                                                <span className="text-xs text-violet-600">กินแจก</span>
+                                                                <NumberInput
+                                                                    value={free}
+                                                                    onChange={val => handleLogChange(item.logIndex, 'freeQty', val)}
+                                                                    className="w-12 text-center text-sm font-bold bg-white border border-violet-200 rounded ml-auto"
+                                                                />
+                                                            </div>
+
+                                                            {/* Leftover */}
+                                                            <div className="flex items-center gap-1 bg-amber-50 rounded-lg px-2 py-1.5 flex-1">
+                                                                <span className="text-xs text-amber-600">📦 เหลือ</span>
+                                                                <NumberInput
+                                                                    value={leftover}
+                                                                    onChange={val => handleLogChange(item.logIndex, 'leftoverQty', val)}
+                                                                    className="w-12 text-center text-sm font-bold bg-white border border-amber-200 rounded ml-auto"
+                                                                />
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    })}
+                </div>
+            )}
 
             {/* Summary Footer */}
             <div className="bg-gradient-to-r from-green-50 to-emerald-50 p-6 rounded-2xl border-2 border-green-200 shadow-lg">

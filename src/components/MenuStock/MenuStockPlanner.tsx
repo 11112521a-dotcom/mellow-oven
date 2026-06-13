@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useStore } from '@/src/store';
-import { Package, Save, Calendar, AlertCircle, Flame, Truck, X, Check, Sparkles, ChevronDown, ChevronUp, Layers, Box, Edit2, RotateCcw, Target, Zap, Trash2, RefreshCw, UtensilsCrossed, Gift } from 'lucide-react';
+import { Package, Save, Calendar, AlertCircle, Flame, Truck, X, Check, Sparkles, ChevronDown, ChevronUp, Layers, Box, Edit2, RotateCcw, Target, Zap, Trash2, RefreshCw, UtensilsCrossed, Gift, Store } from 'lucide-react';
 import { Product, Variant } from '@/types';
 import { useDraftStorage } from '@/src/hooks/useFormDraft';
 
@@ -320,14 +320,15 @@ const EditInventoryModal: React.FC<{
 
 
 export const MenuStockPlanner: React.FC = () => {
-    const { products, dailyInventory, fetchDailyInventory, upsertDailyInventory, bulkUpsertDailyInventory, getYesterdayStock } = useStore();
+    const { products, markets, dailyInventory, fetchDailyInventory, upsertDailyInventory, bulkUpsertDailyInventory, getYesterdayStock } = useStore();
 
     const [businessDate, setBusinessDate] = useState(() => new Date().toISOString().split('T')[0]);
+    const [selectedMarketId, setSelectedMarketId] = useState<string>('');
     const [isSaving, setIsSaving] = useState(false);
     const [draftRestored, setDraftRestored] = useState(false);
 
-    // Draft storage for auto-save
-    const draftKey = `menu-stock-${businessDate}`;
+    // Draft storage for auto-save (market isolated)
+    const draftKey = `menu-stock-${businessDate}${selectedMarketId ? `-${selectedMarketId}` : ''}`;
     const { saveDraft, loadDraft, clearDraft } = useDraftStorage<{
         pendingProduction: Record<string, number>;
         pendingTransfer: Record<string, number>;
@@ -383,8 +384,14 @@ export const MenuStockPlanner: React.FC = () => {
         }
     }, [pendingProduction, pendingTransfer, pendingWaste, pendingFree, saveDraft]);
 
-    // Restore draft on mount or date change
+    // Restore draft on mount, date change, or market change
     useEffect(() => {
+        // Reset state first to prevent cross-market draft bleeding
+        setPendingProduction({});
+        setPendingTransfer({});
+        setPendingWaste({});
+        setPendingFree({});
+
         const draft = loadDraft();
         if (draft) {
             if (Object.keys(draft.pendingProduction || {}).length > 0) {
@@ -409,7 +416,7 @@ export const MenuStockPlanner: React.FC = () => {
                 setTimeout(() => setDraftRestored(false), 5000); // Hide after 5s
             }
         }
-    }, [businessDate]); // Re-run when date changes
+    }, [businessDate, selectedMarketId, loadDraft]); // Re-run when date or market changes
 
     // Clear draft after successful save
     const handleClearDraft = useCallback(() => {
@@ -442,9 +449,18 @@ export const MenuStockPlanner: React.FC = () => {
     // Flatten products with variants into a single list
     const inventoryItems: InventoryItem[] = useMemo(() => {
         const items: InventoryItem[] = [];
+        if (!selectedMarketId) return items; // 🆕 Force market selection
+        
         products.forEach(product => {
             // 🆕 Skip inactive products (พักขาย)
             if (product.isActive === false) return;
+            
+            // Filter by Market selection:
+            // - If sell everywhere (marketIds is empty), show in any view.
+            // - If restricted to specific markets, show only when the selected market matches.
+            const isSellEverywhere = !product.marketIds || product.marketIds.length === 0;
+            const isSelectedMarket = !!(selectedMarketId && product.marketIds && product.marketIds.includes(selectedMarketId));
+            if (!isSellEverywhere && !isSelectedMarket) return;
 
             if (product.variants && product.variants.length > 0) {
                 // Product has variants - add each variant
@@ -474,7 +490,7 @@ export const MenuStockPlanner: React.FC = () => {
             }
         });
         return items;
-    }, [products]);
+    }, [products, selectedMarketId]);
 
     // Group items by parent product for display
     const groupedItems = useMemo(() => {
@@ -505,7 +521,8 @@ export const MenuStockPlanner: React.FC = () => {
         const saved = dailyInventory.find(d =>
             d.businessDate === businessDate &&
             d.productId === item.productId &&
-            (d.variantId || '') === (item.variantId || '')
+            d.variantId === (item.variantId || undefined) &&
+            (selectedMarketId ? d.marketId === selectedMarketId : !d.marketId)
         );
         return saved || {
             producedQty: 0,
@@ -597,6 +614,7 @@ export const MenuStockPlanner: React.FC = () => {
                 businessDate,
                 productId: item.productId,
                 variantId: item.variantId || null,
+                marketId: selectedMarketId || undefined,
                 stockYesterday,
                 producedQty,
                 toShopQty,
@@ -740,6 +758,7 @@ export const MenuStockPlanner: React.FC = () => {
                 productId: string;
                 variantId: string | null;
                 variantName: string | null;
+                marketId?: string;
                 producedQty: number;
                 toShopQty: number;
                 wasteQty: number;
@@ -771,6 +790,7 @@ export const MenuStockPlanner: React.FC = () => {
                         productId: item.productId,
                         variantId: item.variantId || null,
                         variantName: item.isVariant ? item.name : null,
+                        marketId: selectedMarketId || undefined,
                         producedQty: (saved.producedQty || 0) + value,
                         toShopQty: saved.toShopQty || 0,
                         wasteQty: saved.wasteQty || 0,   // PRESERVE existing waste
@@ -801,6 +821,7 @@ export const MenuStockPlanner: React.FC = () => {
                             productId: item.productId,
                             variantId: item.variantId || null,
                             variantName: item.isVariant ? item.name : null,
+                            marketId: selectedMarketId || undefined,
                             producedQty: saved.producedQty || 0,
                             toShopQty: alreadySent + safeTransfer,
                             wasteQty: saved.wasteQty || 0,   // PRESERVE existing waste
@@ -872,6 +893,7 @@ export const MenuStockPlanner: React.FC = () => {
             businessDate,
             productId: item.productId,
             variantId: item.variantId,
+            marketId: selectedMarketId || undefined,
             variantName: item.isVariant ? item.name : undefined,
             producedQty: newProducedQty,
             toShopQty: newToShopQty,
@@ -895,6 +917,7 @@ export const MenuStockPlanner: React.FC = () => {
             businessDate,
             productId: item.productId,
             variantId: item.variantId,
+            marketId: selectedMarketId || undefined,
             variantName: item.isVariant ? item.name : undefined,
             producedQty: saved.producedQty || 0,
             toShopQty: saved.toShopQty || 0,
@@ -926,6 +949,7 @@ export const MenuStockPlanner: React.FC = () => {
             businessDate,
             productId: item.productId,
             variantId: item.variantId,
+            marketId: selectedMarketId || undefined,
             variantName: item.isVariant ? item.name : undefined,
             producedQty: saved.producedQty || 0,
             toShopQty: saved.toShopQty || 0,
@@ -959,6 +983,7 @@ export const MenuStockPlanner: React.FC = () => {
                     productId: item.productId,
                     variantId: item.variantId || undefined,
                     variantName: item.isVariant ? item.name : undefined,
+                    marketId: selectedMarketId || undefined,
                     producedQty: (saved.producedQty || 0) + value, // ADD mode
                     toShopQty: saved.toShopQty || 0,
                     wasteQty: saved.wasteQty || 0,   // PRESERVE existing waste
@@ -996,6 +1021,7 @@ export const MenuStockPlanner: React.FC = () => {
                         productId: item.productId,
                         variantId: item.variantId || undefined,
                         variantName: item.isVariant ? item.name : undefined,
+                        marketId: selectedMarketId || undefined,
                         producedQty: (saved.producedQty || 0) + needed, // Add ONLY what's needed
                         toShopQty: saved.toShopQty || 0,
                         wasteQty: saved.wasteQty || 0,   // PRESERVE existing waste
@@ -1386,9 +1412,9 @@ export const MenuStockPlanner: React.FC = () => {
                 <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -translate-y-1/2 translate-x-1/2" />
                 <div className="absolute bottom-0 left-0 w-32 h-32 bg-white/5 rounded-full translate-y-1/2 -translate-x-1/2" />
 
-                <div className="relative flex items-center justify-between">
+                <div className="relative flex flex-col md:flex-row md:items-center justify-between gap-6">
                     <div className="flex items-center gap-4">
-                        <div className="w-14 h-14 bg-white/10 backdrop-blur rounded-xl flex items-center justify-center">
+                        <div className="w-14 h-14 bg-white/10 backdrop-blur rounded-xl flex items-center justify-center flex-shrink-0">
                             <Package size={28} />
                         </div>
                         <div>
@@ -1400,14 +1426,32 @@ export const MenuStockPlanner: React.FC = () => {
                         </div>
                     </div>
 
-                    <div className="flex items-center gap-3 bg-white/10 backdrop-blur rounded-xl p-3">
-                        <Calendar size={20} className="text-cafe-200" />
-                        <input
-                            type="date"
-                            value={businessDate}
-                            onChange={e => setBusinessDate(e.target.value)}
-                            className="bg-transparent border-none text-white font-medium focus:ring-0 cursor-pointer"
-                        />
+                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                        {/* Market Selector */}
+                        <div className="flex items-center gap-2 bg-white/10 backdrop-blur rounded-xl p-3 pl-4">
+                            <Store size={20} className="text-cafe-200 flex-shrink-0" />
+                            <select
+                                value={selectedMarketId}
+                                onChange={e => setSelectedMarketId(e.target.value)}
+                                className="bg-transparent border-none text-white font-medium focus:ring-0 cursor-pointer w-full text-sm sm:text-base py-0"
+                            >
+                                <option value="" className="text-gray-900">-- เลือกตลาด/สาขา --</option>
+                                {markets.map(m => (
+                                    <option key={m.id} value={m.id} className="text-gray-900">{m.name}</option>
+                                ))}
+                            </select>
+                        </div>
+
+                        {/* Date Selector */}
+                        <div className="flex items-center gap-3 bg-white/10 backdrop-blur rounded-xl p-3">
+                            <Calendar size={20} className="text-cafe-200 flex-shrink-0" />
+                            <input
+                                type="date"
+                                value={businessDate}
+                                onChange={e => setBusinessDate(e.target.value)}
+                                className="bg-transparent border-none text-white font-medium focus:ring-0 cursor-pointer w-full text-sm sm:text-base py-0"
+                            />
+                        </div>
                     </div>
                 </div>
             </header>
@@ -1547,12 +1591,22 @@ export const MenuStockPlanner: React.FC = () => {
                 })}
             </div>
 
-            {inventoryItems.length === 0 && (
+            {!selectedMarketId ? (
+                <div className="bg-white rounded-2xl p-12 text-center border border-dashed border-amber-200 shadow-sm flex flex-col items-center justify-center gap-4">
+                    <div className="w-16 h-16 bg-amber-50 rounded-full flex items-center justify-center text-amber-500 animate-pulse">
+                        <Store size={32} />
+                    </div>
+                    <div>
+                        <h3 className="text-lg font-bold text-stone-700">กรุณาเลือกตลาด/สาขา</h3>
+                        <p className="text-stone-400 text-sm mt-1">กรุณาเลือกตลาดหรือสาขาที่ต้องการจัดการสต็อกประจำวันจากเมนูด้านบนก่อนนะครับ</p>
+                    </div>
+                </div>
+            ) : inventoryItems.length === 0 ? (
                 <div className="bg-white rounded-2xl p-12 text-center border border-dashed border-cafe-200">
                     <Package className="mx-auto text-cafe-300 mb-4" size={48} />
-                    <p className="text-cafe-400">ยังไม่มีสินค้าในระบบ</p>
+                    <p className="text-cafe-400">ไม่มีรายการสินค้าที่วางขายในตลาดนี้</p>
                 </div>
-            )}
+            ) : null}
 
 
             {/* Confirmation Modal */}

@@ -1,5 +1,6 @@
 import React from 'react';
-import { Package, RefreshCw, Calendar } from 'lucide-react';
+import { Package, RefreshCw, Calendar, Store } from 'lucide-react';
+import { Market } from '@/types';
 
 interface Props {
     date: string;
@@ -11,9 +12,12 @@ interface Props {
         sent: number;
         waste: number;
     };
+    markets: Market[];
+    selectedMarketId: string;
+    onMarketChange: (id: string) => void;
 }
 
-export const MenuStockHeader: React.FC<Props> = ({ date, onDateChange, onRefresh, stats }) => {
+export const MenuStockHeader: React.FC<Props> = ({ date, onDateChange, onRefresh, stats, markets, selectedMarketId, onMarketChange }) => {
     return (
         <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-cafe-800 via-cafe-700 to-cafe-900 p-6 text-white shadow-xl mb-6">
             {/* Background Decoration */}
@@ -44,6 +48,21 @@ export const MenuStockHeader: React.FC<Props> = ({ date, onDateChange, onRefresh
                             className="bg-transparent border-none text-white font-medium focus:ring-0 text-sm py-1"
                         />
                     </div>
+                    {/* Market Selector */}
+                    <div className="flex items-center gap-2 bg-black/20 backdrop-blur-md rounded-lg p-1 pl-3 border border-white/10 hidden md:flex">
+                        <Store size={16} className="text-cafe-200" />
+                        <select
+                            value={selectedMarketId}
+                            onChange={(e) => onMarketChange(e.target.value)}
+                            className="bg-transparent border-none text-white font-medium focus:ring-0 text-sm py-1 cursor-pointer w-full"
+                        >
+                            <option value="" className="text-gray-900">-- เลือกตลาด/สาขา --</option>
+                            {markets.map(m => (
+                                <option key={m.id} value={m.id} className="text-gray-900">{m.name}</option>
+                            ))}
+                        </select>
+                    </div>
+
                     <button
                         onClick={onRefresh}
                         className="p-2 bg-white/10 hover:bg-white/20 rounded-lg transition-colors border border-white/10"
@@ -52,6 +71,21 @@ export const MenuStockHeader: React.FC<Props> = ({ date, onDateChange, onRefresh
                         <RefreshCw size={20} />
                     </button>
                 </div>
+            </div>
+
+            {/* Mobile Market Selector */}
+            <div className="md:hidden mb-6 flex items-center gap-2 bg-black/20 backdrop-blur-md rounded-lg p-2 pl-3 border border-white/10">
+                <Store size={16} className="text-cafe-200" />
+                <select
+                    value={selectedMarketId}
+                    onChange={(e) => onMarketChange(e.target.value)}
+                    className="bg-transparent border-none text-white font-medium focus:ring-0 text-sm py-1 cursor-pointer w-full"
+                >
+                    <option value="" className="text-gray-900">-- เลือกตลาด/สาขา --</option>
+                    {markets.map(m => (
+                        <option key={m.id} value={m.id} className="text-gray-900">{m.name}</option>
+                    ))}
+                </select>
             </div>
 
             {/* Stats Grid */}

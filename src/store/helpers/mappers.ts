@@ -81,6 +81,7 @@ export const mapDailyInventory = (d: Record<string, any>): DailyInventory => ({
     id: d.id,
     createdAt: d.created_at || d.createdAt, // Fallback for stability
     businessDate: d.business_date,
+    marketId: d.market_id,
     productId: d.product_id,
     variantId: d.variant_id,
     variantName: d.variant_name,
