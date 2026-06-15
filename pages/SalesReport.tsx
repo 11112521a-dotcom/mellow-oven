@@ -666,6 +666,17 @@ export const SalesReport: React.FC = () => {
                         >
                             Export PDF
                         </AnimatedButton>
+
+                        {/* Detailed Report Button */}
+                        <AnimatedButton
+                            onClick={() => setIsDetailedReportOpen(true)}
+                            icon={FileText}
+                            variant="primary"
+                            glow
+                            title="รายงานละเอียด"
+                        >
+                            รายงานละเอียด
+                        </AnimatedButton>
                     </div>
                 </div>
             </div>
@@ -1516,7 +1527,7 @@ export const SalesReport: React.FC = () => {
                             )}
 
                             <EditSalesModal isOpen={isEditModalOpen} onClose={() => setIsEditModalOpen(false)} saleData={editingSale} onSave={handleSaveEdit} />
-                            <DetailedSalesReportModal isOpen={isDetailedReportOpen} onClose={() => setIsDetailedReportOpen(false)} />
+                            <DetailedSalesReportModal isOpen={isDetailedReportOpen} onClose={() => setIsDetailedReportOpen(false)} defaultMarketId={selectedMarket} />
 
 
                         </>

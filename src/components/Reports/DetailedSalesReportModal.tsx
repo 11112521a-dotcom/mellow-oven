@@ -19,6 +19,7 @@ import { OracleInsightCard } from '../SalesReport/OracleInsightCard';
 interface DetailedSalesReportModalProps {
     isOpen: boolean;
     onClose: () => void;
+    defaultMarketId?: string;
 }
 
 // Weather icons
@@ -29,8 +30,16 @@ const weatherIcons: Record<string, string> = {
     storm: '⛈️'
 };
 
-export const DetailedSalesReportModal: React.FC<DetailedSalesReportModalProps> = ({ isOpen, onClose }) => {
+export const DetailedSalesReportModal: React.FC<DetailedSalesReportModalProps> = ({ isOpen, onClose, defaultMarketId = 'all' }) => {
     const { productSales, fetchProductSales, markets, shopInfo, products } = useStore();
+    const [selectedMarketId, setSelectedMarketId] = useState<string>(defaultMarketId);
+
+    // Sync selected market when modal opens or defaults change
+    useEffect(() => {
+        if (isOpen) {
+            setSelectedMarketId(defaultMarketId);
+        }
+    }, [isOpen, defaultMarketId]);
 
     // Date range - default to last 7 days
     const today = new Date().toISOString().split('T')[0];
@@ -51,9 +60,21 @@ export const DetailedSalesReportModal: React.FC<DetailedSalesReportModalProps> =
         const runAnalysis = async () => {
             setIsOracleLoading(true);
             try {
+                // Filter sales for the selected market & date range
+                const relevantSales = productSales.filter(s => {
+                    const dateMatch = s.saleDate >= fromDate && s.saleDate <= toDate;
+                    const marketMatch = selectedMarketId === 'all' || s.marketId === selectedMarketId;
+                    return dateMatch && marketMatch;
+                });
+
+                if (relevantSales.length === 0) {
+                    setOraclePatterns([]);
+                    return;
+                }
+
                 // 1. Identify Top Products (Limit to Top 5 for performance)
                 const productRevenueMap = new Map<string, number>();
-                productSales.forEach(s => {
+                relevantSales.forEach(s => {
                     const rev = productRevenueMap.get(s.productId) || 0;
                     productRevenueMap.set(s.productId, rev + s.totalRevenue);
                 });
@@ -66,15 +87,15 @@ export const DetailedSalesReportModal: React.FC<DetailedSalesReportModalProps> =
                 const allPatterns: OraclePattern[] = [];
 
                 for (const pid of topProductIds) {
-                    const productHistory = productSales.filter(s => s.productId === pid);
+                    const productHistory = relevantSales.filter(s => s.productId === pid);
                     const product = products.find(p => p.id === pid);
 
-                    if (product && productHistory.length > 10) { // Min data check
+                    if (product && productHistory.length > 5) { // Min data check
                         const patterns = await runOracle(
                             product.name,
                             pid,
                             productHistory,
-                            productSales // Context
+                            relevantSales // Context
                         );
                         allPatterns.push(...patterns);
                     }
@@ -92,7 +113,7 @@ export const DetailedSalesReportModal: React.FC<DetailedSalesReportModalProps> =
         // Debounce slightly to allow UI to settle
         const timer = setTimeout(runAnalysis, 500);
         return () => clearTimeout(timer);
-    }, [isOpen, productSales, products]);
+    }, [isOpen, productSales, products, selectedMarketId, fromDate, toDate]);
 
     // #22: ESC key to dismiss modal
     useEffect(() => {
@@ -126,12 +147,14 @@ export const DetailedSalesReportModal: React.FC<DetailedSalesReportModalProps> =
         }
     }, [isOpen, fetchProductSales]);
 
-    // Filter data by date range
+    // Filter data by date range and selected market
     const filteredSales = useMemo(() => {
-        return productSales.filter(sale =>
-            sale.saleDate >= fromDate && sale.saleDate <= toDate
-        );
-    }, [productSales, fromDate, toDate]);
+        return productSales.filter(sale => {
+            const dateMatch = sale.saleDate >= fromDate && sale.saleDate <= toDate;
+            const marketMatch = selectedMarketId === 'all' || sale.marketId === selectedMarketId;
+            return dateMatch && marketMatch;
+        });
+    }, [productSales, fromDate, toDate, selectedMarketId]);
 
     // Summary calculations
     const summary = useMemo(() => {
@@ -585,7 +608,7 @@ export const DetailedSalesReportModal: React.FC<DetailedSalesReportModalProps> =
 <body>
     <div class="container">
         <div class="header">
-            <h1>📊 รายงานการขายละเอียด</h1>
+            <h1>📊 รายงานการขายละเอียด${selectedMarketId !== 'all' ? ` - ${markets.find(m => m.id === selectedMarketId)?.name || ''}` : ''}</h1>
             <p>ช่วงวันที่: ${formatDate(fromDate)} - ${formatDate(toDate)} | ${shopInfo?.shopName || 'ร้านค้า'}</p>
         </div>
 
@@ -622,6 +645,7 @@ export const DetailedSalesReportModal: React.FC<DetailedSalesReportModalProps> =
         <p style="text-align:right;color:#666;font-size:12px;margin-bottom:20px;">(${numberToBahtText(summary.totalRevenue)})</p>
 
         <!-- By Market -->
+        ${selectedMarketId === 'all' ? `
         <h2>🏪 แยกตามตลาด</h2>
         <table>
             <thead>
@@ -636,6 +660,7 @@ export const DetailedSalesReportModal: React.FC<DetailedSalesReportModalProps> =
             </thead>
             <tbody>${marketRows}</tbody>
         </table>
+        ` : ''}
 
         <!-- Daily Breakdown -->
         <h2>📅 รายงานรายวัน</h2>
@@ -684,9 +709,11 @@ export const DetailedSalesReportModal: React.FC<DetailedSalesReportModalProps> =
         </table>
 
         <!-- NEW: Detailed Breakdown Per Market -->
+        ${selectedMarketId === 'all' ? `
         <h2 style="page-break-before:always;">📊 รายละเอียดแยกตามตลาด</h2>
         <p style="color:#666;font-size:12px;margin-bottom:15px;">แสดงสินค้าทั้งหมดที่ขายในแต่ละตลาด</p>
         ${perMarketSections}
+        ` : ''}
 
         <div style="margin-top:30px;text-align:center;color:#999;font-size:11px;">
             พิมพ์เมื่อ: ${new Date().toLocaleString('th-TH')}
@@ -701,7 +728,7 @@ export const DetailedSalesReportModal: React.FC<DetailedSalesReportModalProps> =
             printWindow.print();
             setIsPrinting(false); // Reset loading state
         }, 300);
-    }, [isPrinting, byMarket, byDate, topProducts, byProduct, productsByMarket, summary, fromDate, toDate, shopInfo]);
+    }, [isPrinting, byMarket, byDate, topProducts, byProduct, productsByMarket, summary, fromDate, toDate, shopInfo, selectedMarketId, markets]);
 
     if (!isOpen) return null;
 
@@ -752,6 +779,20 @@ export const DetailedSalesReportModal: React.FC<DetailedSalesReportModalProps> =
                         onChange={e => setToDate(e.target.value)}
                         className="px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
                     />
+                    <div className="flex items-center gap-2 ml-2">
+                        <Store className="w-5 h-5 text-gray-500" />
+                        <span className="text-gray-600 text-sm">ตลาด:</span>
+                    </div>
+                    <select
+                        value={selectedMarketId}
+                        onChange={e => setSelectedMarketId(e.target.value)}
+                        className="px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 bg-white cursor-pointer text-sm font-medium text-gray-700"
+                    >
+                        <option value="all">ทุกตลาด</option>
+                        {markets.map(m => (
+                            <option key={m.id} value={m.id}>{m.name}</option>
+                        ))}
+                    </select>
                     <button
                         onClick={handlePrint}
                         disabled={isPrinting}

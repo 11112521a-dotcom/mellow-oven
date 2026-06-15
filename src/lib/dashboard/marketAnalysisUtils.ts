@@ -125,6 +125,17 @@ export interface MarketInsight {
     value?: number;
 }
 
+export interface MarketBreakdownItem {
+    marketId: string;
+    marketName: string;
+    revenue: number;
+    cost: number;
+    profit: number;
+    quantity: number;
+    waste: number;
+    free: number;
+}
+
 export interface EnhancedMarketData {
     metrics: EnhancedMarketMetrics;
     productIntelligence: ProductIntelligence;
@@ -132,6 +143,7 @@ export interface EnhancedMarketData {
     dailyBreakdown: DailyBreakdown[];
     insights: MarketInsight[];
     dateRange: { from: string; to: string };
+    marketBreakdown?: MarketBreakdownItem[];
 }
 
 // ============================================================
@@ -381,13 +393,35 @@ export function calculateEnhancedMarketData(
     const combinedInsights = [...insights, ...smartInsights];
     const uniqueInsights = Array.from(new Map(combinedInsights.map(item => [item.id, item])).values());
 
+    let marketBreakdown: MarketBreakdownItem[] | undefined;
+    if (marketId === 'all') {
+        const breakdownMap = new Map<string, MarketBreakdownItem>();
+        marketSales.forEach(sale => {
+            const existing = breakdownMap.get(sale.marketId) || {
+                marketId: sale.marketId,
+                marketName: sale.marketName || 'Unknown Market',
+                revenue: 0, cost: 0, profit: 0, quantity: 0, waste: 0, free: 0
+            };
+            existing.revenue += sale.totalRevenue;
+            existing.cost += sale.totalCost;
+            existing.profit += sale.grossProfit;
+            existing.quantity += sale.quantitySold;
+            existing.waste += (sale.wasteQty || 0);
+            const saleExt = sale as ExtendedProductSaleLog;
+            existing.free += (saleExt.eatQty || 0) + (saleExt.giveawayQty || 0);
+            breakdownMap.set(sale.marketId, existing);
+        });
+        marketBreakdown = Array.from(breakdownMap.values()).sort((a, b) => b.revenue - a.revenue);
+    }
+
     return {
         metrics: resultMetrics,
         productIntelligence: resultIntelligence,
         dailyBreakdown,
         dayOfWeekAnalysis,
         dateRange: { from: fromDate, to: toDate },
-        insights: uniqueInsights
+        insights: uniqueInsights,
+        marketBreakdown
     };
 }
 
@@ -584,7 +618,7 @@ const formatCurrencyPDF = (value: number): string => {
 };
 
 export function generateMarketPDFReport(data: EnhancedMarketData): void {
-    const { metrics, productIntelligence, dailyBreakdown, dateRange, insights } = data; // Added insights
+    const { metrics, productIntelligence, dailyBreakdown, dateRange, insights, marketBreakdown } = data; // Added insights & marketBreakdown
     const { allProducts } = productIntelligence;
 
     // Local Formatters
@@ -864,6 +898,39 @@ export function generateMarketPDFReport(data: EnhancedMarketData): void {
                     <span>${i.icon}</span> ${i.title}
                 </div>
             `).join('')}
+        </div>
+        ` : ''}
+
+        <!-- 🏪 MARKET BREAKDOWN -->
+        ${marketBreakdown && marketBreakdown.length > 0 ? `
+        <div class="section-title">🏪 สรุปแยกตามตลาด</div>
+        <div class="table-container" style="margin-bottom: 24px;">
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width: 30%">ตลาด</th>
+                        <th class="text-right" style="width: 14%">รายรับ</th>
+                        <th class="text-right" style="width: 14%">ต้นทุน</th>
+                        <th class="text-right" style="width: 14%">กำไรสุทธิ</th>
+                        <th class="text-right" style="width: 14%">ขายได้ (ชิ้น)</th>
+                        <th class="text-right" style="width: 14%">กิน/แจก (ชิ้น)</th>
+                        <th class="text-right" style="width: 10%">เสีย (ชิ้น)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${marketBreakdown.map(m => `
+                    <tr>
+                        <td class="text-bold">🏪 ${m.marketName}</td>
+                        <td class="text-right">${formatCurrencyPDF(m.revenue)}</td>
+                        <td class="text-right">${formatCurrencyPDF(m.cost)}</td>
+                        <td class="text-right text-emerald">${formatCurrencyPDF(m.profit)}</td>
+                        <td class="text-right">${formatNumberPDF(m.quantity)}</td>
+                        <td class="text-right text-violet">${m.free > 0 ? formatNumberPDF(m.free) : '-'}</td>
+                        <td class="text-right text-rose">${m.waste > 0 ? formatNumberPDF(m.waste) : '-'}</td>
+                    </tr>
+                    `).join('')}
+                </tbody>
+            </table>
         </div>
         ` : ''}
 
