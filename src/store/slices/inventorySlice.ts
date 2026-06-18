@@ -221,9 +221,6 @@ export const createInventorySlice: StateCreator<AppState, [], [], InventorySlice
         let query = supabase.from('daily_inventory').select('*').eq('business_date', record.businessDate).eq('product_id', record.productId);
         if (record.variantId) query = query.eq('variant_id', record.variantId);
         else query = query.is('variant_id', null);
-        
-        if (record.marketId) query = query.eq('market_id', record.marketId);
-        else query = query.is('market_id', null);
 
         // 🛡️ FIX: Use .limit(1) instead of .single() to gracefully handle race-condition duplicates in DB
         const { data: existingRecords } = await query.order('created_at', { ascending: false }).limit(1);
@@ -256,8 +253,6 @@ export const createInventorySlice: StateCreator<AppState, [], [], InventorySlice
             unsold_shop: unsoldShop
         };
 
-        if (record.marketId) dbRecord.market_id = record.marketId;
-
         if (record.variantId) dbRecord.variant_id = record.variantId;
         if (record.variantName) dbRecord.variant_name = record.variantName;
         let resultData;
@@ -280,8 +275,7 @@ export const createInventorySlice: StateCreator<AppState, [], [], InventorySlice
                 const index = state.dailyInventory.findIndex(d =>
                     d.businessDate === record.businessDate &&
                     d.productId === record.productId &&
-                    d.variantId === record.variantId &&
-                    d.marketId === record.marketId
+                    d.variantId === record.variantId
                 );
                 if (index >= 0) {
                     const updated = [...state.dailyInventory];
@@ -316,8 +310,7 @@ export const createInventorySlice: StateCreator<AppState, [], [], InventorySlice
             const matches = existingRows?.filter(row =>
                 row.business_date === record.businessDate &&
                 row.product_id === record.productId &&
-                ((!row.variant_id && !record.variantId) || (row.variant_id === record.variantId)) &&
-                ((!row.market_id && !record.marketId) || (row.market_id === record.marketId))
+                ((!row.variant_id && !record.variantId) || (row.variant_id === record.variantId))
             ) || [];
 
             if (matches.length > 1) {
@@ -339,9 +332,6 @@ export const createInventorySlice: StateCreator<AppState, [], [], InventorySlice
             const dbRecord: Record<string, unknown> = {
                 business_date: record.businessDate,
                 product_id: record.productId,
-                variant_id: record.variantId || null,
-                variant_name: record.variantName || null,
-                market_id: record.marketId || null,
                 produced_qty: produced,
                 to_shop_qty: toShop,
                 sold_qty: sold,

@@ -3,13 +3,12 @@ import { useStore } from '@/src/store';
 import { MenuStockHeader } from './MenuStockHeader';
 import { QuickActions } from './QuickActions';
 import { InventoryCard } from './InventoryCard';
-import { Package, Store } from 'lucide-react';
+import { Package } from 'lucide-react';
 
 export const MenuStockPlannerV2: React.FC = () => {
     // 1. Store & State
-    const { products, markets, dailyInventory, fetchDailyInventory, upsertDailyInventory, getYesterdayStock } = useStore();
+    const { products, dailyInventory, fetchDailyInventory, upsertDailyInventory, getYesterdayStock } = useStore();
     const [businessDate, setBusinessDate] = useState(() => new Date().toISOString().split('T')[0]);
-    const [selectedMarketId, setSelectedMarketId] = useState<string>('');
     const [searchQuery, setSearchQuery] = useState('');
     const [viewMode, setViewMode] = useState<'list' | 'grid'>('grid');
     const [isRefreshing, setIsRefreshing] = useState(false);
@@ -32,7 +31,6 @@ export const MenuStockPlannerV2: React.FC = () => {
 
     // 4. Data Preparation (Zombie Filtering Included via products list)
     const inventoryItems = useMemo(() => {
-        if (!selectedMarketId) return [];
         // Create a map of daily records for fast lookup
         const inventoryMap = new Map(
             dailyInventory
@@ -43,15 +41,6 @@ export const MenuStockPlannerV2: React.FC = () => {
         // Map active products to display items
         return products.flatMap(product => {
             // Filter zombie/deleted products implicitly by iterating over 'products' from store
-            if (product.isActive === false) return []; // skip inactive
-
-            // Filter by Market selection:
-            // - If sell everywhere (marketIds is empty), show in any view.
-            // - If restricted to specific markets, show only when the selected market matches.
-            const isSellEverywhere = !product.marketIds || product.marketIds.length === 0;
-            const isSelectedMarket = !!(selectedMarketId && product.marketIds && product.marketIds.includes(selectedMarketId));
-            if (!isSellEverywhere && !isSelectedMarket) return [];
-
             const baseItem = {
                 id: product.id,
                 name: product.name,
@@ -61,13 +50,7 @@ export const MenuStockPlannerV2: React.FC = () => {
             if (product.variants && product.variants.length > 0) {
                 return product.variants.map(variant => {
                     const key = `${product.id}-${variant.id}`;
-                    // Find saved record matching marketId
-                    const saved = dailyInventory.find(d => 
-                        d.businessDate === businessDate && 
-                        d.productId === product.id && 
-                        d.variantId === variant.id &&
-                        (selectedMarketId ? d.marketId === selectedMarketId : !d.marketId)
-                    );
+                    const saved = inventoryMap.get(key);
                     return {
                         ...baseItem,
                         id: key, // Unique Key for UI
@@ -82,13 +65,7 @@ export const MenuStockPlannerV2: React.FC = () => {
                 });
             } else {
                 const key = `${product.id}-`;
-                // Find saved record matching marketId
-                const saved = dailyInventory.find(d => 
-                    d.businessDate === businessDate && 
-                    d.productId === product.id && 
-                    !d.variantId &&
-                    (selectedMarketId ? d.marketId === selectedMarketId : !d.marketId)
-                );
+                const saved = inventoryMap.get(key);
                 return {
                     ...baseItem,
                     id: product.id, // Unique Key
@@ -106,7 +83,7 @@ export const MenuStockPlannerV2: React.FC = () => {
             item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
             item.category.toLowerCase().includes(searchQuery.toLowerCase())
         );
-    }, [products, dailyInventory, businessDate, searchQuery, getYesterdayStock, selectedMarketId]);
+    }, [products, dailyInventory, businessDate, searchQuery, getYesterdayStock]);
 
     // 5. Stats Calculation
     const stats = useMemo(() => {
@@ -155,7 +132,6 @@ export const MenuStockPlannerV2: React.FC = () => {
             businessDate,
             productId: item.productId,
             variantId: item.variantId || null,
-            marketId: selectedMarketId || undefined,
             stockYesterday: item.stockYesterday,
             producedQty: newProduced,
             toShopQty: newToShop,
@@ -229,7 +205,6 @@ export const MenuStockPlannerV2: React.FC = () => {
                     businessDate,
                     productId: item.productId,
                     variantId: item.variantId || null,
-                    marketId: selectedMarketId || undefined,
                     stockYesterday: item.stockYesterday,
                     ...payload
                 });
@@ -254,9 +229,6 @@ export const MenuStockPlannerV2: React.FC = () => {
                 onDateChange={setBusinessDate}
                 onRefresh={handleRefresh}
                 stats={stats}
-                markets={markets}
-                selectedMarketId={selectedMarketId}
-                onMarketChange={setSelectedMarketId}
             />
 
             {/* Quick Actions */}
@@ -278,17 +250,7 @@ export const MenuStockPlannerV2: React.FC = () => {
             )}
 
             {/* Content Grid/List */}
-            {!selectedMarketId ? (
-                <div className="bg-white rounded-2xl p-12 text-center border border-dashed border-amber-200 shadow-sm flex flex-col items-center justify-center gap-4">
-                    <div className="w-16 h-16 bg-amber-50 rounded-full flex items-center justify-center text-amber-500 animate-pulse">
-                        <Store size={32} />
-                    </div>
-                    <div>
-                        <h3 className="text-lg font-bold text-stone-700">กรุณาเลือกตลาด/สาขา</h3>
-                        <p className="text-stone-400 text-sm mt-1">กรุณาเลือกตลาดหรือสาขาที่ต้องการจัดการสต็อกประจำวันจากเมนูด้านบนก่อนนะครับ</p>
-                    </div>
-                </div>
-            ) : inventoryItems.length > 0 ? (
+            {inventoryItems.length > 0 ? (
                 <div className={`grid gap-4 ${viewMode === 'grid' ? 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3' : 'grid-cols-1'}`}>
                     {inventoryItems.map(item => (
                         <InventoryCard
@@ -308,7 +270,8 @@ export const MenuStockPlannerV2: React.FC = () => {
             ) : (
                 <div className="text-center py-12 bg-gray-50 rounded-2xl border-2 border-dashed border-gray-200">
                     <Package className="mx-auto text-gray-300 mb-4" size={48} />
-                    <p className="text-gray-500 font-medium">ไม่มีรายการสินค้าที่วางขายในตลาดนี้</p>
+                    <p className="text-gray-500 font-medium">ไม่พบสินค้า</p>
+                    <p className="text-sm text-gray-400">ลองค้นหาคำอื่น หรือเพิ่มสินค้าใหม่</p>
                 </div>
             )}
         </div>
