@@ -33,6 +33,11 @@ export interface FinanceSlice {
     allocationProfiles: AllocationProfile[];
     defaultProfileId: string | null;
 
+    // NEW: Multi-Wallet Support
+    selectedWalletId: string | null; // null = Main Store, UUID = External Shop
+    setSelectedWalletId: (id: string | null) => void;
+    recalculateJarBalances: () => void;
+
     // Debt-First Allocation (v2.0)
     debtConfig: DebtAllocationConfig;
     updateDebtConfig: (config: Partial<DebtAllocationConfig>) => Promise<void>;
@@ -222,12 +227,13 @@ import { SnackBoxOrderSlice } from './slices/snackBoxOrderSlice';
 import { QuotationSlice } from './slices/quotationSlice';
 import { InvoiceSlice } from './slices/invoiceSlice';
 import { ReceiptSlice } from './slices/receiptSlice';
+import { ConsignmentSlice } from './slices/consignmentSlice';
 
-export type { ShopInfoSlice, SnackBoxSlice, PromotionOrderSlice, SnackBoxOrderSlice, QuotationSlice, InvoiceSlice, ReceiptSlice };
+export type { ShopInfoSlice, SnackBoxSlice, PromotionOrderSlice, SnackBoxOrderSlice, QuotationSlice, InvoiceSlice, ReceiptSlice, ConsignmentSlice };
 
 // ==================== COMBINED APP STATE ====================
 
-export type AppState = AuthSlice & FinanceSlice & InventorySlice & ProductsSlice & SalesSlice & PromotionSlice & SharedActions & ShopInfoSlice & SnackBoxSlice & PromotionOrderSlice & SnackBoxOrderSlice & QuotationSlice & InvoiceSlice & ReceiptSlice;
+export type AppState = AuthSlice & FinanceSlice & InventorySlice & ProductsSlice & SalesSlice & PromotionSlice & SharedActions & ShopInfoSlice & SnackBoxSlice & PromotionOrderSlice & SnackBoxOrderSlice & QuotationSlice & InvoiceSlice & ReceiptSlice & ConsignmentSlice;
 
 // Re-export types for convenience
 export type {
@@ -245,5 +251,7 @@ export type {
     PromotionOrder, PromotionOrderItem, PromotionOrderStatus,
     Quotation, QuotationItem, QuotationStatus,
     Invoice, InvoiceStatus,
-    Receipt, PaymentMethod
+    Receipt, PaymentMethod,
+    ConsignmentOrder, ConsignmentOrderItem, ConsignmentOrderStatus,
+    ExternalShop
 } from '../../types';

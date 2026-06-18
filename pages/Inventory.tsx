@@ -10,13 +10,14 @@ import { PurchaseOrderHistory } from '@/src/components/Inventory/PurchaseOrderHi
 import { BulkStockAdjustmentModal, StockMovementHistory } from '@/src/components/Stock';
 import {
     BarChart3, Box, FileText, History, TrendingUp,
-    ClipboardList, Layers, Clock, Download
+    ClipboardList, Layers, Clock, Download, LayoutDashboard
 } from 'lucide-react';
+import Dashboard from './Dashboard';
 
 // ============================================================
 // Types
 // ============================================================
-type TabId = 'dashboard' | 'ingredients' | 'orders' | 'history';
+type TabId = 'overview' | 'dashboard' | 'ingredients' | 'orders' | 'history';
 
 interface TabConfig {
     id: TabId;
@@ -27,14 +28,19 @@ interface TabConfig {
 // ============================================================
 // Main Component
 // ============================================================
-const Inventory: React.FC = () => {
-    const [activeTab, setActiveTab] = useState<TabId>('dashboard');
+interface InventoryProps {
+    onNavigate?: (tab: string) => void;
+}
+
+const Inventory: React.FC<InventoryProps> = ({ onNavigate }) => {
+    const [activeTab, setActiveTab] = useState<TabId>('overview');
     const [isBulkAdjustOpen, setIsBulkAdjustOpen] = useState(false);
     const [isHistoryOpen, setIsHistoryOpen] = useState(false);
 
     // Tab configuration
     const tabs: TabConfig[] = [
-        { id: 'dashboard', label: 'ภาพรวม', icon: <BarChart3 size={18} /> },
+        { id: 'overview', label: 'ภาพรวมธุรกิจ', icon: <LayoutDashboard size={18} /> },
+        { id: 'dashboard', label: 'ภาพรวมสต็อก', icon: <BarChart3 size={18} /> },
         { id: 'ingredients', label: 'วัตถุดิบ', icon: <Box size={18} /> },
         { id: 'orders', label: 'สั่งซื้อ', icon: <FileText size={18} /> },
         { id: 'history', label: 'ประวัติ', icon: <History size={18} /> },
@@ -67,12 +73,21 @@ const Inventory: React.FC = () => {
 
                 {/* Tab Content */}
                 <div className="p-5">
-                    {/* Dashboard Tab */}
+                    {/* Global Overview Tab */}
+                    {activeTab === 'overview' && (
+                        <div className="animate-in fade-in duration-500">
+                            <Dashboard onNavigate={onNavigate || (() => {})} />
+                        </div>
+                    )}
+
+                    {/* Stock Dashboard Tab */}
                     {activeTab === 'dashboard' && (
-                        <InventoryDashboard
-                            onNavigateToIngredients={() => setActiveTab('ingredients')}
-                            onNavigateToOrders={() => setActiveTab('orders')}
-                        />
+                        <div className="animate-in fade-in duration-500">
+                            <InventoryDashboard
+                                onNavigateToIngredients={() => setActiveTab('ingredients')}
+                                onNavigateToOrders={() => setActiveTab('orders')}
+                            />
+                        </div>
                     )}
 
                     {/* Ingredients Tab */}

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { LayoutDashboard, Wallet, Package, ShoppingBag, Menu, TrendingUp, X, LogOut, Tag, Sparkles, Settings } from 'lucide-react';
+import { LayoutDashboard, Wallet, Package, ShoppingBag, Menu, TrendingUp, X, LogOut, Tag, Sparkles, Settings, Store } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useStore } from '@/src/store';
 
@@ -14,14 +14,14 @@ export const Layout: React.FC<LayoutProps> = ({ children, activeTab, onTabChange
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
     const navItems = [
-        { id: 'dashboard', label: 'ภาพรวม', icon: LayoutDashboard },
         { id: 'sales', label: 'ขายหน้าร้าน', icon: ShoppingBag },
-        { id: 'salesreport', label: 'รายงานการขาย', icon: TrendingUp },
         { id: 'menustock', label: 'สต็อกเมนู', icon: Package },
+        { id: 'inventory', label: 'สต็อก & จัดซื้อ', icon: Package },
+        { id: 'consignment', label: 'ฝากขาย/ส่งสาขา', icon: Store },
+        { id: 'salesreport', label: 'รายงานการขาย', icon: TrendingUp },
+        { id: 'financials', label: 'การเงิน', icon: Wallet },
         { id: 'production', label: 'การผลิต (AI)', icon: TrendingUp },
         { id: 'promotion', label: 'ออเดอร์พิเศษ', icon: Tag },
-        { id: 'inventory', label: 'สต็อก & จัดซื้อ', icon: Package },
-        { id: 'financials', label: 'การเงิน', icon: Wallet },
         { id: 'settings', label: 'ตั้งค่า', icon: Settings },
     ];
 

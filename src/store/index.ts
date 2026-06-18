@@ -14,6 +14,7 @@ import { createSnackBoxOrderSlice } from './slices/snackBoxOrderSlice';
 import { createQuotationSlice } from './slices/quotationSlice';
 import { createInvoiceSlice } from './slices/invoiceSlice';
 import { createReceiptSlice } from './slices/receiptSlice';
+import { createConsignmentSlice } from './slices/consignmentSlice';
 import { supabase, fetchAllRows } from '../lib/supabase';
 import {
     mapTransaction, mapIngredient, mapProductSaleLog,
@@ -40,6 +41,7 @@ export const useStore = create<AppState>()(
             // NEW: Invoice & Receipt System
             ...createInvoiceSlice(set, get, api),
             ...createReceiptSlice(set, get, api),
+            ...createConsignmentSlice(set, get, api),
 
             // ==================== SHARED ACTIONS ====================
             storeName: 'Mellow Oven',
@@ -69,7 +71,7 @@ export const useStore = create<AppState>()(
                     productionForecasts, unallocatedProfitsData, allocationProfilesData,
                     promotionsData, bundlesData, bundleItemsData,
                     specialOrdersData, specialOrderItemsData, marketSchedulesData,
-                    quotationsData, invoicesData, receiptsData
+                    quotationsData, invoicesData, receiptsData, externalShopsData
                 ] = await Promise.all([
                     // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     fetchAllRows<any>('products'),
@@ -89,6 +91,7 @@ export const useStore = create<AppState>()(
                     fetchAllRows<any>('quotations', { orderBy: 'created_at', ascending: false }),
                     fetchAllRows<any>('invoices', { orderBy: 'created_at', ascending: false }),
                     fetchAllRows<any>('receipts', { orderBy: 'created_at', ascending: false }),
+                    fetchAllRows<any>('external_shops', { orderBy: 'created_at', ascending: false }),
                 ]);
 
                 const { data: debtConfigData } = await supabase.from('debt_config').select('*').single();
@@ -109,7 +112,8 @@ export const useStore = create<AppState>()(
                     ...t,
                     fromJar: t.from_jar,
                     toJar: t.to_jar,
-                    marketId: t.market_id
+                    marketId: t.market_id,
+                    walletId: t.wallet_id
                 })) || [];
 
                 const mappedProductSales = productSales?.map(s => ({
@@ -330,29 +334,21 @@ export const useStore = create<AppState>()(
                     createdAt: row.created_at
                 })) || [];
 
+                const mappedExternalShops = externalShopsData?.map(row => ({
+                    id: row.id,
+                    name: row.name,
+                    contactName: row.contact_name,
+                    contactPhone: row.contact_phone,
+                    address: row.address,
+                    isActive: row.is_active,
+                    createdAt: row.created_at
+                })) || [];
+
                 // Find default profile ID from Supabase
                 const defaultProfile = allocationProfilesData?.find(p => p.is_default);
                 const dbDefaultProfileId = defaultProfile?.id || null;
 
-                // Calculate jar balances from transactions
-                const calculatedBalances: Record<string, number> = {
-                    'Working': 0,
-                    'CapEx': 0,
-                    'Opex': 0,
-                    'Emergency': 0,
-                    'Owner': 0
-                };
-
-                mappedTransactions.forEach(tx => {
-                    if (tx.type === 'INCOME' && tx.toJar) {
-                        calculatedBalances[tx.toJar] = (calculatedBalances[tx.toJar] || 0) + tx.amount;
-                    } else if (tx.type === 'EXPENSE' && tx.fromJar) {
-                        calculatedBalances[tx.fromJar] = (calculatedBalances[tx.fromJar] || 0) - tx.amount;
-                    } else if (tx.type === 'TRANSFER') {
-                        if (tx.fromJar) calculatedBalances[tx.fromJar] = (calculatedBalances[tx.fromJar] || 0) - tx.amount;
-                        if (tx.toJar) calculatedBalances[tx.toJar] = (calculatedBalances[tx.toJar] || 0) + tx.amount;
-                    }
-                });
+                // Calculate jar balances is now done by recalculateJarBalances at the end
 
                 set((state) => {
                     // Merge products with local state to preserve variants
@@ -384,8 +380,10 @@ export const useStore = create<AppState>()(
                             date: p.date,
                             amount: p.amount,
                             source: p.source,
+                            walletId: p.wallet_id,
                             createdAt: p.created_at
                         })) || state.unallocatedProfits,
+                        externalShops: externalShopsData ? mappedExternalShops : state.externalShops,
                         allocationProfiles: mappedAllocationProfiles.length > 0 ? mappedAllocationProfiles : state.allocationProfiles,
                         defaultProfileId: dbDefaultProfileId || state.defaultProfileId,
                         promotions: mappedPromotions,
@@ -395,10 +393,6 @@ export const useStore = create<AppState>()(
                         invoices: mappedInvoices,
                         receipts: mappedReceipts,
                         marketSchedules: mappedMarketSchedules,
-                        jars: state.jars.map(jar => ({
-                            ...jar,
-                            balance: calculatedBalances[jar.id] || 0
-                        })),
                         debtConfig: debtConfigData ? {
                             isEnabled: debtConfigData.is_enabled,
                             fixedAmount: Number(debtConfigData.fixed_amount),
@@ -410,6 +404,8 @@ export const useStore = create<AppState>()(
                     };
                 });
                 get().generateAlerts();
+                get().fetchConsignmentOrders();
+                get().recalculateJarBalances();
             },
 
             // ==================== REALTIME SUBSCRIPTIONS ====================

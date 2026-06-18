@@ -4,11 +4,15 @@ import { TrendingUp, Calendar, DollarSign } from 'lucide-react';
 import { formatCurrency } from '@/src/lib/utils';
 
 export const UnallocatedProfitCard: React.FC = () => {
-    const { unallocatedProfits, getUnallocatedBalance } = useStore();
+    const { unallocatedProfits, getUnallocatedBalance, selectedWalletId } = useStore();
     const totalBalance = getUnallocatedBalance();
 
+    const filteredProfits = unallocatedProfits.filter(p => 
+        selectedWalletId ? p.walletId === selectedWalletId : (!p.walletId || p.walletId === 'main')
+    );
+
     // Group by date
-    const profitsByDate = unallocatedProfits.reduce((acc, profit) => {
+    const profitsByDate = filteredProfits.reduce((acc, profit) => {
         const existing = acc.find(p => p.date === profit.date);
         if (existing) {
             existing.amount += profit.amount;

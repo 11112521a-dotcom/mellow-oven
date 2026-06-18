@@ -21,7 +21,8 @@ import {
     FileText,
     ClipboardList,
     Receipt,
-    RefreshCw
+    RefreshCw,
+    Store
 } from 'lucide-react';
 import { Promotion, Bundle, SpecialOrder, SpecialOrderStatus } from '../../../types';
 import { AddPromotionModal } from './AddPromotionModal';
@@ -32,6 +33,7 @@ import { QuotationList } from '../Quotation';
 import { SnackBoxManager } from '../SnackBox';
 import { InvoiceList } from '../Invoice';
 import { ReceiptList } from '../Receipt';
+
 
 type Tab = 'snackbox' | 'promoOrders' | 'quotations' | 'invoices' | 'receipts';
 

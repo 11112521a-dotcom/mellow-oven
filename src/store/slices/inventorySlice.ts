@@ -171,7 +171,7 @@ export const createInventorySlice: StateCreator<AppState, [], [], InventorySlice
             
             // 🛡️ DEDUPLICATE: Prevent race-condition duplicates from breaking the UI
             const uniqueMapped = Array.from(mapped.reduce((acc, curr) => {
-                const key = `${curr.businessDate}-${curr.productId}-${curr.variantId || 'null'}`;
+                const key = `${curr.businessDate}-${curr.productId}-${curr.variantId || 'null'}-${curr.marketId || 'null'}`;
                 if (!acc.has(key)) acc.set(key, curr); // Keep the first (newest) one
                 return acc;
             }, new Map()).values());
@@ -200,7 +200,7 @@ export const createInventorySlice: StateCreator<AppState, [], [], InventorySlice
             
             // 🛡️ DEDUPLICATE: Prevent race-condition duplicates from breaking the UI
             const uniqueMapped = Array.from(mapped.reduce((acc, curr) => {
-                const key = `${curr.businessDate}-${curr.productId}-${curr.variantId || 'null'}`;
+                const key = `${curr.businessDate}-${curr.productId}-${curr.variantId || 'null'}-${curr.marketId || 'null'}`;
                 if (!acc.has(key)) acc.set(key, curr); // Keep the first (newest) one
                 return acc;
             }, new Map()).values());

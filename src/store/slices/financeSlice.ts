@@ -20,6 +20,41 @@ export const createFinanceSlice: StateCreator<AppState, [], [], FinanceSlice> = 
     allocationProfiles: [],
     defaultProfileId: 'default',
 
+    selectedWalletId: null,
+    setSelectedWalletId: (id) => {
+        set({ selectedWalletId: id });
+        get().recalculateJarBalances();
+    },
+
+    recalculateJarBalances: () => {
+        const { transactions, selectedWalletId, jars } = get();
+        const calculatedBalances: Record<string, number> = {
+            'Working': 0, 'CapEx': 0, 'Opex': 0, 'Emergency': 0, 'Owner': 0
+        };
+
+        transactions.forEach(tx => {
+            // Filter by selected wallet (null = main store, UUID = external shop)
+            const isMatch = selectedWalletId ? tx.walletId === selectedWalletId : (!tx.walletId || tx.walletId === 'main');
+            if (!isMatch) return;
+
+            if (tx.type === 'INCOME' && tx.toJar) {
+                calculatedBalances[tx.toJar] = (calculatedBalances[tx.toJar] || 0) + tx.amount;
+            } else if (tx.type === 'EXPENSE' && tx.fromJar) {
+                calculatedBalances[tx.fromJar] = (calculatedBalances[tx.fromJar] || 0) - tx.amount;
+            } else if (tx.type === 'TRANSFER') {
+                if (tx.fromJar) calculatedBalances[tx.fromJar] = (calculatedBalances[tx.fromJar] || 0) - tx.amount;
+                if (tx.toJar) calculatedBalances[tx.toJar] = (calculatedBalances[tx.toJar] || 0) + tx.amount;
+            }
+        });
+
+        set({
+            jars: jars.map(jar => ({
+                ...jar,
+                balance: calculatedBalances[jar.id] || 0
+            }))
+        });
+    },
+
     // Debt-First Allocation Config (v2.0)
     debtConfig: {
         isEnabled: false,
@@ -74,11 +109,13 @@ export const createFinanceSlice: StateCreator<AppState, [], [], FinanceSlice> = 
             ...transaction,
             from_jar: transaction.fromJar,
             to_jar: transaction.toJar,
-            market_id: transaction.marketId
+            market_id: transaction.marketId,
+            wallet_id: transaction.walletId
         };
         delete dbTransaction.fromJar;
         delete dbTransaction.toJar;
         delete dbTransaction.marketId;
+        delete dbTransaction.walletId;
 
         const { error } = await supabase.from('transactions').insert(dbTransaction);
         if (error) {
@@ -140,7 +177,8 @@ export const createFinanceSlice: StateCreator<AppState, [], [], FinanceSlice> = 
             date: profit.date,
             amount: profit.amount,
             source: profit.source,
-            created_at: profit.createdAt
+            created_at: profit.createdAt,
+            wallet_id: profit.walletId || null
         };
         const { error } = await supabase.from('unallocated_profits').insert(dbProfit);
         if (error) {
@@ -170,7 +208,14 @@ export const createFinanceSlice: StateCreator<AppState, [], [], FinanceSlice> = 
 
     allocateFromProfits: async (amount) => {
         const state = get();
-        const sortedProfits = [...state.unallocatedProfits].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+        const targetWalletId = state.selectedWalletId;
+        
+        // ONLY allocate from the currently selected wallet's profits
+        const filteredProfits = state.unallocatedProfits.filter(p => 
+            targetWalletId ? p.walletId === targetWalletId : (!p.walletId || p.walletId === 'main')
+        );
+        
+        const sortedProfits = [...filteredProfits].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
         let remaining = amount;
 
         const dbUpdates: Array<{ id: string; amount: number }> = [];
@@ -207,8 +252,20 @@ export const createFinanceSlice: StateCreator<AppState, [], [], FinanceSlice> = 
         }));
     },
 
-    getUnallocatedBalance: () => get().unallocatedProfits.reduce((sum, p) => sum + p.amount, 0),
-    getUnallocatedByDate: (date) => get().unallocatedProfits.filter(p => p.date.startsWith(date)),
+    getUnallocatedBalance: () => {
+        const state = get();
+        const walletId = state.selectedWalletId;
+        return state.unallocatedProfits
+            .filter(p => walletId ? p.walletId === walletId : (!p.walletId || p.walletId === 'main'))
+            .reduce((sum, p) => sum + p.amount, 0);
+    },
+    getUnallocatedByDate: (date) => {
+        const state = get();
+        const walletId = state.selectedWalletId;
+        return state.unallocatedProfits
+            .filter(p => walletId ? p.walletId === walletId : (!p.walletId || p.walletId === 'main'))
+            .filter(p => p.date.startsWith(date));
+    },
 
     saveAllocationProfile: async (profile) => {
         set((state) => {
@@ -379,7 +436,12 @@ export const createFinanceSlice: StateCreator<AppState, [], [], FinanceSlice> = 
                     return p;
                 });
             } else {
-                const sortedProfits = [...updatedUnallocatedProfits].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+                const targetWalletId = get().selectedWalletId;
+                const filteredProfits = updatedUnallocatedProfits.filter(p => 
+                    targetWalletId ? p.walletId === targetWalletId : (!p.walletId || p.walletId === 'main')
+                );
+                
+                const sortedProfits = [...filteredProfits].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
                 let remaining = amount;
                 const updatedMap = new Map<string, number>();
 
@@ -404,6 +466,8 @@ export const createFinanceSlice: StateCreator<AppState, [], [], FinanceSlice> = 
         const transactionsToInsert: Transaction[] = [];
         const timestamp = new Date().toISOString();
 
+        const currentWalletId = get().selectedWalletId;
+
         if (debtDeduction > 0) {
             transactionsToInsert.push({
                 id: crypto.randomUUID(),
@@ -412,7 +476,8 @@ export const createFinanceSlice: StateCreator<AppState, [], [], FinanceSlice> = 
                 type: 'INCOME',
                 category: 'Debt Repayment',
                 description: `หักเข้ากองทุนหนี้ (Priority Deduction)`,
-                toJar: 'Owner'
+                toJar: 'Owner',
+                walletId: currentWalletId || null
             });
         }
 
@@ -428,7 +493,8 @@ export const createFinanceSlice: StateCreator<AppState, [], [], FinanceSlice> = 
                     description: fromProfit
                         ? `จัดสรรจากกำไร (${percentage}%)`
                         : `จัดสรรเงินเข้าระบบ (${percentage}%)`,
-                    toJar: jarId as JarType
+                    toJar: jarId as JarType,
+                    walletId: currentWalletId || null
                 });
             }
         });
@@ -442,7 +508,8 @@ export const createFinanceSlice: StateCreator<AppState, [], [], FinanceSlice> = 
             category: t.category,
             to_jar: t.toJar,
             from_jar: t.fromJar,
-            market_id: t.marketId
+            market_id: t.marketId,
+            wallet_id: t.walletId || null
         }));
 
         // Step 3: Prepare local state updates

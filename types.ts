@@ -54,6 +54,7 @@ export interface Transaction {
   description: string;
   category?: string;
   marketId?: string;
+  walletId?: string | null;
 }
 
 export interface UnallocatedProfit {
@@ -62,6 +63,7 @@ export interface UnallocatedProfit {
   amount: number;
   source: string; // e.g., "Daily Sales - Market Name"
   createdAt: string;
+  walletId?: string | null; // 🆕 Added to support multi-wallet (consignment)
 }
 
 // Debt-First Allocation Configuration (v2.0)
@@ -679,4 +681,66 @@ export interface Receipt {
   paymentNote: string;
   receivedBy: string;
   createdAt: string;
+}
+
+// ==================== CONSIGNMENT SYSTEM TYPES ====================
+
+export type ConsignmentOrderStatus = 'pending' | 'shipped' | 'settled' | 'cancelled';
+
+export interface ExternalShop {
+  id: string;
+  name: string;
+  contactName: string;
+  contactPhone: string;
+  address: string;
+  isActive: boolean;
+  favoriteItems?: {
+    productId: string;
+    variantId?: string;
+    defaultQty: number;
+    defaultPrice?: number;
+  }[];
+  createdAt: string;
+}
+
+export interface ConsignmentOrderItem {
+  id: string;
+  consignmentId: string;
+  productId: string;
+  variantId: string | null;
+  productName: string;
+  variantName: string | null;
+  quantitySent: number;
+  quantitySold: number;
+  quantityWaste: number;
+  quantityReturned: number;
+  quantityGiveaway: number;
+  unitPrice: number;
+  unitCost: number;
+  lineTotal: number;
+  sortOrder: number;
+}
+
+export interface ConsignmentOrder {
+  id: string;
+  orderNumber: string;
+  shopId: string;
+  shopName: string;
+  contactName: string | null;
+  contactPhone: string | null;
+  deliveryDate: string;
+  settleDate: string | null;
+  totalQuantitySent: number;
+  totalQuantitySold: number;
+  totalQuantityWaste: number;
+  totalQuantityReturned: number;
+  totalQuantityGiveaway: number;
+  totalRevenue: number;
+  totalCost: number;
+  totalProfit: number;
+  notes: string | null;
+  status: ConsignmentOrderStatus;
+  createdAt: string;
+  updatedAt: string;
+  items: ConsignmentOrderItem[];
 }

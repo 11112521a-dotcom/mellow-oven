@@ -6,11 +6,11 @@ import { JarsSection } from '@/src/components/Finance/JarsSection';
 import { AllocationStation } from '@/src/components/Finance/AllocationStation';
 import { MonthlyReportModal } from '@/src/components/Finance/MonthlyReportModal';
 import { JarType } from '@/types';
-import { ArrowRightLeft, TrendingUp, TrendingDown, FileText, Plus, Minus, RefreshCw, Wallet, Sparkles, Zap } from 'lucide-react';
+import { ArrowRightLeft, TrendingUp, TrendingDown, FileText, Plus, Minus, RefreshCw, Wallet, Sparkles, Zap, Store } from 'lucide-react';
 import { formatCurrency } from '@/src/lib/utils';
 
 const Financials: React.FC = () => {
-    const { jars, transactions, executeAllocation } = useStore();
+    const { jars, transactions, executeAllocation, externalShops, selectedWalletId, setSelectedWalletId } = useStore();
 
     const [isTransactionModalOpen, setIsTransactionModalOpen] = useState(false);
     const [isMonthlyReportOpen, setIsMonthlyReportOpen] = useState(false);
@@ -25,9 +25,19 @@ const Financials: React.FC = () => {
 
     const totalBalance = useMemo(() => jars.reduce((acc, jar) => acc + jar.balance, 0), [jars]);
 
-    // Calculate daily stats
+    // Filter transactions to only show the selected wallet
+    const filteredTransactions = useMemo(() => {
+        return transactions.filter(tx => {
+            if (selectedWalletId) {
+                return tx.walletId === selectedWalletId;
+            }
+            return !tx.walletId || tx.walletId === 'main';
+        });
+    }, [transactions, selectedWalletId]);
+
+    // Calculate daily stats using filteredTransactions!
     const today = useMemo(() => new Date().toISOString().split('T')[0], []);
-    const todayTransactions = useMemo(() => transactions.filter(t => t.date.startsWith(today)), [transactions, today]);
+    const todayTransactions = useMemo(() => filteredTransactions.filter(t => t.date.startsWith(today)), [filteredTransactions, today]);
     
     const incomeToday = useMemo(() => todayTransactions
         .filter(t => t.type === 'INCOME')
@@ -72,7 +82,30 @@ const Financials: React.FC = () => {
             {/* ═══════════════════════════════════════════════════════════
                 🌟 HERO SECTION - Allocation First
                ═══════════════════════════════════════════════════════════ */}
-            <div className="max-w-5xl mx-auto w-full">
+            <div className="max-w-5xl mx-auto w-full flex flex-col gap-4">
+                {/* 🏦 Multi-Wallet Switcher */}
+                <div className="bg-white p-4 rounded-2xl shadow-sm border border-stone-200 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2 bg-stone-100 rounded-xl">
+                            <Store className="w-5 h-5 text-stone-600" />
+                        </div>
+                        <div>
+                            <h3 className="font-bold text-stone-800 text-sm">กระเป๋าเงิน (Wallet)</h3>
+                            <p className="text-xs text-stone-500">เลือกสาขาเพื่อดูข้อมูลการเงิน</p>
+                        </div>
+                    </div>
+                    <select
+                        value={selectedWalletId || ''}
+                        onChange={(e) => setSelectedWalletId(e.target.value || null)}
+                        className="px-4 py-2 bg-stone-50 border border-stone-200 rounded-xl text-sm font-bold text-stone-700 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    >
+                        <option value="">🏪 ร้านหลัก (Main Store)</option>
+                        {externalShops.map(shop => (
+                            <option key={shop.id} value={shop.id}>🏢 สาขา: {shop.name}</option>
+                        ))}
+                    </select>
+                </div>
+
                 <AllocationStation onAllocate={handleAllocate} />
             </div>
 
@@ -175,7 +208,7 @@ const Financials: React.FC = () => {
                     <ArrowRightLeft size={20} className="text-amber-600" />
                     รายการล่าสุด
                 </h2>
-                <TransactionTable transactions={transactions} />
+                <TransactionTable transactions={filteredTransactions} />
             </div>
 
             {/* Unified Transaction Modal */}

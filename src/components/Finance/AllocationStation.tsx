@@ -88,7 +88,8 @@ export const AllocationStation = React.memo(({ onAllocate }: AllocationStationPr
         getUnallocatedBalance, unallocatedProfits, getUnallocatedByDate,
         dailyInventory, products, fetchDailyInventory,
         // Debt-First Allocation v2.0
-        debtConfig, updateDebtConfig, addToDebtAccumulated
+        debtConfig, updateDebtConfig, addToDebtAccumulated,
+        selectedWalletId
     } = useStore();
 
     const [amount, setAmount] = useState<string>('');
@@ -158,8 +159,15 @@ export const AllocationStation = React.memo(({ onAllocate }: AllocationStationPr
     //     }
     // };
 
+    // Filter profits by wallet first
+    const filteredProfits = useMemo(() => {
+        return unallocatedProfits.filter(p => 
+            selectedWalletId ? p.walletId === selectedWalletId : (!p.walletId || p.walletId === 'main')
+        );
+    }, [unallocatedProfits, selectedWalletId]);
+
     // Declare availableDates first (needed for effectiveDebtAmount calculation)
-    const availableDates = [...new Set(unallocatedProfits.filter(p => p.amount > 0).map(p => p.date))].sort((a, b) => b.localeCompare(a));
+    const availableDates = [...new Set(filteredProfits.filter(p => p.amount > 0).map(p => p.date))].sort((a, b) => b.localeCompare(a));
     const unallocatedBalance = getUnallocatedBalance();
 
     // Manual Debt Override State

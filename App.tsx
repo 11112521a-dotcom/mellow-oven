@@ -16,6 +16,7 @@ const SalesReport = lazy(() => import('./pages/SalesReport'));
 const MenuStock = lazy(() => import('./pages/MenuStock'));
 const PromotionPage = lazy(() => import('./src/components/Promotion/PromotionPage'));
 const Settings = lazy(() => import('./pages/Settings'));
+const ConsignmentPage = lazy(() => import('./pages/ConsignmentPage'));
 
 // Loading Fallback Component
 const PageLoader = () => (
@@ -41,7 +42,7 @@ const App: React.FC = () => {
   // Persist active tab in localStorage
   const [activeTab, setActiveTab] = useState(() => {
     const saved = localStorage.getItem('activeTab');
-    return saved || 'dashboard';
+    return saved || 'sales';
   });
 
   const { fetchData, subscribeToRealtime, unsubscribeFromRealtime, checkSession, session, userRole } = useStore();
@@ -136,12 +137,13 @@ const App: React.FC = () => {
             case 'sales': return <Sales />;
             case 'salesreport': return <SalesReport />;
             case 'menustock': return <MenuStock />;
+            case 'inventory': return <Inventory onNavigate={setActiveTab} />;
+            case 'consignment': return <ConsignmentPage />;
             case 'production':
               return userRole === 'owner' ? <Production /> : <div className="p-8 text-center text-cafe-500">Access Denied</div>;
             case 'promotion': return <PromotionPage />;
-            case 'inventory': return <Inventory />;
             case 'settings': return <Settings />;
-            default: return <Dashboard />;
+            default: return <Sales />;
           }
         })()}
       </Suspense>
@@ -155,11 +157,12 @@ const App: React.FC = () => {
           <h2 className="text-3xl font-bold text-cafe-800 capitalize">
             {activeTab === 'financials' ? 'การเงิน (Finance)' :
               activeTab === 'promotion' ? 'ออเดอร์พิเศษ' :
-                activeTab === 'overview' ? 'Business Command Center' : activeTab}
+                activeTab === 'consignment' ? 'ฝากขาย/ส่งสาขา' :
+                  activeTab === 'sales' ? 'ขายหน้าร้าน' : activeTab}
           </h2>
           <p className="text-cafe-500">
             {activeTab === 'promotion' ? 'Promotion & Snack Box' :
-              activeTab === 'overview' ? 'สรุปภาพรวมและจัดการงานด่วนประจำวัน' :
+              activeTab === 'consignment' ? 'ระบบบริหารจัดการสินค้าฝากขาย' :
                 'Manage your bakery efficiently.'}
           </p>
         </header>
