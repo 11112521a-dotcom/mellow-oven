@@ -10,7 +10,7 @@ interface JarsSectionProps {
 }
 
 export const JarsSection: React.FC<JarsSectionProps> = ({ jars, onJarClick }) => {
-    const { addTransaction } = useStore();
+    const addTransaction = useStore(state => state.addTransaction);
     const [editingJar, setEditingJar] = useState<Jar | null>(null);
     const [newBalance, setNewBalance] = useState('');
 

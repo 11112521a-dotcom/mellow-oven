@@ -454,13 +454,11 @@ export const MenuStockPlanner: React.FC = () => {
         products.forEach(product => {
             // 🆕 Skip inactive products (พักขาย)
             if (product.isActive === false) return;
-            
-            // Filter by Market selection:
-            // - If sell everywhere (marketIds is empty), show in any view.
-            // - If restricted to specific markets, show only when the selected market matches.
-            const isSellEverywhere = !product.marketIds || product.marketIds.length === 0;
-            const isSelectedMarket = !!(selectedMarketId && product.marketIds && product.marketIds.includes(selectedMarketId));
-            if (!isSellEverywhere && !isSelectedMarket) return;
+
+            // Filter by market selection (Hide if product has specific markets and selectedMarketId is not one of them)
+            if (product.marketIds && product.marketIds.length > 0 && selectedMarketId) {
+                if (!product.marketIds.includes(selectedMarketId)) return;
+            }
 
             if (product.variants && product.variants.length > 0) {
                 // Product has variants - add each variant
@@ -516,41 +514,69 @@ export const MenuStockPlanner: React.FC = () => {
     const getYesterdayForItem = (item: InventoryItem) =>
         getYesterdayStock(item.productId, businessDate, item.variantId);
 
-    // Get SAVED record from DB
-    const getSavedRecord = (item: InventoryItem) => {
+    // Get SAVED record from DB (HOME POOL)
+    const getHomeRecord = (item: InventoryItem) => {
         const saved = dailyInventory.find(d =>
             d.businessDate === businessDate &&
             d.productId === item.productId &&
-            d.variantId === (item.variantId || undefined) &&
-            (selectedMarketId ? d.marketId === selectedMarketId : !d.marketId)
+            ((!d.variantId && !item.variantId) || d.variantId === item.variantId) &&
+            !d.marketId
         );
         return saved || {
             producedQty: 0,
-            toShopQty: 0,
             wasteQty: 0,
-            soldQty: 0,
-            eatQty: 0,      // NEW
-            giveawayQty: 0, // NEW
+            eatQty: 0,      
+            giveawayQty: 0, 
             stockYesterday: getYesterdayForItem(item)
         };
     };
 
-    // Calculate today's stock = yesterday + ALL confirmed production
+    const getSavedRecord = getHomeRecord;
+
+    // Get SAVED record from DB (MARKET SPECIFIC)
+    const getMarketRecord = (item: InventoryItem, marketId: string) => {
+        if (!marketId) return { toShopQty: 0, soldQty: 0, unsoldShop: 0 };
+        const saved = dailyInventory.find(d =>
+            d.businessDate === businessDate &&
+            d.productId === item.productId &&
+            ((!d.variantId && !item.variantId) || d.variantId === item.variantId) &&
+            d.marketId === marketId
+        );
+        return saved || {
+            toShopQty: 0,
+            soldQty: 0,
+            unsoldShop: 0
+        };
+    };
+
+    // Get Total Transfer across all markets
+    const getTotalToShop = (item: InventoryItem) => {
+        return dailyInventory
+            .filter(d => 
+                d.businessDate === businessDate && 
+                d.productId === item.productId && 
+                ((!d.variantId && !item.variantId) || d.variantId === item.variantId) &&
+                !!d.marketId
+            )
+            .reduce((sum, d) => sum + (d.toShopQty || 0), 0);
+    };
+
+    // Calculate today's stock = yesterday + ALL confirmed production (HOME)
     const getTodayStock = (item: InventoryItem) => {
-        const saved = getSavedRecord(item);
-        const stockYesterday = saved.stockYesterday ?? getYesterdayForItem(item);
-        const confirmedProduction = saved.producedQty || 0;
+        const home = getHomeRecord(item);
+        const stockYesterday = home.stockYesterday ?? getYesterdayForItem(item);
+        const confirmedProduction = home.producedQty || 0;
         return stockYesterday + confirmedProduction;
     };
 
-    // Calculate leftover = today stock - confirmed transfer - waste - กินแจก
+    // Calculate leftover = today stock - ALL confirmed transfers - waste - กินแจก
     const calculateLeftover = (item: InventoryItem) => {
         const todayStock = getTodayStock(item);
-        const saved = getSavedRecord(item);
-        const confirmedTransfer = saved.toShopQty || 0;
-        const confirmedWaste = saved.wasteQty || 0;
-        const confirmedFree = (saved.eatQty || 0) + (saved.giveawayQty || 0); // backward compat: sum both
-        return todayStock - confirmedTransfer - confirmedWaste - confirmedFree;
+        const home = getHomeRecord(item);
+        const totalTransfer = getTotalToShop(item);
+        const confirmedWaste = home.wasteQty || 0;
+        const confirmedFree = (home.eatQty || 0) + (home.giveawayQty || 0);
+        return todayStock - totalTransfer - confirmedWaste - confirmedFree;
     };
 
     // Toggle group expansion
@@ -608,18 +634,18 @@ export const MenuStockPlanner: React.FC = () => {
 
         setIsSaving(true);
         try {
-            const saved = getSavedRecord(item);
+            const home = getHomeRecord(item);
 
             await upsertDailyInventory({
                 businessDate,
                 productId: item.productId,
                 variantId: item.variantId || null,
-                marketId: selectedMarketId || undefined,
+                marketId: null, // Edit action is currently only for Waste/Free which is Home!
                 stockYesterday,
-                producedQty,
-                toShopQty,
+                producedQty: home.producedQty || 0,
+                toShopQty: 0,
                 wasteQty,
-                soldQty: saved.soldQty || 0,       // PRESERVE existing sold
+                soldQty: 0,
                 eatQty: freeQty,
                 giveawayQty: 0
             });
@@ -640,10 +666,10 @@ export const MenuStockPlanner: React.FC = () => {
         const targetValue = initialTarget || 15; // Use passed value or default 15
 
         const targetItems = items.map(item => {
-            const saved = getSavedRecord(item);
-            const stockYesterday = saved.stockYesterday ?? getYesterdayForItem(item);
-            const confirmedProduction = saved.producedQty || 0;
-            const wasteQty = saved.wasteQty || 0;
+            const home = getHomeRecord(item);
+            const stockYesterday = home.stockYesterday ?? getYesterdayForItem(item);
+            const confirmedProduction = home.producedQty || 0;
+            const wasteQty = home.wasteQty || 0;
             const totalStock = stockYesterday + confirmedProduction;
             // 🛡️ PHASE 1 FIX #3: Subtract waste from actual sellable stock
             const actualSellableStock = totalStock - wasteQty;
@@ -721,11 +747,11 @@ export const MenuStockPlanner: React.FC = () => {
             const saved = getSavedRecord(item);
             const stockYesterday = saved.stockYesterday ?? getYesterdayForItem(item);
             // FIX: Only use CONFIRMED values from DB, NOT pending inputs
-            // pendingProduction is NOT saved yet, so don't include it
             const confirmedStock = stockYesterday + (saved.producedQty || 0);
-            const alreadySent = saved.toShopQty || 0;
-            const wasteQty = saved.wasteQty || 0;  // 🛡️ FIX: Subtract waste!
-            const availableStock = Math.max(0, confirmedStock - alreadySent - wasteQty);
+            const alreadySent = getTotalToShop(item);
+            const homeWaste = saved.wasteQty || 0;
+            const homeFree = (saved.eatQty || 0) + (saved.giveawayQty || 0);
+            const availableStock = Math.max(0, confirmedStock - alreadySent - homeWaste - homeFree);
             return {
                 item,
                 value: availableStock,
@@ -780,39 +806,41 @@ export const MenuStockPlanner: React.FC = () => {
                     continue;
                 }
 
-                const saved = getSavedRecord(item);
-                const stockYesterday = saved.stockYesterday ?? getYesterdayForItem(item);
+                const home = getHomeRecord(item);
+                const market = getMarketRecord(item, selectedMarketId);
+                const stockYesterday = home.stockYesterday ?? getYesterdayForItem(item);
 
                 if (bulkActionModal.type === 'produceAll') {
-                    // ADD to existing production
+                    // ADD to existing production (HOME POOL)
                     batchRecords.push({
                         businessDate,
                         productId: item.productId,
                         variantId: item.variantId || null,
                         variantName: item.isVariant ? item.name : null,
-                        marketId: selectedMarketId || undefined,
-                        producedQty: (saved.producedQty || 0) + value,
-                        toShopQty: saved.toShopQty || 0,
-                        wasteQty: saved.wasteQty || 0,   // PRESERVE existing waste
-                        soldQty: saved.soldQty || 0,     // PRESERVE existing sold
-                        eatQty: saved.eatQty || 0,       // PRESERVE existing eat
-                        giveawayQty: saved.giveawayQty || 0, // PRESERVE existing giveaway
+                        marketId: undefined, // HOME
+                        producedQty: (home.producedQty || 0) + value,
+                        toShopQty: 0,
+                        wasteQty: home.wasteQty || 0,
+                        soldQty: 0,
+                        eatQty: home.eatQty || 0,
+                        giveawayQty: home.giveawayQty || 0,
                         stockYesterday
                     });
                 } else if (bulkActionModal.type === 'sendAll') {
-                    // ADD to existing transfer with safety check
-                    const totalProduced = stockYesterday + (saved.producedQty || 0);
-                    const alreadySent = saved.toShopQty || 0;
-                    const wasteQty = saved.wasteQty || 0;  // 🛡️ FIX: Must subtract waste!
-                    const eatQty = saved.eatQty || 0;      // 🛡️ FIX: Must subtract eat!
-                    const giveawayQty = saved.giveawayQty || 0; // 🛡️ FIX: Must subtract giveaway!
+                    // ADD to existing transfer with safety check (MARKET SPECIFIC)
+                    const totalProduced = stockYesterday + (home.producedQty || 0);
+                    const alreadySentToAllMarkets = getTotalToShop(item);
+                    const alreadySentToThisMarket = market.toShopQty || 0;
+                    const wasteQty = home.wasteQty || 0;  
+                    const eatQty = home.eatQty || 0;      
+                    const giveawayQty = home.giveawayQty || 0; 
 
-                    // Available = Total - Sent - Waste - Eat - Giveaway
-                    const availableStock = Math.max(0, totalProduced - alreadySent - wasteQty - eatQty - giveawayQty);
+                    // Available = Total - Sent to ALL - Waste - Eat - Giveaway
+                    const availableStock = Math.max(0, totalProduced - alreadySentToAllMarkets - wasteQty - eatQty - giveawayQty);
                     const safeTransfer = Math.min(value, availableStock);
 
                     console.log(`[confirmBulkAction] sendAll calc:`, {
-                        totalProduced, alreadySent, wasteQty, eatQty, giveawayQty, availableStock, safeTransfer, value
+                        totalProduced, alreadySentToAllMarkets, wasteQty, eatQty, giveawayQty, availableStock, safeTransfer, value
                     });
 
                     if (safeTransfer > 0) {
@@ -821,16 +849,15 @@ export const MenuStockPlanner: React.FC = () => {
                             productId: item.productId,
                             variantId: item.variantId || null,
                             variantName: item.isVariant ? item.name : null,
-                            marketId: selectedMarketId || undefined,
-                            producedQty: saved.producedQty || 0,
-                            toShopQty: alreadySent + safeTransfer,
-                            wasteQty: saved.wasteQty || 0,   // PRESERVE existing waste
-                            soldQty: saved.soldQty || 0,     // PRESERVE existing sold
-                            eatQty: saved.eatQty || 0,       // PRESERVE existing eat
-                            giveawayQty: saved.giveawayQty || 0, // PRESERVE existing giveaway
-                            stockYesterday
+                            marketId: selectedMarketId || undefined, // MARKET SPECIFIC
+                            producedQty: 0,
+                            toShopQty: alreadySentToThisMarket + safeTransfer,
+                            wasteQty: 0,
+                            soldQty: market.soldQty || 0,
+                            eatQty: 0,
+                            giveawayQty: 0,
+                            stockYesterday: 0
                         });
-                    } else {
                     }
                 }
             }
@@ -860,47 +887,59 @@ export const MenuStockPlanner: React.FC = () => {
         const item = inventoryItems.find(i => i.id === confirmModal.itemId);
         if (!item) return;
 
-        const saved = getSavedRecord(item);
-        const stockYesterday = saved.stockYesterday ?? getYesterdayForItem(item);
-
-        let newProducedQty = saved.producedQty || 0;
-        let newToShopQty = saved.toShopQty || 0;
+        const home = getHomeRecord(item);
+        const market = getMarketRecord(item, selectedMarketId);
+        const stockYesterday = home.stockYesterday ?? getYesterdayForItem(item);
 
         if (confirmModal.type === 'production') {
-            // ADD to existing production
-            newProducedQty += confirmModal.value;
+            // ADD to existing production (HOME POOL)
+            const newProducedQty = (home.producedQty || 0) + confirmModal.value;
             // Reset pending production input
             setPendingProduction(prev => {
                 const updated = { ...prev };
                 delete updated[item.id];
                 return updated;
             });
+
+            await upsertDailyInventory({
+                businessDate,
+                productId: item.productId,
+                variantId: item.variantId,
+                marketId: undefined, // HOME
+                variantName: item.isVariant ? item.name : undefined,
+                producedQty: newProducedQty,
+                toShopQty: 0,
+                wasteQty: home.wasteQty || 0,   
+                soldQty: 0,      
+                eatQty: home.eatQty || 0,
+                giveawayQty: home.giveawayQty || 0,
+                stockYesterday
+            });
         } else {
-            // ADD to existing transfer
-            newToShopQty += confirmModal.value;
+            // ADD to existing transfer (MARKET POOL)
+            const newToShopQty = (market.toShopQty || 0) + confirmModal.value;
             // Reset pending transfer input
             setPendingTransfer(prev => {
                 const updated = { ...prev };
                 delete updated[item.id];
                 return updated;
             });
-        }
 
-        // Save to DB
-        // TODO: Refactor to Atomic Update or RPC to prevent Race Condition
-        // Current pattern is Check-Then-Act which is vulnerable if 2 users edit simultaneously
-        await upsertDailyInventory({
-            businessDate,
-            productId: item.productId,
-            variantId: item.variantId,
-            marketId: selectedMarketId || undefined,
-            variantName: item.isVariant ? item.name : undefined,
-            producedQty: newProducedQty,
-            toShopQty: newToShopQty,
-            wasteQty: saved.wasteQty || 0,   // PRESERVE existing waste
-            soldQty: saved.soldQty || 0,      // PRESERVE existing sold
-            stockYesterday
-        });
+            await upsertDailyInventory({
+                businessDate,
+                productId: item.productId,
+                variantId: item.variantId,
+                marketId: selectedMarketId || undefined, // MARKET
+                variantName: item.isVariant ? item.name : undefined,
+                producedQty: 0,
+                toShopQty: newToShopQty,
+                wasteQty: 0,   
+                soldQty: market.soldQty || 0,      
+                eatQty: 0,
+                giveawayQty: 0,
+                stockYesterday: 0
+            });
+        }
 
         // Refetch to get updated values
         await fetchDailyInventory(businessDate);
@@ -910,21 +949,21 @@ export const MenuStockPlanner: React.FC = () => {
     const handleFreeConfirm = async (item: InventoryItem, value: number) => {
         if (value <= 0) return;
 
-        const saved = getSavedRecord(item);
-        const stockYesterday = saved.stockYesterday ?? getYesterdayForItem(item);
+        const home = getHomeRecord(item);
+        const stockYesterday = home.stockYesterday ?? getYesterdayForItem(item);
 
         await upsertDailyInventory({
             businessDate,
             productId: item.productId,
             variantId: item.variantId,
-            marketId: selectedMarketId || undefined,
+            marketId: undefined, // HOME
             variantName: item.isVariant ? item.name : undefined,
-            producedQty: saved.producedQty || 0,
-            toShopQty: saved.toShopQty || 0,
-            wasteQty: saved.wasteQty || 0,
-            soldQty: saved.soldQty || 0,
-            eatQty: (saved.eatQty || 0) + value,       // ADD to existing (consolidated)
-            giveawayQty: 0,                            // consolidated into eatQty
+            producedQty: home.producedQty || 0,
+            toShopQty: 0,
+            wasteQty: home.wasteQty || 0,
+            soldQty: 0,
+            eatQty: (home.eatQty || 0) + value,       // ADD to existing (consolidated)
+            giveawayQty: home.giveawayQty || 0,
             stockYesterday
         });
 
@@ -942,18 +981,21 @@ export const MenuStockPlanner: React.FC = () => {
     const handleWasteConfirm = async (item: InventoryItem, value: number) => {
         if (value <= 0) return;
 
-        const saved = getSavedRecord(item);
-        const stockYesterday = saved.stockYesterday ?? getYesterdayForItem(item);
+        const home = getHomeRecord(item);
+        const stockYesterday = home.stockYesterday ?? getYesterdayForItem(item);
 
         await upsertDailyInventory({
             businessDate,
             productId: item.productId,
             variantId: item.variantId,
-            marketId: selectedMarketId || undefined,
+            marketId: undefined, // HOME
             variantName: item.isVariant ? item.name : undefined,
-            producedQty: saved.producedQty || 0,
-            toShopQty: saved.toShopQty || 0,
-            wasteQty: (saved.wasteQty || 0) + value, // ADD to existing waste
+            producedQty: home.producedQty || 0,
+            toShopQty: 0,
+            wasteQty: (home.wasteQty || 0) + value, // ADD to existing waste
+            soldQty: 0,
+            eatQty: home.eatQty || 0,
+            giveawayQty: home.giveawayQty || 0,
             stockYesterday
         });
 
@@ -983,11 +1025,11 @@ export const MenuStockPlanner: React.FC = () => {
                     productId: item.productId,
                     variantId: item.variantId || undefined,
                     variantName: item.isVariant ? item.name : undefined,
-                    marketId: selectedMarketId || undefined,
+                    marketId: undefined, // HOME
                     producedQty: (saved.producedQty || 0) + value, // ADD mode
-                    toShopQty: saved.toShopQty || 0,
+                    toShopQty: 0,
                     wasteQty: saved.wasteQty || 0,   // PRESERVE existing waste
-                    soldQty: saved.soldQty || 0,     // PRESERVE existing sold
+                    soldQty: 0,
                     stockYesterday
                 });
             }
@@ -1021,11 +1063,11 @@ export const MenuStockPlanner: React.FC = () => {
                         productId: item.productId,
                         variantId: item.variantId || undefined,
                         variantName: item.isVariant ? item.name : undefined,
-                        marketId: selectedMarketId || undefined,
+                        marketId: undefined, // HOME
                         producedQty: (saved.producedQty || 0) + needed, // Add ONLY what's needed
-                        toShopQty: saved.toShopQty || 0,
+                        toShopQty: 0,
                         wasteQty: saved.wasteQty || 0,   // PRESERVE existing waste
-                        soldQty: saved.soldQty || 0,     // PRESERVE existing sold
+                        soldQty: 0,
                         stockYesterday
                     });
                 }
@@ -1053,19 +1095,21 @@ export const MenuStockPlanner: React.FC = () => {
         const recordsToUpsert = [];
 
         for (const item of items) {
-            const saved = getSavedRecord(item);
-            const stockYesterday = saved.stockYesterday ?? getYesterdayForItem(item);
+            const market = getMarketRecord(item, selectedMarketId);
 
             recordsToUpsert.push({
                 businessDate,
                 productId: item.productId,
                 variantId: item.variantId || undefined,
                 variantName: item.isVariant ? item.name : undefined,
-                producedQty: saved.producedQty || 0,
-                toShopQty: (saved.toShopQty || 0) + value,
-                wasteQty: saved.wasteQty || 0,   // PRESERVE existing waste
-                soldQty: saved.soldQty || 0,     // PRESERVE existing sold
-                stockYesterday
+                marketId: selectedMarketId || undefined, // MARKET SPECIFIC
+                producedQty: 0,
+                toShopQty: (market.toShopQty || 0) + value,
+                wasteQty: 0,   
+                soldQty: market.soldQty || 0,     
+                eatQty: 0,
+                giveawayQty: 0,
+                stockYesterday: 0
             });
         }
 
@@ -1088,13 +1132,13 @@ export const MenuStockPlanner: React.FC = () => {
         const saved = getSavedRecord(item);
         const stockYesterday = saved.stockYesterday ?? getYesterdayForItem(item);
         const confirmedProduction = saved.producedQty || 0;
-        const confirmedTransfer = saved.toShopQty || 0;
+        const confirmedTransfer = getMarketRecord(item, selectedMarketId).toShopQty || 0;
         const confirmedWaste = saved.wasteQty || 0;
         const confirmedEat = saved.eatQty || 0;
         const confirmedGiveaway = saved.giveawayQty || 0;
         const confirmedFree = confirmedEat + confirmedGiveaway; // backward compat
         const todayStock = stockYesterday + confirmedProduction;
-        const leftover = todayStock - confirmedTransfer - confirmedWaste - confirmedFree;
+        const leftover = calculateLeftover(item);
         const pendingProd = pendingProduction[item.id] || 0;
         const pendingTrans = pendingTransfer[item.id] || 0;
 
@@ -1236,7 +1280,7 @@ export const MenuStockPlanner: React.FC = () => {
         const saved = getSavedRecord(item);
         const stockYesterday = saved.stockYesterday ?? getYesterdayForItem(item);
         const confirmedProduction = saved.producedQty || 0;
-        const confirmedTransfer = saved.toShopQty || 0;
+        const confirmedTransfer = getMarketRecord(item, selectedMarketId).toShopQty || 0;
         const confirmedEat = saved.eatQty || 0;
         const confirmedGiveaway = saved.giveawayQty || 0;
         const confirmedFree = confirmedEat + confirmedGiveaway; // backward compat
@@ -1246,14 +1290,14 @@ export const MenuStockPlanner: React.FC = () => {
 
         // Leftover = today stock - confirmed transfer - waste - กินแจก
         const confirmedWaste = saved.wasteQty || 0;
-        const leftover = todayStock - confirmedTransfer - confirmedWaste - confirmedFree;
+        const leftover = calculateLeftover(item);
 
         // Pending inputs (before confirm)
         const pendingProd = pendingProduction[item.id] || 0;
         const pendingTrans = pendingTransfer[item.id] || 0;
 
         // Check if transfer would exceed available
-        const availableForTransfer = todayStock - confirmedTransfer;
+        const availableForTransfer = leftover + confirmedTransfer;
         const isOverflow = pendingTrans > availableForTransfer;
 
         return (

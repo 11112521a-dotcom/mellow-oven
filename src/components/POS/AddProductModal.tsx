@@ -29,8 +29,7 @@ export const AddProductModal: React.FC<AddProductModalProps> = ({ isOpen, onClos
     const [newCost, setNewCost] = useState('');
     const [newCategory, setNewCategory] = useState('Cake');
     const [newFlavor, setNewFlavor] = useState('');
-    const [sellEverywhere, setSellEverywhere] = useState(true);
-    const [selectedMarkets, setSelectedMarkets] = useState<string[]>([]);
+    const [isConsignmentOnly, setIsConsignmentOnly] = useState(false);
     const [imageFile, setImageFile] = useState<File | null>(null);
     const [imagePreview, setImagePreview] = useState<string | null>(null);
     const [isUploading, setIsUploading] = useState(false);
@@ -80,7 +79,7 @@ export const AddProductModal: React.FC<AddProductModalProps> = ({ isOpen, onClos
             cost: newCost,
             category: newCategory,
             flavor: newFlavor,
-            marketIds: sellEverywhere ? [] : selectedMarkets,
+            marketIds: isConsignmentOnly ? ['consignment_only'] : [],
             imageUrl
         });
 
@@ -90,8 +89,7 @@ export const AddProductModal: React.FC<AddProductModalProps> = ({ isOpen, onClos
         setNewCost('');
         setNewCategory('Cake');
         setNewFlavor('');
-        setSellEverywhere(true);
-        setSelectedMarkets([]);
+        setIsConsignmentOnly(false);
         setImageFile(null);
         setImagePreview(null);
     };
@@ -248,48 +246,22 @@ export const AddProductModal: React.FC<AddProductModalProps> = ({ isOpen, onClos
                                         </div>
                                     </div>
 
-                                    {/* Markets / Branch Mapping */}
-                                    <div className="border-t border-slate-100 pt-4 mt-2">
-                                        <label className="block text-sm font-bold text-gray-700 mb-2 flex items-center gap-1.5">
-                                            <span>🏪 ช่องทางการขาย / สาขา</span>
-                                        </label>
-                                        <div className="bg-slate-50 rounded-2xl p-4 space-y-3 border border-slate-100">
-                                            <label className="flex items-center gap-3 cursor-pointer select-none">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={sellEverywhere}
-                                                    onChange={(e) => {
-                                                        setSellEverywhere(e.target.checked);
-                                                        if (e.target.checked) setSelectedMarkets([]);
-                                                    }}
-                                                    className="w-4.5 h-4.5 rounded text-cafe-600 focus:ring-cafe-500 border-slate-300"
-                                                />
-                                                <span className="text-sm font-bold text-slate-700">วางขายทุกสาขา / ทุกตลาด (ค่าเริ่มต้น)</span>
-                                            </label>
-
-                                            {!sellEverywhere && (
-                                                <div className="grid grid-cols-2 gap-2 pl-7 pt-3 border-t border-slate-200/50 mt-2">
-                                                    {markets.map((market) => (
-                                                        <label key={market.id} className="flex items-center gap-2 cursor-pointer select-none py-1 hover:bg-slate-100/50 rounded px-1.5 transition-colors">
-                                                            <input
-                                                                type="checkbox"
-                                                                checked={selectedMarkets.includes(market.id)}
-                                                                onChange={(e) => {
-                                                                    if (e.target.checked) {
-                                                                        setSelectedMarkets([...selectedMarkets, market.id]);
-                                                                    } else {
-                                                                        setSelectedMarkets(selectedMarkets.filter(id => id !== market.id));
-                                                                    }
-                                                                }}
-                                                                className="w-4 h-4 rounded text-cafe-600 focus:ring-cafe-500 border-slate-300"
-                                                            />
-                                                            <span className="text-xs font-semibold text-slate-600">{market.name}</span>
-                                                        </label>
-                                                    ))}
-                                                </div>
-                                            )}
+                                    {/* Consignment Only Toggle */}
+                                    <div className="border-t pt-4 mt-2">
+                                        <div className="flex items-center justify-between bg-slate-50 p-4 rounded-xl border border-slate-200/50">
+                                            <div>
+                                                <p className="font-bold text-gray-800 text-sm">จำหน่ายเฉพาะฝากขาย / ส่งสาขา</p>
+                                                <p className="text-[11px] text-gray-400 mt-0.5 font-medium">ซ่อนสินค้านี้จากระบบสต็อกตลาดและหน้า POS หลัก</p>
+                                            </div>
+                                            <input
+                                                type="checkbox"
+                                                checked={isConsignmentOnly}
+                                                onChange={(e) => setIsConsignmentOnly(e.target.checked)}
+                                                className="w-5 h-5 accent-emerald-500 rounded border-gray-300 focus:ring-emerald-500 cursor-pointer pointer-events-auto"
+                                            />
                                         </div>
                                     </div>
+
                                 </div>
                             </div>
                         </div>

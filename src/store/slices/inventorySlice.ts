@@ -215,7 +215,7 @@ export const createInventorySlice: StateCreator<AppState, [], [], InventorySlice
         }
     },
 
-    // 🔥 HOTFIXED: Upsert with Waste Preservation & Immutable History
+    // 🔥 HOTFIXED: Upsert with Decoupled Home/Market pools
     upsertDailyInventory: async (record) => {
         // Check existence
         let query = supabase.from('daily_inventory').select('*').eq('business_date', record.businessDate).eq('product_id', record.productId);
@@ -229,18 +229,34 @@ export const createInventorySlice: StateCreator<AppState, [], [], InventorySlice
         const { data: existingRecords } = await query.order('created_at', { ascending: false }).limit(1);
         const existingData = existingRecords?.[0];
 
-        // 🛡️ MERGE WITH EXISTING DATA (Prevents Stale State Overwrites)
-        const stockYesterday = record.stockYesterday ?? existingData?.stock_yesterday ?? 0;
-        const produced = record.producedQty ?? existingData?.produced_qty ?? 0;
+        // 🛡️ Decouple Home and Market pool calculation
+        const isMarket = !!record.marketId;
+        const stockYesterday = isMarket ? 0 : (record.stockYesterday ?? existingData?.stock_yesterday ?? 0);
+        const produced = isMarket ? 0 : (record.producedQty ?? existingData?.produced_qty ?? 0);
         const toShop = record.toShopQty ?? existingData?.to_shop_qty ?? 0;
         const sold = record.soldQty ?? existingData?.sold_qty ?? 0;
         const waste = record.wasteQty ?? existingData?.waste_qty ?? 0;
         const eat = record.eatQty ?? existingData?.eat_qty ?? 0; 
         const giveaway = record.giveawayQty ?? existingData?.giveaway_qty ?? 0; 
 
-        // 🛡️ FIX: Leftover Home must subtract eat and giveaway to prevent Ghost Stock carry-over
-        const leftoverHome = stockYesterday + produced - toShop - waste - eat - giveaway;
-        const unsoldShop = toShop - sold;
+        let leftoverHome = 0;
+        let unsoldShop = 0;
+
+        if (isMarket) {
+            unsoldShop = Math.max(0, toShop - sold - waste - eat - giveaway);
+        } else {
+            // Find total transfers across all markets
+            const state = get();
+            const totalTransfers = state.dailyInventory
+                .filter(d => 
+                    d.businessDate === record.businessDate && 
+                    d.productId === record.productId && 
+                    ((!d.variantId && !record.variantId) || d.variantId === record.variantId) &&
+                    !!d.marketId
+                )
+                .reduce((sum, d) => sum + (d.toShopQty || 0), 0);
+            leftoverHome = stockYesterday + produced - totalTransfers - waste - eat - giveaway;
+        }
 
         const dbRecord: Record<string, unknown> = {
             business_date: record.businessDate,
@@ -272,6 +288,42 @@ export const createInventorySlice: StateCreator<AppState, [], [], InventorySlice
             // Insert
             const { data } = await supabase.from('daily_inventory').insert(dbRecord).select().single();
             resultData = data;
+        }
+
+        // 🛡️ Auto Recalculate Home leftover if updating market record
+        if (isMarket) {
+            const { data: homeRecords } = await supabase
+                .from('daily_inventory')
+                .select('*')
+                .eq('business_date', record.businessDate)
+                .eq('product_id', record.productId)
+                .eq('variant_id', record.variantId || null)
+                .is('market_id', null)
+                .limit(1);
+            
+            const homeData = homeRecords?.[0];
+            if (homeData) {
+                const { data: marketRecords } = await supabase
+                    .from('daily_inventory')
+                    .select('to_shop_qty')
+                    .eq('business_date', record.businessDate)
+                    .eq('product_id', record.productId)
+                    .eq('variant_id', record.variantId || null)
+                    .not('market_id', 'is', null);
+                
+                const totalTransfers = marketRecords?.reduce((sum, m) => sum + (m.to_shop_qty || 0), 0) || 0;
+                const hStockYesterday = homeData.stock_yesterday || 0;
+                const hProduced = homeData.produced_qty || 0;
+                const hWaste = homeData.waste_qty || 0;
+                const hEat = homeData.eat_qty || 0;
+                const hGiveaway = homeData.giveaway_qty || 0;
+                const newLeftoverHome = hStockYesterday + hProduced - totalTransfers - hWaste - hEat - hGiveaway;
+                
+                await supabase
+                    .from('daily_inventory')
+                    .update({ leftover_home: newLeftoverHome })
+                    .eq('id', homeData.id);
+            }
         }
 
         if (resultData) {
@@ -311,6 +363,7 @@ export const createInventorySlice: StateCreator<AppState, [], [], InventorySlice
 
         const inserts: Record<string, unknown>[] = [];
         const updates: Array<{ id: string; fields: Record<string, unknown> }> = [];
+        const homeRecalculateKeys = new Set<string>();
 
         for (const record of records) {
             const matches = existingRows?.filter(row =>
@@ -325,16 +378,35 @@ export const createInventorySlice: StateCreator<AppState, [], [], InventorySlice
             }
             const existingData = matches[0];
 
-            const stockYesterday = record.stockYesterday ?? existingData?.stock_yesterday ?? 0;
-            const produced = record.producedQty ?? existingData?.produced_qty ?? 0;
+            const isMarket = !!record.marketId;
+            const stockYesterday = isMarket ? 0 : (record.stockYesterday ?? existingData?.stock_yesterday ?? 0);
+            const produced = isMarket ? 0 : (record.producedQty ?? existingData?.produced_qty ?? 0);
             const toShop = record.toShopQty ?? existingData?.to_shop_qty ?? 0;
             const sold = record.soldQty ?? existingData?.sold_qty ?? 0;
             const waste = record.wasteQty ?? existingData?.waste_qty ?? 0;
             const eat = record.eatQty ?? existingData?.eat_qty ?? 0; 
             const giveaway = record.giveawayQty ?? existingData?.giveaway_qty ?? 0; 
 
-            const leftoverHome = stockYesterday + produced - toShop - waste - eat - giveaway;
-            const unsoldShop = toShop - sold;
+            let leftoverHome = 0;
+            let unsoldShop = 0;
+
+            if (isMarket) {
+                unsoldShop = Math.max(0, toShop - sold - waste - eat - giveaway);
+                const key = `${record.businessDate}_${record.productId}_${record.variantId || 'null'}`;
+                homeRecalculateKeys.add(key);
+            } else {
+                // Find total transfers across all markets
+                const state = get();
+                const totalTransfers = state.dailyInventory
+                    .filter(d => 
+                        d.businessDate === record.businessDate && 
+                        d.productId === record.productId && 
+                        ((!d.variantId && !record.variantId) || d.variantId === record.variantId) &&
+                        !!d.marketId
+                    )
+                    .reduce((sum, d) => sum + (d.toShopQty || 0), 0);
+                leftoverHome = stockYesterday + produced - totalTransfers - waste - eat - giveaway;
+            }
 
             const dbRecord: Record<string, unknown> = {
                 business_date: record.businessDate,
@@ -352,9 +424,6 @@ export const createInventorySlice: StateCreator<AppState, [], [], InventorySlice
                 leftover_home: leftoverHome,
                 unsold_shop: unsoldShop
             };
-
-            if (record.variantId) dbRecord.variant_id = record.variantId;
-            if (record.variantName) dbRecord.variant_name = record.variantName;
 
             if (existingData?.id) {
                 const updateFields = { ...dbRecord };
@@ -403,6 +472,49 @@ export const createInventorySlice: StateCreator<AppState, [], [], InventorySlice
             }
         }
 
+        // 🛡️ Auto Recalculate Home leftovers in bulk
+        if (homeRecalculateKeys.size > 0) {
+            await Promise.all(
+                Array.from(homeRecalculateKeys).map(async (key) => {
+                    const [bDate, prodId, varIdStr] = key.split('_');
+                    const varId = varIdStr === 'null' ? null : varIdStr;
+                    
+                    const { data: homeRecords } = await supabase
+                        .from('daily_inventory')
+                        .select('*')
+                        .eq('business_date', bDate)
+                        .eq('product_id', prodId)
+                        .eq('variant_id', varId)
+                        .is('market_id', null)
+                        .limit(1);
+                    
+                    const homeData = homeRecords?.[0];
+                    if (homeData) {
+                        const { data: marketRecords } = await supabase
+                            .from('daily_inventory')
+                            .select('to_shop_qty')
+                            .eq('business_date', bDate)
+                            .eq('product_id', prodId)
+                            .eq('variant_id', varId)
+                            .not('market_id', 'is', null);
+                        
+                        const totalTransfers = marketRecords?.reduce((sum, m) => sum + (m.to_shop_qty || 0), 0) || 0;
+                        const hStockYesterday = homeData.stock_yesterday || 0;
+                        const hProduced = homeData.produced_qty || 0;
+                        const hWaste = homeData.waste_qty || 0;
+                        const hEat = homeData.eat_qty || 0;
+                        const hGiveaway = homeData.giveaway_qty || 0;
+                        const newLeftoverHome = hStockYesterday + hProduced - totalTransfers - hWaste - hEat - hGiveaway;
+                        
+                        await supabase
+                            .from('daily_inventory')
+                            .update({ leftover_home: newLeftoverHome })
+                            .eq('id', homeData.id);
+                    }
+                })
+            );
+        }
+
         if (results.length > 0) {
             const mappedRecords = results.map(mapDailyInventory);
             set(state => {
@@ -411,7 +523,8 @@ export const createInventorySlice: StateCreator<AppState, [], [], InventorySlice
                     const index = updatedInventory.findIndex(d =>
                         d.businessDate === newRecord.businessDate &&
                         d.productId === newRecord.productId &&
-                        d.variantId === newRecord.variantId
+                        ((!d.variantId && !newRecord.variantId) || d.variantId === newRecord.variantId) &&
+                        ((!d.marketId && !newRecord.marketId) || d.marketId === newRecord.marketId)
                     );
                     if (index >= 0) {
                         updatedInventory[index] = newRecord;
@@ -426,16 +539,33 @@ export const createInventorySlice: StateCreator<AppState, [], [], InventorySlice
 
     getYesterdayStock: (productId, todayDate, variantId) => {
         const state = get();
-        const relevantRecords = state.dailyInventory.filter(
+        const pastRecords = state.dailyInventory.filter(
             d => d.businessDate < todayDate &&
                 d.productId === productId &&
-                (d.variantId || '') === (variantId || '')
+                ((!d.variantId && !variantId) || d.variantId === variantId)
         );
 
-        if (relevantRecords.length === 0) return 0;
-        relevantRecords.sort((a, b) => b.businessDate.localeCompare(a.businessDate));
-        const lastRecord = relevantRecords[0];
-        return (lastRecord.leftoverHome ?? 0) + (lastRecord.unsoldShop ?? 0);
+        if (pastRecords.length === 0) return 0;
+        
+        // Find the most recent date before today
+        pastRecords.sort((a, b) => b.businessDate.localeCompare(a.businessDate));
+        const latestDate = pastRecords[0].businessDate;
+        
+        const latestDayRecords = pastRecords.filter(d => d.businessDate === latestDate);
+
+        // Sum all attributes across Home and Market records for robust backward compatibility
+        const initial = latestDayRecords.find(d => !d.marketId)?.stockYesterday ?? latestDayRecords[0]?.stockYesterday ?? 0;
+        const produced = latestDayRecords.reduce((sum, d) => sum + (d.producedQty || 0), 0);
+        const waste = latestDayRecords.reduce((sum, d) => sum + (d.wasteQty || 0), 0);
+        const eat = latestDayRecords.reduce((sum, d) => sum + (d.eatQty || 0), 0);
+        const giveaway = latestDayRecords.reduce((sum, d) => sum + (d.giveawayQty || 0), 0);
+        const totalSold = latestDayRecords.reduce((sum, d) => sum + (d.soldQty || 0), 0);
+
+        // Total Available Today = Leftover Home + Unsold Shop
+        // Leftover Home = initial + produced - totalToShop - waste - eat - giveaway
+        // Unsold Shop = totalToShop - totalSold
+        // Math matches: initial + produced - waste - eat - giveaway - totalSold
+        return Math.max(0, initial + produced - waste - eat - giveaway - totalSold);
     },
 
     deductStockByRecipe: (productId, quantity, variantId) => {

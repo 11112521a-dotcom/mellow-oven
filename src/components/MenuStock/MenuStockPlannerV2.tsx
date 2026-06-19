@@ -45,13 +45,6 @@ export const MenuStockPlannerV2: React.FC = () => {
             // Filter zombie/deleted products implicitly by iterating over 'products' from store
             if (product.isActive === false) return []; // skip inactive
 
-            // Filter by Market selection:
-            // - If sell everywhere (marketIds is empty), show in any view.
-            // - If restricted to specific markets, show only when the selected market matches.
-            const isSellEverywhere = !product.marketIds || product.marketIds.length === 0;
-            const isSelectedMarket = !!(selectedMarketId && product.marketIds && product.marketIds.includes(selectedMarketId));
-            if (!isSellEverywhere && !isSelectedMarket) return [];
-
             const baseItem = {
                 id: product.id,
                 name: product.name,

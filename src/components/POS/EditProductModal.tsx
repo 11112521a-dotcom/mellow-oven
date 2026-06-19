@@ -57,21 +57,13 @@ export const EditProductModal: React.FC<EditProductModalProps> = ({ isOpen, onCl
 
             setVariants(product.variants || []);
             
-            const pMarkets = product.marketIds || [];
-            setSellEverywhere(pMarkets.length === 0);
-            setSelectedMarkets(pMarkets);
-            
             setActiveTab('INFO');
         }
     }, [product]);
 
-
-
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         if (!product) return;
-
-
 
         const updates: Partial<Product> = {
             name,
@@ -80,8 +72,7 @@ export const EditProductModal: React.FC<EditProductModalProps> = ({ isOpen, onCl
             category: category || product.category,
             flavor: flavor || product.flavor,
             recipe: recipe || undefined,
-            variants: variants,
-            marketIds: sellEverywhere ? [] : selectedMarkets
+            variants: variants
         };
 
         updateProduct(product.id, updates);
@@ -259,48 +250,6 @@ export const EditProductModal: React.FC<EditProductModalProps> = ({ isOpen, onCl
                             </div>
                         </div>
 
-                        {/* Markets / Branch Mapping */}
-                        <div className="border-t border-cafe-100 pt-4 mt-2">
-                            <label className="block text-sm font-bold text-cafe-700 mb-2 flex items-center gap-1.5">
-                                <span>🏪 ช่องทางการขาย / สาขา</span>
-                            </label>
-                            <div className="bg-white rounded-xl p-4 space-y-3 border border-cafe-200">
-                                <label className="flex items-center gap-3 cursor-pointer select-none">
-                                    <input
-                                        type="checkbox"
-                                        checked={sellEverywhere}
-                                        onChange={(e) => {
-                                            setSellEverywhere(e.target.checked);
-                                            if (e.target.checked) setSelectedMarkets([]);
-                                        }}
-                                        className="w-4.5 h-4.5 rounded text-cafe-600 focus:ring-cafe-500 border-cafe-300"
-                                    />
-                                    <span className="text-sm font-bold text-cafe-700">วางขายทุกสาขา / ทุกตลาด (ค่าเริ่มต้น)</span>
-                                </label>
-
-                                {!sellEverywhere && (
-                                    <div className="grid grid-cols-2 gap-2 pl-7 pt-3 border-t border-cafe-200/50 mt-2">
-                                        {markets.map((market) => (
-                                            <label key={market.id} className="flex items-center gap-2 cursor-pointer select-none py-1 hover:bg-cafe-50/50 rounded px-1.5 transition-colors">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={selectedMarkets.includes(market.id)}
-                                                    onChange={(e) => {
-                                                        if (e.target.checked) {
-                                                            setSelectedMarkets([...selectedMarkets, market.id]);
-                                                        } else {
-                                                            setSelectedMarkets(selectedMarkets.filter(id => id !== market.id));
-                                                        }
-                                                    }}
-                                                    className="w-4 h-4 rounded text-cafe-600 focus:ring-cafe-500 border-cafe-300"
-                                                />
-                                                <span className="text-xs font-semibold text-cafe-700">{market.name}</span>
-                                            </label>
-                                        ))}
-                                    </div>
-                                )}
-                            </div>
-                        </div>
                     </div>
                 ) : activeTab === 'VARIANTS' ? (
                     editingVariantIndex !== null ? (

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Modal } from '../ui/Modal';
 import { useStore } from '@/src/store';
+import { useShallow } from 'zustand/react/shallow';
 import { JarType } from '@/types';
 import { 
     ArrowRight, Wallet, Store, Tag, FileText, 
@@ -28,7 +29,13 @@ const EXPENSE_CATEGORIES = [
 ];
 
 export const TransactionModal: React.FC<TransactionModalProps> = ({ isOpen, onClose, mode, defaultJar }) => {
-    const { jars, addTransaction, updateJarBalance, transferFunds, markets } = useStore();
+    const { jars, addTransaction, updateJarBalance, transferFunds, markets } = useStore(useShallow(state => ({
+        jars: state.jars,
+        addTransaction: state.addTransaction,
+        updateJarBalance: state.updateJarBalance,
+        transferFunds: state.transferFunds,
+        markets: state.markets
+    })));
 
     const [amount, setAmount] = useState('');
     const [description, setDescription] = useState('');

@@ -130,16 +130,8 @@ export const ProductionPlanner: React.FC = () => {
         const forecastResults: ForecastResult[] = [];
         const { productSales } = useStore.getState();
 
-        // กรองเฉพาะสินค้าที่วางขายในตลาดที่เลือก
-        const filteredProducts = products.filter(p => {
-            if (p.isActive === false) return false;
-            // ป้องกันบั๊ก: หากไม่ได้เลือกลิงก์ตลาด หรือไม่มีข้อมูล marketIds ให้วางขายทุกสาขาเป็นค่าเริ่มต้น
-            if (!p.marketIds || p.marketIds.length === 0) return true;
-            if (selectedMarket) {
-                return p.marketIds.includes(selectedMarket);
-            }
-            return true;
-        });
+        // แสดงสินค้าที่ active ทั้งหมด
+        const filteredProducts = products.filter(p => p.isActive !== false);
 
         const forecastItems: { id: string, name: string, product: Product, variant?: Variant }[] = [];
         filteredProducts.forEach(p => {

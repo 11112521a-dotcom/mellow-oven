@@ -16,13 +16,13 @@ export const Layout: React.FC<LayoutProps> = ({ children, activeTab, onTabChange
     const navItems = [
         { id: 'sales', label: 'ขายหน้าร้าน', icon: ShoppingBag },
         { id: 'menustock', label: 'สต็อกเมนู', icon: Package },
-        { id: 'inventory', label: 'สต็อก & จัดซื้อ', icon: Package },
         { id: 'consignment', label: 'ฝากขาย/ส่งสาขา', icon: Store },
         { id: 'salesreport', label: 'รายงานการขาย', icon: TrendingUp },
         { id: 'financials', label: 'การเงิน', icon: Wallet },
         { id: 'production', label: 'การผลิต (AI)', icon: TrendingUp },
         { id: 'promotion', label: 'ออเดอร์พิเศษ', icon: Tag },
         { id: 'settings', label: 'ตั้งค่า', icon: Settings },
+        { id: 'inventory', label: 'สต็อก & จัดซื้อ', icon: Package },
     ];
 
     const handleTabChange = (tabId: string) => {

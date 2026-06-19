@@ -10,7 +10,7 @@ interface TransactionTableProps {
 }
 
 export const TransactionTable: React.FC<TransactionTableProps> = React.memo(({ transactions }) => {
-    const { deleteTransaction } = useStore();
+    const deleteTransaction = useStore(state => state.deleteTransaction);
     const [searchTerm, setSearchTerm] = useState('');
     const [typeFilter, setTypeFilter] = useState<string>('ALL');
     const [categoryFilter, setCategoryFilter] = useState<string>('ALL');

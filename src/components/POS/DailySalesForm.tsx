@@ -173,10 +173,12 @@ export const DailySalesForm: React.FC = () => {
             const filteredProducts = products.filter(p => {
                 if (p.isActive === false) return false;
                 if (!selectedMarketId) return false; // ไม่เลือกตลาด จะไม่แสดงสินค้าเพื่อป้อนข้อมูล
-                // ป้องกันบั๊ก: หากไม่มีการระบุตลาด หรือตัวแปร marketIds ว่างเปล่า ให้ถือว่าขายทุกสาขา (All Markets)
-                if (!p.marketIds || p.marketIds.length === 0) return true;
-                // ถ้าเลือกตลาดนัดแล้ว ให้เช็คว่าสินค้านี้รองรับตลาดนี้หรือไม่
-                return p.marketIds.includes(selectedMarketId);
+                
+                // Filter by market selection (Hide if product has specific markets and selectedMarketId is not one of them)
+                if (p.marketIds && p.marketIds.length > 0) {
+                    if (!p.marketIds.includes(selectedMarketId)) return false;
+                }
+                return true;
             });
 
             filteredProducts.forEach(p => {
@@ -343,8 +345,8 @@ export const DailySalesForm: React.FC = () => {
         // FIX: Always update soldQty, even if no inventory record exists (creates one if needed)
         const inventoryRecordsToUpsert = [];
         for (const log of logs) {
-            // Only process items that had sales or waste
-            if (log.soldQty > 0 || log.wasteQty > 0) {
+            // Process any items that were prepared/transferred or had sales activity
+            if (log.preparedQty > 0 || log.soldQty > 0 || log.wasteQty > 0 || log.freeQty > 0 || log.leftoverQty > 0) {
                 // Find existing inventory record matching BOTH productId, variantId AND marketId
                 const inventoryRecord = dailyInventory.find(
                     d => d.businessDate === date &&
@@ -353,20 +355,20 @@ export const DailySalesForm: React.FC = () => {
                         (selectedMarketId ? d.marketId === selectedMarketId : !d.marketId)
                 );
 
-                // FIX: Always call upsert - use existing values or defaults, and ADD new waste/free from sales
+                // FIX: Always call upsert - use existing values or defaults, and ADD new values from session. Decouple from Home.
                 inventoryRecordsToUpsert.push({
                     businessDate: date,
                     productId: log.productId,
                     variantId: log.variantId,
                     variantName: log.variant?.name,
-                    marketId: selectedMarketId || undefined, // 🆕 PASS THE MARKET ID!
-                    producedQty: inventoryRecord?.producedQty || 0,
+                    marketId: selectedMarketId || undefined,
+                    producedQty: 0,
                     toShopQty: inventoryRecord?.toShopQty || log.preparedQty || 0, // Use preparedQty as fallback
-                    soldQty: log.soldQty,
+                    soldQty: (inventoryRecord?.soldQty || 0) + log.soldQty,
                     wasteQty: (inventoryRecord?.wasteQty || 0) + (log.wasteQty || 0), // 🔥 ADD waste from shop
-                    eatQty: (inventoryRecord?.eatQty || 0) + (log.freeQty || 0),      // 🔥 ADD free/eat from shop (fixes Ghost Stock)
-                    giveawayQty: inventoryRecord?.giveawayQty || 0,                   // 🔥 Preserve existing giveaway
-                    stockYesterday: inventoryRecord?.stockYesterday || 0
+                    eatQty: (inventoryRecord?.eatQty || 0) + (log.freeQty || 0),      // 🔥 ADD free/eat from shop
+                    giveawayQty: 0,
+                    stockYesterday: 0
                 });
             }
         }

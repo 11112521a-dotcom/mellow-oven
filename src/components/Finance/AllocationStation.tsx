@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useStore } from '@/src/store';
+import { useShallow } from 'zustand/react/shallow';
 import { JarType, AllocationProfile } from '@/types';
 import { formatCurrency } from '@/src/lib/utils';
 import {
@@ -87,10 +88,27 @@ export const AllocationStation = React.memo(({ onAllocate }: AllocationStationPr
         setDefaultProfile, renameAllocationProfile, defaultProfileId, jars,
         getUnallocatedBalance, unallocatedProfits, getUnallocatedByDate,
         dailyInventory, products, fetchDailyInventory,
-        // Debt-First Allocation v2.0
         debtConfig, updateDebtConfig, addToDebtAccumulated,
         selectedWalletId
-    } = useStore();
+    } = useStore(useShallow(state => ({
+        allocationProfiles: state.allocationProfiles,
+        saveAllocationProfile: state.saveAllocationProfile,
+        deleteAllocationProfile: state.deleteAllocationProfile,
+        setDefaultProfile: state.setDefaultProfile,
+        renameAllocationProfile: state.renameAllocationProfile,
+        defaultProfileId: state.defaultProfileId,
+        jars: state.jars,
+        getUnallocatedBalance: state.getUnallocatedBalance,
+        unallocatedProfits: state.unallocatedProfits,
+        getUnallocatedByDate: state.getUnallocatedByDate,
+        dailyInventory: state.dailyInventory,
+        products: state.products,
+        fetchDailyInventory: state.fetchDailyInventory,
+        debtConfig: state.debtConfig,
+        updateDebtConfig: state.updateDebtConfig,
+        addToDebtAccumulated: state.addToDebtAccumulated,
+        selectedWalletId: state.selectedWalletId
+    })));
 
     const [amount, setAmount] = useState<string>('');
     const [isAllocating, setIsAllocating] = useState(false);
@@ -167,7 +185,9 @@ export const AllocationStation = React.memo(({ onAllocate }: AllocationStationPr
     }, [unallocatedProfits, selectedWalletId]);
 
     // Declare availableDates first (needed for effectiveDebtAmount calculation)
-    const availableDates = [...new Set(filteredProfits.filter(p => p.amount > 0).map(p => p.date))].sort((a, b) => b.localeCompare(a));
+    const availableDates = useMemo(() => {
+        return [...new Set(filteredProfits.filter(p => p.amount > 0).map(p => p.date))].sort((a, b) => b.localeCompare(a));
+    }, [filteredProfits]);
     const unallocatedBalance = getUnallocatedBalance();
 
     // Manual Debt Override State

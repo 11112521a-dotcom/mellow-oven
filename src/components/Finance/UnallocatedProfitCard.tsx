@@ -1,10 +1,15 @@
 import React from 'react';
 import { useStore } from '@/src/store';
+import { useShallow } from 'zustand/react/shallow';
 import { TrendingUp, Calendar, DollarSign } from 'lucide-react';
 import { formatCurrency } from '@/src/lib/utils';
 
 export const UnallocatedProfitCard: React.FC = () => {
-    const { unallocatedProfits, getUnallocatedBalance, selectedWalletId } = useStore();
+    const { unallocatedProfits, getUnallocatedBalance, selectedWalletId } = useStore(useShallow(state => ({
+        unallocatedProfits: state.unallocatedProfits,
+        getUnallocatedBalance: state.getUnallocatedBalance,
+        selectedWalletId: state.selectedWalletId
+    })));
     const totalBalance = getUnallocatedBalance();
 
     const filteredProfits = unallocatedProfits.filter(p => 

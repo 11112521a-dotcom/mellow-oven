@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import { useStore } from '@/src/store';
+import { useShallow } from 'zustand/react/shallow';
 import { TransactionTable } from '@/src/components/Finance/TransactionTable';
 import { TransactionModal } from '@/src/components/Finance/TransactionModal';
 import { JarsSection } from '@/src/components/Finance/JarsSection';
@@ -10,7 +11,14 @@ import { ArrowRightLeft, TrendingUp, TrendingDown, FileText, Plus, Minus, Refres
 import { formatCurrency } from '@/src/lib/utils';
 
 const Financials: React.FC = () => {
-    const { jars, transactions, executeAllocation, externalShops, selectedWalletId, setSelectedWalletId } = useStore();
+    const { jars, transactions, executeAllocation, externalShops, selectedWalletId, setSelectedWalletId } = useStore(useShallow(state => ({
+        jars: state.jars,
+        transactions: state.transactions,
+        executeAllocation: state.executeAllocation,
+        externalShops: state.externalShops,
+        selectedWalletId: state.selectedWalletId,
+        setSelectedWalletId: state.setSelectedWalletId
+    })));
 
     const [isTransactionModalOpen, setIsTransactionModalOpen] = useState(false);
     const [isMonthlyReportOpen, setIsMonthlyReportOpen] = useState(false);
