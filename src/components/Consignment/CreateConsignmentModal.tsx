@@ -27,39 +27,45 @@ export const CreateConsignmentModal: React.FC<CreateConsignmentModalProps> = ({ 
     
     const [isSubmitting, setIsSubmitting] = useState(false);
 
-    const activeProducts = products.filter(p => p.isActive !== false);
+    const activeProducts = useMemo(() => {
+        return products.filter(p => p.isActive !== false);
+    }, [products]);
 
     // Filter products by search term
     const filteredProducts = useMemo(() => {
-        if (!searchTerm) return activeProducts;
+        if (!searchTerm.trim()) return activeProducts;
+        const lowerSearch = searchTerm.toLowerCase();
         return activeProducts.filter(p => 
-            p.name.toLowerCase().includes(searchTerm.toLowerCase())
+            p.name.toLowerCase().includes(lowerSearch)
         );
     }, [activeProducts, searchTerm]);
 
+    const selectedProduct = useMemo(() => {
+        return products.find(p => p.id === selectedProductId);
+    }, [products, selectedProductId]);
+
     const handleAddItem = () => {
-        const product = products.find(p => p.id === selectedProductId);
-        if (!product) return;
+        if (!selectedProduct) return;
         
         let vName = '';
-        let cost = product.cost;
+        let cost = selectedProduct.cost;
         
         if (selectedVariantId) {
-            const variant = product.variants?.find(v => v.id === selectedVariantId);
+            const variant = selectedProduct.variants?.find(v => v.id === selectedVariantId);
             if (variant) {
                 vName = variant.name;
                 cost = variant.cost;
             }
         }
         
-        const price = parseFloat(unitPrice) || product.price;
+        const price = parseFloat(unitPrice) || selectedProduct.price;
         const qty = parseInt(quantity) || 1;
 
         setItems([...items, {
             id: Math.random().toString(), // temporary id
-            productId: product.id,
+            productId: selectedProduct.id,
             variantId: selectedVariantId || null,
-            productName: product.name,
+            productName: selectedProduct.name,
             variantName: vName || null,
             quantitySent: qty,
             unitPrice: price,
@@ -307,21 +313,20 @@ export const CreateConsignmentModal: React.FC<CreateConsignmentModalProps> = ({ 
                                     </div>
                                     
                                     {/* Select Variant (If exists) */}
-                                    {selectedProductId && products.find(p => p.id === selectedProductId)?.variants?.length ? (
+                                    {selectedProductId && selectedProduct?.variants?.length ? (
                                         <div className="flex flex-col">
                                             <label className="block text-xs font-semibold text-stone-550 mb-1">ตัวเลือกขนาด/รสชาติ</label>
                                             <select
                                                 value={selectedVariantId}
                                                 onChange={e => {
                                                     setSelectedVariantId(e.target.value);
-                                                    const p = products.find(x => x.id === selectedProductId);
-                                                    const v = p?.variants?.find(x => x.id === e.target.value);
+                                                    const v = selectedProduct.variants?.find(x => x.id === e.target.value);
                                                     if (v) setUnitPrice(v.price.toString());
                                                 }}
                                                 className="w-full px-3 py-2 border border-stone-300 rounded-xl text-base md:text-sm bg-white"
                                             >
                                                 <option value="">-- เลือกตัวเลือก --</option>
-                                                {products.find(p => p.id === selectedProductId)?.variants?.map(v => (
+                                                {selectedProduct.variants.map(v => (
                                                     <option key={v.id} value={v.id}>{v.name}</option>
                                                 ))}
                                             </select>
