@@ -31,7 +31,7 @@ const weatherIcons: Record<string, string> = {
 };
 
 export const DetailedSalesReportModal: React.FC<DetailedSalesReportModalProps> = ({ isOpen, onClose, defaultMarketId = 'all' }) => {
-    const { productSales, fetchProductSales, markets, shopInfo, products } = useStore();
+    const { productSales, fetchProductSales, markets, shopInfo, products, externalShops } = useStore();
     const [selectedMarketId, setSelectedMarketId] = useState<string>(defaultMarketId);
 
     // Sync selected market when modal opens or defaults change
@@ -608,7 +608,7 @@ export const DetailedSalesReportModal: React.FC<DetailedSalesReportModalProps> =
 <body>
     <div class="container">
         <div class="header">
-            <h1>📊 รายงานการขายละเอียด${selectedMarketId !== 'all' ? ` - ${markets.find(m => m.id === selectedMarketId)?.name || ''}` : ''}</h1>
+            <h1>📊 รายงานการขายละเอียด${selectedMarketId !== 'all' ? ` - ${markets.find(m => m.id === selectedMarketId)?.name || (externalShops.find(s => s.id === selectedMarketId) ? `ฝากขาย: ${externalShops.find(s => s.id === selectedMarketId)?.name}` : '')}` : ''}</h1>
             <p>ช่วงวันที่: ${formatDate(fromDate)} - ${formatDate(toDate)} | ${shopInfo?.shopName || 'ร้านค้า'}</p>
         </div>
 
@@ -791,6 +791,9 @@ export const DetailedSalesReportModal: React.FC<DetailedSalesReportModalProps> =
                         <option value="all">ทุกตลาด</option>
                         {markets.map(m => (
                             <option key={m.id} value={m.id}>{m.name}</option>
+                        ))}
+                        {externalShops.map(s => (
+                            <option key={s.id} value={s.id}>ฝากขาย: {s.name}</option>
                         ))}
                     </select>
                     <button

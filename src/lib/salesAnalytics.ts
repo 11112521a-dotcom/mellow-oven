@@ -152,7 +152,7 @@ export const calculatePerMarketProductData = (filteredSales: ProductSaleLog[], m
         if (!marketMap.has(sale.marketId)) {
             marketMap.set(sale.marketId, {
                 marketId: sale.marketId,
-                marketName: markets.find(m => m.id === sale.marketId)?.name || sale.marketId,
+                marketName: markets.find(m => m.id === sale.marketId)?.name || sale.marketName || sale.marketId,
                 revenue: 0,
                 profit: 0,
                 quantity: 0,

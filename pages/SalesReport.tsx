@@ -201,6 +201,7 @@ export const SalesReport: React.FC = () => {
     const specialOrders = useStore((state) => state.specialOrders);
     const dailyInventory = useStore((state) => state.dailyInventory);
     const fetchInventoryByDateRange = useStore((state) => state.fetchInventoryByDateRange);
+    const externalShops = useStore((state) => state.externalShops);
 
     const globalDateFilter = useStore((state) => state.globalDateFilter);
     const setGlobalDateFilter = useStore((state) => state.setGlobalDateFilter);
@@ -230,6 +231,16 @@ export const SalesReport: React.FC = () => {
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [isDetailedReportOpen, setIsDetailedReportOpen] = useState(false); // NEW
     const [editingSale, setEditingSale] = useState<ProductSaleLog | null>(null);
+
+    const getMarketName = (id: string) => {
+        const foundPOS = markets.find(m => m.id === id);
+        if (foundPOS) return foundPOS.name;
+        const foundShop = externalShops.find(s => s.id === id);
+        if (foundShop) return `ฝากขาย: ${foundShop.name}`;
+        const saleLog = productSales.find(s => s.marketId === id);
+        if (saleLog && saleLog.marketName) return saleLog.marketName;
+        return 'Unknown Market';
+    };
 
     // Oracle Core State
     const [oraclePatterns, setOraclePatterns] = useState<OraclePattern[]>([]);
@@ -467,12 +478,22 @@ export const SalesReport: React.FC = () => {
     }, [productGroups, topProductsMode]);
 
     const marketComparisonData = useMemo(() => {
-        const marketMap = new Map<string, { revenue: number; profit: number; quantity: number }>();
+        const marketMap = new Map<string, { marketName: string; revenue: number; profit: number; quantity: number }>();
         filteredSales.forEach(sale => {
-            const existing = marketMap.get(sale.marketId) || { revenue: 0, profit: 0, quantity: 0 };
-            marketMap.set(sale.marketId, { revenue: existing.revenue + sale.totalRevenue, profit: existing.profit + sale.grossProfit, quantity: existing.quantity + sale.quantitySold });
+            const existing = marketMap.get(sale.marketId) || { marketName: sale.marketName || sale.marketId, revenue: 0, profit: 0, quantity: 0 };
+            marketMap.set(sale.marketId, {
+                marketName: existing.marketName,
+                revenue: existing.revenue + sale.totalRevenue,
+                profit: existing.profit + sale.grossProfit,
+                quantity: existing.quantity + sale.quantitySold
+            });
         });
-        return Array.from(marketMap.entries()).map(([marketId, data]) => ({ marketName: markets.find(m => m.id === marketId)?.name || marketId, revenue: data.revenue, profit: data.profit, quantity: data.quantity }));
+        return Array.from(marketMap.entries()).map(([marketId, data]) => ({
+            marketName: markets.find(m => m.id === marketId)?.name || data.marketName,
+            revenue: data.revenue,
+            profit: data.profit,
+            quantity: data.quantity
+        }));
     }, [filteredSales, markets]);
 
     const wasteSummary = useMemo(() => calculateWasteSummary(filteredSales), [filteredSales]);
@@ -564,7 +585,7 @@ export const SalesReport: React.FC = () => {
     const toggleExpand = (productId: string) => setExpandedProduct(expandedProduct === productId ? null : productId);
 
     const enhancedData = useMemo(() => {
-        const marketName = selectedMarket === 'all' ? 'ทุกตลาด' : markets.find(m => m.id === selectedMarket)?.name || 'ตลาด';
+        const marketName = selectedMarket === 'all' ? 'ทุกตลาด' : getMarketName(selectedMarket);
         const totalRev = productSales.reduce((sum, s) => sum + s.totalRevenue, 0);
         return calculateEnhancedMarketData(
             productSales,
@@ -575,7 +596,7 @@ export const SalesReport: React.FC = () => {
             totalRev,
             dailyInventory
         );
-    }, [productSales, selectedMarket, markets, startDate, endDate, dailyInventory]);
+    }, [productSales, selectedMarket, markets, externalShops, startDate, endDate, dailyInventory]);
 
     const handleExportPDF = () => {
         generateMarketPDFReport(enhancedData);
@@ -652,7 +673,8 @@ export const SalesReport: React.FC = () => {
                             icon={Store}
                             options={[
                                 { value: 'all', label: 'ทุกตลาด' },
-                                ...markets.map(m => ({ value: m.id, label: m.name }))
+                                ...markets.map(m => ({ value: m.id, label: m.name })),
+                                ...externalShops.map(s => ({ value: s.id, label: `ฝากขาย: ${s.name}` }))
                             ]}
                         />
 
@@ -739,7 +761,7 @@ export const SalesReport: React.FC = () => {
             {selectedMarketForDetail ? (
                 <EnhancedMarketDetailView
                     marketId={selectedMarketForDetail}
-                    marketName={markets.find(m => m.id === selectedMarketForDetail)?.name || 'Unknown Market'}
+                    marketName={getMarketName(selectedMarketForDetail)}
                     sales={productSales}
                     totalRevenue={filteredSales.reduce((sum, s) => sum + s.totalRevenue, 0)}
                     fromDate={startDate}
@@ -1376,7 +1398,7 @@ export const SalesReport: React.FC = () => {
                                                                                                 </div>
                                                                                                 <div className="h-8 w-px bg-cafe-200"></div>
                                                                                                 <div>
-                                                                                                    <div className="text-sm font-medium text-cafe-800">{markets.find(m => m.id === sale.marketId)?.name || '-'}</div>
+                                                                                                    <div className="text-sm font-medium text-cafe-800">{markets.find(m => m.id === sale.marketId)?.name || sale.marketName || '-'}</div>
                                                                                                     {sale.weatherCondition && (
                                                                                                         <div className="flex items-center gap-1 text-xs text-cafe-500 mt-0.5">
                                                                                                             {getWeatherIcon(sale.weatherCondition)}
