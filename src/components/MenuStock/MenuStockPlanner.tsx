@@ -511,17 +511,35 @@ export const MenuStockPlanner: React.FC = () => {
         fetchDailyInventory(yesterday.toISOString().split('T')[0]);
     }, [businessDate, fetchDailyInventory]);
 
-    const getYesterdayForItem = (item: InventoryItem) =>
-        getYesterdayStock(item.productId, businessDate, item.variantId);
+    const getYesterdayForItem = useCallback((item: InventoryItem) =>
+        getYesterdayStock(item.productId, businessDate, item.variantId),
+    [getYesterdayStock, businessDate]);
+
+    // O(1) Lookup Maps
+    const inventoryMap = useMemo(() => {
+        const map = new Map<string, typeof dailyInventory[0]>();
+        dailyInventory.forEach(d => {
+            const key = `${d.businessDate}|${d.productId}|${d.variantId || ''}|${d.marketId || ''}`;
+            map.set(key, d);
+        });
+        return map;
+    }, [dailyInventory]);
+
+    const totalToShopMap = useMemo(() => {
+        const map = new Map<string, number>();
+        dailyInventory.forEach(d => {
+            if (d.marketId) {
+                const key = `${d.businessDate}|${d.productId}|${d.variantId || ''}`;
+                map.set(key, (map.get(key) || 0) + (d.toShopQty || 0));
+            }
+        });
+        return map;
+    }, [dailyInventory]);
 
     // Get SAVED record from DB (HOME POOL)
-    const getHomeRecord = (item: InventoryItem) => {
-        const saved = dailyInventory.find(d =>
-            d.businessDate === businessDate &&
-            d.productId === item.productId &&
-            ((!d.variantId && !item.variantId) || d.variantId === item.variantId) &&
-            !d.marketId
-        );
+    const getHomeRecord = useCallback((item: InventoryItem) => {
+        const key = `${businessDate}|${item.productId}|${item.variantId || ''}|`;
+        const saved = inventoryMap.get(key);
         return saved || {
             producedQty: 0,
             wasteQty: 0,
@@ -529,58 +547,51 @@ export const MenuStockPlanner: React.FC = () => {
             giveawayQty: 0, 
             stockYesterday: getYesterdayForItem(item)
         };
-    };
+    }, [inventoryMap, businessDate, getYesterdayForItem]);
 
     const getSavedRecord = getHomeRecord;
 
     // Get SAVED record from DB (MARKET SPECIFIC)
-    const getMarketRecord = (item: InventoryItem, marketId: string) => {
-        if (!marketId) return { toShopQty: 0, soldQty: 0, unsoldShop: 0 };
-        const saved = dailyInventory.find(d =>
-            d.businessDate === businessDate &&
-            d.productId === item.productId &&
-            ((!d.variantId && !item.variantId) || d.variantId === item.variantId) &&
-            d.marketId === marketId
-        );
+    const getMarketRecord = useCallback((item: InventoryItem, marketId: string) => {
+        if (!marketId) return { toShopQty: 0, soldQty: 0, unsoldShop: 0, wasteQty: 0, eatQty: 0, giveawayQty: 0 };
+        const key = `${businessDate}|${item.productId}|${item.variantId || ''}|${marketId}`;
+        const saved = inventoryMap.get(key);
         return saved || {
             toShopQty: 0,
             soldQty: 0,
-            unsoldShop: 0
+            unsoldShop: 0,
+            wasteQty: 0,
+            eatQty: 0,
+            giveawayQty: 0
         };
-    };
+    }, [inventoryMap, businessDate]);
 
     // Get Total Transfer across all markets
-    const getTotalToShop = (item: InventoryItem) => {
-        return dailyInventory
-            .filter(d => 
-                d.businessDate === businessDate && 
-                d.productId === item.productId && 
-                ((!d.variantId && !item.variantId) || d.variantId === item.variantId) &&
-                !!d.marketId
-            )
-            .reduce((sum, d) => sum + (d.toShopQty || 0), 0);
-    };
+    const getTotalToShop = useCallback((item: InventoryItem) => {
+        const key = `${businessDate}|${item.productId}|${item.variantId || ''}`;
+        return totalToShopMap.get(key) || 0;
+    }, [totalToShopMap, businessDate]);
 
     // Calculate today's stock = yesterday + ALL confirmed production (HOME)
-    const getTodayStock = (item: InventoryItem) => {
+    const getTodayStock = useCallback((item: InventoryItem) => {
         const home = getHomeRecord(item);
         const stockYesterday = home.stockYesterday ?? getYesterdayForItem(item);
         const confirmedProduction = home.producedQty || 0;
         return stockYesterday + confirmedProduction;
-    };
+    }, [getHomeRecord, getYesterdayForItem]);
 
     // Calculate leftover = today stock - ALL confirmed transfers - waste - กินแจก
-    const calculateLeftover = (item: InventoryItem) => {
+    const calculateLeftover = useCallback((item: InventoryItem) => {
         const todayStock = getTodayStock(item);
         const home = getHomeRecord(item);
         const totalTransfer = getTotalToShop(item);
         const confirmedWaste = home.wasteQty || 0;
         const confirmedFree = (home.eatQty || 0) + (home.giveawayQty || 0);
         return todayStock - totalTransfer - confirmedWaste - confirmedFree;
-    };
+    }, [getTodayStock, getHomeRecord, getTotalToShop]);
 
     // Toggle group expansion
-    const toggleGroup = (productId: string) => {
+    const toggleGroup = useCallback((productId: string) => {
         setExpandedGroups(prev => {
             const newSet = new Set(prev);
             if (newSet.has(productId)) {
@@ -590,10 +601,10 @@ export const MenuStockPlanner: React.FC = () => {
             }
             return newSet;
         });
-    };
+    }, []);
 
     // Handle Production Confirmation
-    const handleProductionConfirm = (item: InventoryItem, value: number) => {
+    const handleProductionConfirm = useCallback((item: InventoryItem, value: number) => {
         if (value <= 0) return;
         setConfirmModal({
             isOpen: true,
@@ -604,10 +615,10 @@ export const MenuStockPlanner: React.FC = () => {
             type: 'production',
             value
         });
-    };
+    }, []);
 
     // Handle Transfer Confirmation
-    const handleTransferConfirm = (item: InventoryItem, value: number) => {
+    const handleTransferConfirm = useCallback((item: InventoryItem, value: number) => {
         if (value <= 0) return;
         setConfirmModal({
             isOpen: true,
@@ -618,7 +629,7 @@ export const MenuStockPlanner: React.FC = () => {
             type: 'transfer',
             value
         });
-    };
+    }, []);
 
     // Handle Edit Save with confirmation
     const handleEditSave = async (producedQty: number, toShopQty: number, freeQty: number, wasteQty: number) => {
@@ -631,24 +642,40 @@ export const MenuStockPlanner: React.FC = () => {
         const item = editModal.item;
         const stockYesterday = editModal.stockYesterday;
 
-
         setIsSaving(true);
         try {
-            const home = getHomeRecord(item);
-
+            // 🛡️ 1. อัปเดตแถวของที่บ้าน (Home Pool) - ยอดผลิต, ของเสียที่บ้าน, กินแจกที่บ้าน
             await upsertDailyInventory({
                 businessDate,
                 productId: item.productId,
                 variantId: item.variantId || null,
-                marketId: null, // Edit action is currently only for Waste/Free which is Home!
+                marketId: null, // HOME
                 stockYesterday,
-                producedQty: home.producedQty || 0,
+                producedQty: producedQty, // ใช้ยอดผลิตที่แก้ไขจาก Modal
                 toShopQty: 0,
-                wasteQty,
+                wasteQty: wasteQty,       // ใช้ของเสียที่แก้ไขจาก Modal
                 soldQty: 0,
-                eatQty: freeQty,
+                eatQty: freeQty,          // ใช้กินแจกที่แก้ไขจาก Modal
                 giveawayQty: 0
             });
+
+            // 🛡️ 2. อัปเดตแถวของหน้าร้าน (Market Pool) - ยอดโอนไปร้าน
+            if (selectedMarketId) {
+                const marketRecord = getMarketRecord(item, selectedMarketId);
+                await upsertDailyInventory({
+                    businessDate,
+                    productId: item.productId,
+                    variantId: item.variantId || null,
+                    marketId: selectedMarketId, // MARKET SPECIFIC
+                    toShopQty: toShopQty,       // ใช้ยอดส่งร้านที่แก้ไขจาก Modal
+                    producedQty: 0,
+                    stockYesterday: 0,
+                    soldQty: marketRecord.soldQty || 0,
+                    wasteQty: marketRecord.wasteQty || 0,
+                    eatQty: marketRecord.eatQty || 0,
+                    giveawayQty: marketRecord.giveawayQty || 0
+                });
+            }
 
             await fetchDailyInventory(businessDate);
         } catch (error) {
@@ -852,10 +879,10 @@ export const MenuStockPlanner: React.FC = () => {
                             marketId: selectedMarketId || undefined, // MARKET SPECIFIC
                             producedQty: 0,
                             toShopQty: alreadySentToThisMarket + safeTransfer,
-                            wasteQty: 0,
+                            wasteQty: market.wasteQty || 0,
                             soldQty: market.soldQty || 0,
-                            eatQty: 0,
-                            giveawayQty: 0,
+                            eatQty: market.eatQty || 0,
+                            giveawayQty: market.giveawayQty || 0,
                             stockYesterday: 0
                         });
                     }
@@ -933,10 +960,10 @@ export const MenuStockPlanner: React.FC = () => {
                 variantName: item.isVariant ? item.name : undefined,
                 producedQty: 0,
                 toShopQty: newToShopQty,
-                wasteQty: 0,   
+                wasteQty: market.wasteQty || 0,   
                 soldQty: market.soldQty || 0,      
-                eatQty: 0,
-                giveawayQty: 0,
+                eatQty: market.eatQty || 0,
+                giveawayQty: market.giveawayQty || 0,
                 stockYesterday: 0
             });
         }
@@ -1105,10 +1132,10 @@ export const MenuStockPlanner: React.FC = () => {
                 marketId: selectedMarketId || undefined, // MARKET SPECIFIC
                 producedQty: 0,
                 toShopQty: (market.toShopQty || 0) + value,
-                wasteQty: 0,   
+                wasteQty: market.wasteQty || 0,   
                 soldQty: market.soldQty || 0,     
-                eatQty: 0,
-                giveawayQty: 0,
+                eatQty: market.eatQty || 0,
+                giveawayQty: market.giveawayQty || 0,
                 stockYesterday: 0
             });
         }

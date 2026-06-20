@@ -833,5 +833,154 @@ export const createInventorySlice: StateCreator<AppState, [], [], InventorySlice
             errors,
             updatedCount: successUpdates.length
         };
+    },
+
+    saveDailyMarketSales: async ({
+        date,
+        marketId,
+        marketName,
+        weatherCondition,
+        logs,
+        totalRevenue,
+        totalCOGS,
+        totalWasteCost,
+        trueProfit
+    }) => {
+        const { dailyInventory, bulkUpsertDailyInventory, bulkDeductStockByRecipes, addUnallocatedProfit, addTransaction, fetchData, fetchDailyInventory } = get();
+
+        // 🛡️ 1. ป้องกันข้อมูลเบิ้ล: ลบข้อมูลประวัติเก่าของวันนี้และตลาดนี้ออกก่อน
+        // 1.1 ลบ product_sales เดิม
+        await supabase
+            .from('product_sales')
+            .delete()
+            .eq('sale_date', date)
+            .eq('market_id', marketId);
+
+        // 1.2 ลบ unallocated_profits เดิม
+        await supabase
+            .from('unallocated_profits')
+            .delete()
+            .eq('date', date)
+            .eq('source', `กำไร - ${marketName}`);
+
+        // 1.3 ลบ transactions คืนต้นทุนเดิม
+        await supabase
+            .from('transactions')
+            .delete()
+            .eq('market_id', marketId)
+            .eq('category', 'COGS')
+            .eq('type', 'INCOME')
+            .like('description', `คืนต้นทุน ${date} - ${marketName}%`);
+
+        // 🛡️ 2. คำนวณ deltaSoldQty เพื่อปรับปรุงสต็อกวัตถุดิบ (Idempotent / Delta Update)
+        const recipeDeductions = [];
+        for (const log of logs) {
+            const inventoryRecord = dailyInventory.find(
+                d => d.businessDate === date &&
+                    d.productId === log.productId &&
+                    (d.variantId || '') === (log.variantId || '') &&
+                    d.marketId === marketId
+            );
+            const oldSoldQty = inventoryRecord?.soldQty || 0;
+            const deltaSoldQty = log.soldQty - oldSoldQty;
+
+            if (deltaSoldQty !== 0) {
+                recipeDeductions.push({
+                    productId: log.productId,
+                    quantity: deltaSoldQty,
+                    variantId: log.variantId
+                });
+            }
+        }
+
+        // ตัด/คืนสต็อกวัตถุดิบตามความต่างจริง
+        if (recipeDeductions.length > 0) {
+            const deductRes = await bulkDeductStockByRecipes(recipeDeductions);
+            if (!deductRes.success) {
+                throw new Error(`Failed to deduct stock by recipes: ${deductRes.errors.join(', ')}`);
+            }
+        }
+
+        // 🛡️ 3. อัปเดตตาราง daily_inventory
+        const inventoryRecordsToUpsert = logs.map(log => ({
+            businessDate: date,
+            productId: log.productId,
+            variantId: log.variantId || null,
+            variantName: log.variantName || null,
+            marketId: marketId,
+            producedQty: 0,
+            toShopQty: log.preparedQty,
+            soldQty: log.soldQty,
+            wasteQty: log.wasteQty || 0,
+            eatQty: log.freeQty || 0,
+            giveawayQty: 0,
+            stockYesterday: 0
+        }));
+
+        if (inventoryRecordsToUpsert.length > 0) {
+            await bulkUpsertDailyInventory(inventoryRecordsToUpsert);
+        }
+
+        // 🛡️ 4. บันทึกประวัติการขายรายชิ้นลง product_sales (บันทึกทุกรายการที่เตรียมไปหน้าร้าน หรือมียอดขาย/ของเสีย)
+        const salesLogsToInsert = logs
+            .filter(log => log.preparedQty > 0 || log.soldQty > 0 || log.wasteQty > 0)
+            .map(log => ({
+                id: crypto.randomUUID(),
+                recorded_at: new Date().toISOString(),
+                sale_date: date,
+                market_id: marketId,
+                market_name: marketName,
+                product_id: log.productId,
+                product_name: log.productName,
+                category: log.category,
+                quantity_sold: log.soldQty,
+                price_per_unit: log.pricePerUnit,
+                total_revenue: log.soldQty * log.pricePerUnit,
+                cost_per_unit: log.costPerUnit,
+                total_cost: log.soldQty * log.costPerUnit,
+                gross_profit: log.soldQty * (log.pricePerUnit - log.costPerUnit),
+                variant_id: log.variantId || null,
+                variant_name: log.variantName || null,
+                waste_qty: log.wasteQty || 0,
+                eat_qty: log.freeQty || 0,
+                giveaway_qty: 0,
+                weather_condition: weatherCondition
+            }));
+
+        if (salesLogsToInsert.length > 0) {
+            const { error: saleLogError } = await supabase.from('product_sales').insert(salesLogsToInsert);
+            if (saleLogError) throw new Error(`Failed to insert sales logs: ${saleLogError.message}`);
+        }
+
+        // 🛡️ 5. บันทึกยอดเงินกำไรสะสม (Unallocated Profit) ใหม่
+        if (trueProfit > 0) {
+            await addUnallocatedProfit({
+                id: crypto.randomUUID(),
+                date,
+                amount: trueProfit,
+                source: `กำไร - ${marketName}`,
+                createdAt: new Date().toISOString()
+            });
+        }
+
+        // 🛡️ 6. บันทึกธุรกรรมคืนทุน (Transaction COGS + Waste) ใหม่
+        const totalCostRecovery = totalCOGS + totalWasteCost;
+        if (totalCostRecovery > 0) {
+            const wasteNote = totalWasteCost > 0 ? ` (รวมของเสีย ฿${totalWasteCost.toLocaleString()})` : '';
+            await addTransaction({
+                id: crypto.randomUUID(),
+                date: new Date().toISOString(),
+                amount: totalCostRecovery,
+                type: 'INCOME',
+                toJar: 'Working',
+                description: `คืนต้นทุน ${date} - ${marketName}${wasteNote}`,
+                category: 'COGS',
+                marketId: marketId
+            });
+        }
+
+        // 🛡️ 7. โหลดข้อมูลใหม่ทั้งหมดกลับมาซิงค์ใน UI
+        await fetchData();
+        await fetchDailyInventory(date);
     }
 });

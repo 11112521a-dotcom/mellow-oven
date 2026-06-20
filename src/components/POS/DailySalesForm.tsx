@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useStore } from '@/src/store';
 import { Product, DailyProductionLog, Variant } from '@/types';
 import { formatCurrency } from '@/src/lib/utils';
@@ -8,15 +8,31 @@ import { Calendar, Store, Save, ShoppingCart, Package, TrendingUp, AlertCircle, 
 // Weather type
 type WeatherCondition = 'sunny' | 'cloudy' | 'rain' | 'storm' | 'wind' | 'cold' | null;
 
-// Confirmation Modal (Same pattern as Stock Log)
+// Confirmation Modal (Same pattern as Stock Log) — supports async onConfirm with loading state
 const ConfirmModal: React.FC<{
     isOpen: boolean;
     onClose: () => void;
-    onConfirm: () => void;
+    onConfirm: () => void | Promise<void>;
     title: string;
     children: React.ReactNode;
 }> = ({ isOpen, onClose, onConfirm, title, children }) => {
+    const [isLoading, setIsLoading] = React.useState(false);
+
     if (!isOpen) return null;
+
+    const handleConfirm = async () => {
+        setIsLoading(true);
+        try {
+            await onConfirm();
+            onClose();
+        } catch (error) {
+            console.error('[DailySalesForm] Save error:', error);
+            alert('❌ เกิดข้อผิดพลาดในการบันทึกยอดขาย กรุณาลองใหม่อีกครั้ง\n\n' + (error instanceof Error ? error.message : String(error)));
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
             <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden animate-in zoom-in-95 duration-200">
@@ -28,11 +44,16 @@ const ConfirmModal: React.FC<{
                 </div>
                 <div className="p-6">{children}</div>
                 <div className="flex gap-3 p-4 bg-gray-50 border-t">
-                    <button onClick={onClose} className="flex-1 px-4 py-3 bg-gray-100 hover:bg-gray-200 rounded-xl font-medium transition-colors flex items-center justify-center gap-2">
+                    <button onClick={onClose} disabled={isLoading} className="flex-1 px-4 py-3 bg-gray-100 hover:bg-gray-200 rounded-xl font-medium transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
                         <X size={18} /> ยกเลิก
                     </button>
-                    <button onClick={() => { onConfirm(); onClose(); }} className="flex-1 px-4 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl font-medium transition-all hover:shadow-lg flex items-center justify-center gap-2">
-                        <Check size={18} /> ยืนยันบันทึก
+                    <button onClick={handleConfirm} disabled={isLoading} className="flex-1 px-4 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl font-medium transition-all hover:shadow-lg flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
+                        {isLoading ? (
+                            <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        ) : (
+                            <Check size={18} />
+                        )}
+                        {isLoading ? 'กำลังบันทึก...' : 'ยืนยันบันทึก'}
                     </button>
                 </div>
             </div>
@@ -127,12 +148,93 @@ const SuccessModal: React.FC<{
     );
 };
 
+const SalesLogRow = React.memo<{
+    item: DailyProductionLog & { product: Product, variant?: Variant, logIndex: number };
+    handleLogChange: (index: number, field: keyof DailyProductionLog, value: number) => void;
+}>(({ item, handleLogChange }) => {
+    const available = item.preparedQty || 0;
+    const waste = item.wasteQty || 0;
+    const leftover = item.leftoverQty || 0;
+    const free = item.freeQty || 0;
+    const sold = item.soldQty || 0;
+    const isOverflow = (waste + leftover + free) > available;
+
+    return (
+        <div
+            className={`bg-white rounded-xl shadow-sm border p-3 ${isOverflow ? 'border-red-400 ring-2 ring-red-200' : 'border-cafe-100'}`}
+        >
+            {/* Header Row */}
+            <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2 min-w-0 flex-1">
+                    {item.variant && (
+                        <span className="font-bold text-cafe-800 truncate">{item.variant.name}</span>
+                    )}
+                    {!item.variant && (
+                        <span className="text-xs text-cafe-400">{item.product.category}</span>
+                    )}
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                    <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-bold">{available}</span>
+                    <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${isOverflow ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>{sold}</span>
+                </div>
+            </div>
+
+            {/* Overflow Warning */}
+            {isOverflow && (
+                <div className="text-xs text-red-600 bg-red-50 rounded-lg px-2 py-1 mb-2 flex items-center gap-1">
+                    <AlertCircle size={12} /> ยอดรวมเกินจำนวนของ!
+                </div>
+            )}
+
+            {/* Input Row */}
+            <div className="flex items-center gap-2">
+                {/* Waste */}
+                <div className="flex items-center gap-1 bg-red-50 rounded-lg px-2 py-1.5 flex-1">
+                    <span className="text-xs text-red-600">🗑️ เสีย</span>
+                    <NumberInput
+                        value={waste}
+                        onChange={val => handleLogChange(item.logIndex, 'wasteQty', val)}
+                        className="w-12 text-center text-sm font-bold bg-white border border-red-200 rounded ml-auto"
+                    />
+                </div>
+
+                {/* กินแจก (Free) */}
+                <div className="flex items-center gap-1 bg-violet-50 rounded-lg px-2 py-1.5 flex-1">
+                    <UtensilsCrossed size={12} className="text-violet-500 shrink-0" />
+                    <span className="text-xs text-violet-600">กินแจก</span>
+                    <NumberInput
+                        value={free}
+                        onChange={val => handleLogChange(item.logIndex, 'freeQty', val)}
+                        className="w-12 text-center text-sm font-bold bg-white border border-violet-200 rounded ml-auto"
+                    />
+                </div>
+
+                {/* Leftover */}
+                <div className="flex items-center gap-1 bg-amber-50 rounded-lg px-2 py-1.5 flex-1">
+                    <span className="text-xs text-amber-600">📦 เหลือ</span>
+                    <NumberInput
+                        value={leftover}
+                        onChange={val => handleLogChange(item.logIndex, 'leftoverQty', val)}
+                        className="w-12 text-center text-sm font-bold bg-white border border-amber-200 rounded ml-auto"
+                    />
+                </div>
+            </div>
+        </div>
+    );
+});
+
+const WEATHER_OPTIONS = [
+    { id: 'sunny', icon: <Sun size={20} />, label: 'แดด', color: 'text-yellow-300 bg-yellow-500/30' },
+    { id: 'cloudy', icon: <Cloud size={20} />, label: 'เมฆ', color: 'text-gray-300 bg-gray-500/30' },
+    { id: 'rain', icon: <CloudRain size={20} />, label: 'ฝน', color: 'text-blue-300 bg-blue-500/30' },
+    { id: 'storm', icon: <CloudLightning size={20} />, label: 'พายุ', color: 'text-purple-300 bg-purple-500/30' },
+    { id: 'wind', icon: <Wind size={20} />, label: 'ลมแรง', color: 'text-teal-300 bg-teal-500/30' },
+    { id: 'cold', icon: <ThermometerSnowflake size={20} />, label: 'หนาว', color: 'text-cyan-300 bg-cyan-500/30' },
+];
 
 export const DailySalesForm: React.FC = () => {
     const {
-        products, addTransaction, updateJarBalance, bulkDeductStockByRecipes, markets,
-        addDailyReport, addProductSaleLogs, fetchData,
-        dailyInventory, fetchDailyInventory, bulkUpsertDailyInventory // NEW: Integration with Stock Log
+        products, markets, fetchData, dailyInventory, fetchDailyInventory, saveDailyMarketSales, productSales
     } = useStore();
 
     const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
@@ -181,6 +283,11 @@ export const DailySalesForm: React.FC = () => {
                 return true;
             });
 
+            // ตรวจสอบว่าเคยมีการบันทึกยอดขายของวันนี้และตลาดนี้แล้วหรือยัง โดยเช็กว่ามียอดบันทึกใน productSales หรือไม่
+            const isSalesAlreadyLogged = productSales.some(
+                s => s.saleDate === date && s.marketId === selectedMarketId
+            );
+
             filteredProducts.forEach(p => {
                 if (p.variants && p.variants.length > 0) {
                     // For products WITH variants - look up each variant separately
@@ -195,9 +302,12 @@ export const DailySalesForm: React.FC = () => {
                                 d.variantId === v.id &&
                                 (selectedMarketId ? d.marketId === selectedMarketId : !d.marketId)
                         );
-                        // FIX: Show REMAINING stock = toShopQty - already sold
-                        const alreadySold = inventoryRecord?.soldQty || 0;
-                        const availableFromStock = Math.max(0, (inventoryRecord?.toShopQty || 0) - alreadySold);
+                        
+                        const preparedQty = inventoryRecord?.toShopQty || 0;
+                        const soldQty = isSalesAlreadyLogged && inventoryRecord ? (inventoryRecord.soldQty ?? preparedQty) : preparedQty;
+                        const wasteQty = isSalesAlreadyLogged && inventoryRecord ? (inventoryRecord.wasteQty ?? 0) : 0;
+                        const freeQty = isSalesAlreadyLogged && inventoryRecord ? (inventoryRecord.eatQty ?? 0) : 0;
+                        const leftoverQty = isSalesAlreadyLogged && inventoryRecord ? (inventoryRecord.unsoldShop ?? 0) : 0;
 
                         initialLogs.push({
                             date,
@@ -205,11 +315,11 @@ export const DailySalesForm: React.FC = () => {
                             variantId: v.id,
                             product: p,
                             variant: v,
-                            preparedQty: availableFromStock,
-                            soldQty: availableFromStock, // Default: assume all remaining sold
-                            wasteQty: 0,
-                            leftoverQty: 0,
-                            freeQty: 0
+                            preparedQty,
+                            soldQty,
+                            wasteQty,
+                            leftoverQty,
+                            freeQty
                         });
                     });
                 } else {
@@ -220,46 +330,51 @@ export const DailySalesForm: React.FC = () => {
                             !d.variantId &&
                             (selectedMarketId ? d.marketId === selectedMarketId : !d.marketId)
                     );
-                    // FIX: Show REMAINING stock = toShopQty - already sold
-                    const alreadySold = inventoryRecord?.soldQty || 0;
-                    const availableFromStock = Math.max(0, (inventoryRecord?.toShopQty || 0) - alreadySold);
+                    
+                    const preparedQty = inventoryRecord?.toShopQty || 0;
+                    const soldQty = isSalesAlreadyLogged && inventoryRecord ? (inventoryRecord.soldQty ?? preparedQty) : preparedQty;
+                    const wasteQty = isSalesAlreadyLogged && inventoryRecord ? (inventoryRecord.wasteQty ?? 0) : 0;
+                    const freeQty = isSalesAlreadyLogged && inventoryRecord ? (inventoryRecord.eatQty ?? 0) : 0;
+                    const leftoverQty = isSalesAlreadyLogged && inventoryRecord ? (inventoryRecord.unsoldShop ?? 0) : 0;
 
                     initialLogs.push({
                         date,
                         productId: p.id,
                         product: p,
-                        preparedQty: availableFromStock,
-                        soldQty: availableFromStock, // Default: assume all remaining sold
-                        wasteQty: 0,
-                        leftoverQty: 0,
-                        freeQty: 0
+                        preparedQty,
+                        soldQty,
+                        wasteQty,
+                        leftoverQty,
+                        freeQty
                     });
                 }
             });
             setLogs(initialLogs);
         }
-    }, [products, dailyInventory, date, selectedMarketId]);
+    }, [products, dailyInventory, date, selectedMarketId, productSales]);
 
-    const handleLogChange = <K extends keyof DailyProductionLog>(
+    const handleLogChange = useCallback(<K extends keyof DailyProductionLog>(
         index: number,
         field: K,
         value: DailyProductionLog[K]
     ) => {
-        const newLogs = [...logs];
-        const log = { ...newLogs[index], [field]: value };
+        setLogs(prevLogs => {
+            const newLogs = [...prevLogs];
+            const log = { ...newLogs[index], [field]: value };
 
-        // Auto-calculate: Sold = Available - Waste - Leftover - Free(กินแจก)
-        if (['wasteQty', 'leftoverQty', 'freeQty'].includes(field as string)) {
-            const available = Number(log.preparedQty) || 0;
-            const waste = Number(log.wasteQty) || 0;
-            const leftover = Number(log.leftoverQty) || 0;
-            const free = Number(log.freeQty) || 0;
-            log.soldQty = Math.max(0, available - waste - leftover - free);
-        }
+            // Auto-calculate: Sold = Available - Waste - Leftover - Free(กินแจก)
+            if (['wasteQty', 'leftoverQty', 'freeQty'].includes(field as string)) {
+                const available = Number(log.preparedQty) || 0;
+                const waste = Number(log.wasteQty) || 0;
+                const leftover = Number(log.leftoverQty) || 0;
+                const free = Number(log.freeQty) || 0;
+                log.soldQty = Math.max(0, available - waste - leftover - free);
+            }
 
-        newLogs[index] = log;
-        setLogs(newLogs);
-    };
+            newLogs[index] = log;
+            return newLogs;
+        });
+    }, []);
 
     // Group logs by product for grid display
     const groupedLogs = useMemo(() => {
@@ -292,7 +407,7 @@ export const DailySalesForm: React.FC = () => {
     }, [logs]);
 
     // Toggle group expansion
-    const toggleGroup = (productId: string) => {
+    const toggleGroup = useCallback((productId: string) => {
         setExpandedGroups(prev => {
             const newSet = new Set(prev);
             if (newSet.has(productId)) {
@@ -302,19 +417,43 @@ export const DailySalesForm: React.FC = () => {
             }
             return newSet;
         });
-    };
+    }, []);
 
     // Calculations
-    // FIX: Use variant.cost OR fallback to product.cost if variant.cost is 0/undefined
-    const totalRevenue = logs.reduce((sum, log) => sum + (log.soldQty * (log.variant ? log.variant.price : log.product.price)), 0);
-    const totalSoldItems = logs.reduce((sum, log) => sum + log.soldQty, 0);
-    const totalCOGS = logs.reduce((sum, log) => sum + (log.soldQty * (log.variant ? (log.variant.cost || log.product.cost) : log.product.cost)), 0);
-    const totalWasteCost = logs.reduce((sum, log) => sum + (log.wasteQty * (log.variant ? (log.variant.cost || log.product.cost) : log.product.cost)), 0);
-    const totalLeftover = logs.reduce((sum, log) => sum + (log.leftoverQty || 0), 0);
-    // NEW: กินแจก totals
-    const totalFreeQty = logs.reduce((sum, log) => sum + (log.freeQty || 0), 0);
-    const totalFreeCost = logs.reduce((sum, log) => sum + ((log.freeQty || 0) * (log.variant ? (log.variant.cost || log.product.cost) : log.product.cost)), 0);
-    const trueProfit = totalRevenue - totalCOGS - totalWasteCost - totalFreeCost;
+    const {
+        totalRevenue,
+        totalSoldItems,
+        totalCOGS,
+        totalWasteCost,
+        totalLeftover,
+        totalFreeQty,
+        totalFreeCost,
+        trueProfit
+    } = useMemo(() => {
+        let revenue = 0, soldItems = 0, cogs = 0, wasteCost = 0, leftover = 0, freeQty = 0, freeCost = 0;
+        logs.forEach(log => {
+            const cost = log.variant ? (log.variant.cost || log.product.cost) : log.product.cost;
+            const price = log.variant ? log.variant.price : log.product.price;
+            
+            revenue += log.soldQty * price;
+            soldItems += log.soldQty;
+            cogs += log.soldQty * cost;
+            wasteCost += log.wasteQty * cost;
+            leftover += (log.leftoverQty || 0);
+            freeQty += (log.freeQty || 0);
+            freeCost += (log.freeQty || 0) * cost;
+        });
+        return {
+            totalRevenue: revenue,
+            totalSoldItems: soldItems,
+            totalCOGS: cogs,
+            totalWasteCost: wasteCost,
+            totalLeftover: leftover,
+            totalFreeQty: freeQty,
+            totalFreeCost: freeCost,
+            trueProfit: revenue - cogs - wasteCost - freeCost
+        };
+    }, [logs]);
 
     // Get current market name for UI
     const marketName = useMemo(() => {
@@ -341,121 +480,34 @@ export const DailySalesForm: React.FC = () => {
     };
 
     const confirmSave = async () => {
-        // Update daily_inventory with sold_qty for each product/variant (VARIANT-AWARE!)
-        // FIX: Always update soldQty, even if no inventory record exists (creates one if needed)
-        const inventoryRecordsToUpsert = [];
-        for (const log of logs) {
-            // Process any items that were prepared/transferred or had sales activity
-            if (log.preparedQty > 0 || log.soldQty > 0 || log.wasteQty > 0 || log.freeQty > 0 || log.leftoverQty > 0) {
-                // Find existing inventory record matching BOTH productId, variantId AND marketId
-                const inventoryRecord = dailyInventory.find(
-                    d => d.businessDate === date &&
-                        d.productId === log.productId &&
-                        (d.variantId || '') === (log.variantId || '') &&
-                        (selectedMarketId ? d.marketId === selectedMarketId : !d.marketId)
-                );
+        const logsToSave = logs
+            .filter(log => log.preparedQty > 0 || log.soldQty > 0 || log.wasteQty > 0 || log.freeQty > 0 || log.leftoverQty > 0)
+            .map(log => ({
+                productId: log.productId,
+                variantId: log.variantId,
+                preparedQty: log.preparedQty,
+                soldQty: log.soldQty,
+                wasteQty: log.wasteQty || 0,
+                freeQty: log.freeQty || 0,
+                pricePerUnit: log.variant ? log.variant.price : log.product.price,
+                costPerUnit: log.variant ? (log.variant.cost || log.product.cost) : log.product.cost,
+                productName: log.product.name,
+                category: log.product.category,
+                variantName: log.variant?.name
+            }));
 
-                // FIX: Always call upsert - use existing values or defaults, and ADD new values from session. Decouple from Home.
-                inventoryRecordsToUpsert.push({
-                    businessDate: date,
-                    productId: log.productId,
-                    variantId: log.variantId,
-                    variantName: log.variant?.name,
-                    marketId: selectedMarketId || undefined,
-                    producedQty: 0,
-                    toShopQty: inventoryRecord?.toShopQty || log.preparedQty || 0, // Use preparedQty as fallback
-                    soldQty: (inventoryRecord?.soldQty || 0) + log.soldQty,
-                    wasteQty: (inventoryRecord?.wasteQty || 0) + (log.wasteQty || 0), // 🔥 ADD waste from shop
-                    eatQty: (inventoryRecord?.eatQty || 0) + (log.freeQty || 0),      // 🔥 ADD free/eat from shop
-                    giveawayQty: 0,
-                    stockYesterday: 0
-                });
-            }
-        }
-
-        if (inventoryRecordsToUpsert.length > 0) {
-            await bulkUpsertDailyInventory(inventoryRecordsToUpsert);
-        }
-
-        // FIX: Add Gross Profit to Unallocated (for user to allocate later)
-        const { addUnallocatedProfit } = useStore.getState();
-        if (trueProfit > 0) {
-            await addUnallocatedProfit({
-                id: crypto.randomUUID(),
-                date,
-                amount: trueProfit,
-                source: `กำไร - ${marketName}`,
-                createdAt: new Date().toISOString()
-            });
-        }
-
-        // FIX: Record COGS + Waste Cost Transaction to Working Capital
-        // This includes both sold items cost AND waste cost to recover all production costs
-        const totalCostRecovery = totalCOGS + totalWasteCost;
-        if (totalCostRecovery > 0) {
-            const wasteNote = totalWasteCost > 0 ? ` (รวมของเสีย ฿${totalWasteCost.toLocaleString()})` : '';
-            await addTransaction({
-                id: crypto.randomUUID(),
-                date: new Date().toISOString(),
-                amount: totalCostRecovery,
-                type: 'INCOME',
-                toJar: 'Working',
-                description: `คืนต้นทุน ${date} - ${marketName}${wasteNote}`,
-                category: 'COGS',
-                marketId: selectedMarketId
-            });
-        }
-
-        // Log individual sales
-        const salesLogsToInsert = [];
-        const recipeDeductions = [];
-
-        for (const log of logs) {
-            if (log.soldQty > 0 || log.wasteQty > 0) { // FIX: Also log if there's waste
-                salesLogsToInsert.push({
-                    id: crypto.randomUUID(),
-                    recordedAt: new Date().toISOString(),
-                    saleDate: date,
-                    marketId: selectedMarketId,
-                    marketName,
-                    productId: log.productId,
-                    productName: log.product.name,
-                    category: log.product.category,
-                    quantitySold: log.soldQty,
-                    pricePerUnit: log.variant ? log.variant.price : log.product.price,
-                    totalRevenue: log.soldQty * (log.variant ? log.variant.price : log.product.price),
-                    costPerUnit: log.variant ? (log.variant.cost || log.product.cost) : log.product.cost,
-                    totalCost: log.soldQty * (log.variant ? (log.variant.cost || log.product.cost) : log.product.cost),
-                    grossProfit: log.soldQty * ((log.variant ? log.variant.price : log.product.price) - (log.variant ? (log.variant.cost || log.product.cost) : log.product.cost)),
-                    variantId: log.variantId,
-                    variantName: log.variant?.name,
-                    wasteQty: log.wasteQty || 0,
-                    eatQty: log.freeQty || 0,      // กินแจก → stored as eatQty
-                    giveawayQty: 0,                 // consolidated into eatQty
-                    weatherCondition: weather // NEW: Include weather condition
-                });
-
-                // Deduct from stock (only if sold)
-                if (log.soldQty > 0) {
-                    recipeDeductions.push({
-                        productId: log.productId,
-                        quantity: log.soldQty,
-                        variantId: log.variantId
-                    });
-                }
-            }
-        }
-
-        if (salesLogsToInsert.length > 0) {
-            await addProductSaleLogs(salesLogsToInsert);
-        }
-
-        if (recipeDeductions.length > 0) {
-            const deductRes = await bulkDeductStockByRecipes(recipeDeductions);
-            if (!deductRes.success) {
-                throw new Error(`Failed to deduct stock by recipes: ${deductRes.errors.join(', ')}`);
-            }
-        }
+        // บันทึกผ่าน action ใน store (ซึ่งลบตัวเก่า ป้องกันยอดเบิ้ล และตัดสต็อกแบบ delta)
+        await saveDailyMarketSales({
+            date,
+            marketId: selectedMarketId,
+            marketName,
+            weatherCondition: weather,
+            logs: logsToSave,
+            totalRevenue,
+            totalCOGS,
+            totalWasteCost,
+            trueProfit
+        });
 
         // Reset logs
         setLogs(logs.map(log => ({
@@ -467,10 +519,6 @@ export const DailySalesForm: React.FC = () => {
             freeQty: 0
         })));
 
-        // FIX: Refresh data to sync across devices and update jar balances
-        await fetchData();
-        await fetchDailyInventory(date);  // FIX: Also refresh dailyInventory!
-
         // FIX: Mark as saved to prevent duplicate entries
         setHasSaved(true);
 
@@ -480,7 +528,7 @@ export const DailySalesForm: React.FC = () => {
                 d.businessDate === date &&
                 d.productId === log.productId &&
                 (d.variantId || '') === (log.variantId || '') &&
-                (selectedMarketId ? d.marketId === selectedMarketId : !d.marketId)
+                !d.marketId // ของที่บ้านคือ marketId เป็น null
             );
             if (invRecord?.wasteQty) {
                 const unitCost = log.variant ? (log.variant.cost || log.product.cost) : log.product.cost;
@@ -550,14 +598,7 @@ export const DailySalesForm: React.FC = () => {
                         {/* Weather Selector */}
                         <div className="bg-white/80 backdrop-blur-sm rounded-xl p-2 flex items-center gap-1 border border-amber-100 shadow-sm">
                             <span className="text-stone-500 text-sm px-2">อากาศ:</span>
-                            {[
-                                { id: 'sunny', icon: <Sun size={20} />, label: 'แดด', color: 'text-yellow-300 bg-yellow-500/30' },
-                                { id: 'cloudy', icon: <Cloud size={20} />, label: 'เมฆ', color: 'text-gray-300 bg-gray-500/30' },
-                                { id: 'rain', icon: <CloudRain size={20} />, label: 'ฝน', color: 'text-blue-300 bg-blue-500/30' },
-                                { id: 'storm', icon: <CloudLightning size={20} />, label: 'พายุ', color: 'text-purple-300 bg-purple-500/30' },
-                                { id: 'wind', icon: <Wind size={20} />, label: 'ลมแรง', color: 'text-teal-300 bg-teal-500/30' },
-                                { id: 'cold', icon: <ThermometerSnowflake size={20} />, label: 'หนาว', color: 'text-cyan-300 bg-cyan-500/30' },
-                            ].map(w => (
+                            {WEATHER_OPTIONS.map(w => (
                                 <button
                                     key={w.id}
                                     type="button"
@@ -597,7 +638,17 @@ export const DailySalesForm: React.FC = () => {
             )}
 
             {/* Product Cards - Grouped Grid Layout */}
-            {!selectedMarketId ? (
+            {hasSaved ? (
+                <div className="bg-white rounded-2xl p-12 text-center border border-green-100 shadow-sm flex flex-col items-center justify-center gap-4 animate-in fade-in duration-300">
+                    <div className="w-16 h-16 bg-green-50 rounded-full flex items-center justify-center text-green-500">
+                        <Check size={32} />
+                    </div>
+                    <div>
+                        <h3 className="text-lg font-bold text-stone-700">บันทึกยอดขายสำเร็จแล้ว! 🎉</h3>
+                        <p className="text-stone-400 text-sm mt-1">ข้อมูลยอดขายและของเหลือของตลาดนี้ได้รับการบันทึกเรียบร้อยแล้วครับ</p>
+                    </div>
+                </div>
+            ) : !selectedMarketId ? (
                 <div className="bg-white rounded-2xl p-12 text-center border border-amber-100 shadow-sm flex flex-col items-center justify-center gap-4">
                     <div className="w-16 h-16 bg-amber-50 rounded-full flex items-center justify-center text-amber-500 animate-pulse">
                         <Store size={32} />
@@ -657,78 +708,13 @@ export const DailySalesForm: React.FC = () => {
                                 {(!hasVariants || isExpanded) && (
                                     <div className={`p-3 ${hasVariants ? 'bg-cafe-50' : ''}`}>
                                         <div className={`grid gap-3 ${hasVariants ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3' : ''}`}>
-                                            {group.items.map(item => {
-                                                const available = item.preparedQty || 0;
-                                                const waste = item.wasteQty || 0;
-                                                const leftover = item.leftoverQty || 0;
-                                                const free = item.freeQty || 0;
-                                                const sold = item.soldQty || 0;
-                                                const isOverflow = (waste + leftover + free) > available;
-
-                                                return (
-                                                    <div
-                                                        key={`${item.productId}-${item.variantId || ''}`}
-                                                        className={`bg-white rounded-xl shadow-sm border p-3 ${isOverflow ? 'border-red-400 ring-2 ring-red-200' : 'border-cafe-100'}`}
-                                                    >
-                                                        {/* Header Row */}
-                                                        <div className="flex items-center justify-between mb-2">
-                                                            <div className="flex items-center gap-2 min-w-0 flex-1">
-                                                                {item.variant && (
-                                                                    <span className="font-bold text-cafe-800 truncate">{item.variant.name}</span>
-                                                                )}
-                                                                {!item.variant && (
-                                                                    <span className="text-xs text-cafe-400">{item.product.category}</span>
-                                                                )}
-                                                            </div>
-                                                            <div className="flex items-center gap-2 shrink-0">
-                                                                <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-bold">{available}</span>
-                                                                <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${isOverflow ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>{sold}</span>
-                                                            </div>
-                                                        </div>
-
-                                                        {/* Overflow Warning */}
-                                                        {isOverflow && (
-                                                            <div className="text-xs text-red-600 bg-red-50 rounded-lg px-2 py-1 mb-2 flex items-center gap-1">
-                                                                <AlertCircle size={12} /> ยอดรวมเกินจำนวนของ!
-                                                            </div>
-                                                        )}
-
-                                                        {/* Input Row */}
-                                                        <div className="flex items-center gap-2">
-                                                            {/* Waste */}
-                                                            <div className="flex items-center gap-1 bg-red-50 rounded-lg px-2 py-1.5 flex-1">
-                                                                <span className="text-xs text-red-600">🗑️ เสีย</span>
-                                                                <NumberInput
-                                                                    value={waste}
-                                                                    onChange={val => handleLogChange(item.logIndex, 'wasteQty', val)}
-                                                                    className="w-12 text-center text-sm font-bold bg-white border border-red-200 rounded ml-auto"
-                                                                />
-                                                            </div>
-
-                                                            {/* กินแจก (Free) */}
-                                                            <div className="flex items-center gap-1 bg-violet-50 rounded-lg px-2 py-1.5 flex-1">
-                                                                <UtensilsCrossed size={12} className="text-violet-500 shrink-0" />
-                                                                <span className="text-xs text-violet-600">กินแจก</span>
-                                                                <NumberInput
-                                                                    value={free}
-                                                                    onChange={val => handleLogChange(item.logIndex, 'freeQty', val)}
-                                                                    className="w-12 text-center text-sm font-bold bg-white border border-violet-200 rounded ml-auto"
-                                                                />
-                                                            </div>
-
-                                                            {/* Leftover */}
-                                                            <div className="flex items-center gap-1 bg-amber-50 rounded-lg px-2 py-1.5 flex-1">
-                                                                <span className="text-xs text-amber-600">📦 เหลือ</span>
-                                                                <NumberInput
-                                                                    value={leftover}
-                                                                    onChange={val => handleLogChange(item.logIndex, 'leftoverQty', val)}
-                                                                    className="w-12 text-center text-sm font-bold bg-white border border-amber-200 rounded ml-auto"
-                                                                />
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                );
-                                            })}
+                                            {group.items.map(item => (
+                                                <SalesLogRow
+                                                    key={`${item.productId}-${item.variantId || ''}`}
+                                                    item={item}
+                                                    handleLogChange={handleLogChange as any}
+                                                />
+                                            ))}
                                         </div>
                                     </div>
                                 )}
@@ -739,31 +725,33 @@ export const DailySalesForm: React.FC = () => {
             )}
 
             {/* Summary Footer */}
-            <div className="bg-gradient-to-r from-green-50 to-emerald-50 p-6 rounded-2xl border-2 border-green-200 shadow-lg">
-                <div className="flex flex-col md:flex-row justify-between items-center gap-6">
-                    <div className="flex-1 text-center md:text-left">
-                        <p className="text-sm text-cafe-600 mb-1">ยอดขายรวม</p>
-                        <h2 className="text-4xl font-bold text-cafe-900">{formatCurrency(totalRevenue)}</h2>
-                        <div className="flex gap-4 mt-3 text-sm flex-wrap">
-                            <span className="text-green-700">
-                                <TrendingUp size={14} className="inline mr-1" />
-                                กำไร: {formatCurrency(trueProfit)}
-                            </span>
-                            <span className="text-cafe-600">ขาย: {totalSoldItems} ชิ้น</span>
-                            {totalFreeQty > 0 && <span className="text-violet-600">🍽️ กินแจก: {totalFreeQty} ชิ้น</span>}
-                            <span className="text-amber-600">เหลือคืน: {totalLeftover} ชิ้น</span>
+            {!hasSaved && logs.length > 0 && (
+                <div className="bg-gradient-to-r from-green-50 to-emerald-50 p-6 rounded-2xl border-2 border-green-200 shadow-lg">
+                    <div className="flex flex-col md:flex-row justify-between items-center gap-6">
+                        <div className="flex-1 text-center md:text-left">
+                            <p className="text-sm text-cafe-600 mb-1">ยอดขายรวม</p>
+                            <h2 className="text-4xl font-bold text-cafe-900">{formatCurrency(totalRevenue)}</h2>
+                            <div className="flex gap-4 mt-3 text-sm flex-wrap">
+                                <span className="text-green-700">
+                                    <TrendingUp size={14} className="inline mr-1" />
+                                    กำไร: {formatCurrency(trueProfit)}
+                                </span>
+                                <span className="text-cafe-600">ขาย: {totalSoldItems} ชิ้น</span>
+                                {totalFreeQty > 0 && <span className="text-violet-600">🍽️ กินแจก: {totalFreeQty} ชิ้น</span>}
+                                <span className="text-amber-600">เหลือคืน: {totalLeftover} ชิ้น</span>
+                            </div>
                         </div>
+                        <button
+                            onClick={handleSaveClick}
+                            disabled={totalAvailable === 0}
+                            className="bg-gradient-to-r from-cafe-800 to-cafe-900 text-white px-8 py-4 rounded-xl font-bold text-lg hover:from-cafe-900 hover:to-black shadow-xl flex items-center gap-3 transition-all active:scale-95 disabled:opacity-50"
+                        >
+                            <Save size={20} />
+                            บันทึกยอดขาย
+                        </button>
                     </div>
-                    <button
-                        onClick={handleSaveClick}
-                        disabled={totalAvailable === 0}
-                        className="bg-gradient-to-r from-cafe-800 to-cafe-900 text-white px-8 py-4 rounded-xl font-bold text-lg hover:from-cafe-900 hover:to-black shadow-xl flex items-center gap-3 transition-all active:scale-95 disabled:opacity-50"
-                    >
-                        <Save size={20} />
-                        บันทึกยอดขาย
-                    </button>
                 </div>
-            </div>
+            )}
 
             {/* Confirmation Modal */}
             <ConfirmModal
@@ -808,7 +796,11 @@ export const DailySalesForm: React.FC = () => {
             {/* Success Modal - Shows after saving */}
             <SuccessModal
                 isOpen={showSuccessModal}
-                onClose={() => setShowSuccessModal(false)}
+                onClose={() => {
+                    setShowSuccessModal(false);
+                    setSelectedMarketId('');
+                    setHasSaved(false);
+                }}
                 data={successData}
             />
         </div>

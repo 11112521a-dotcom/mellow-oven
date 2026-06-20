@@ -112,6 +112,29 @@ export interface InventorySlice {
         reason?: 'PO' | 'USAGE' | 'WASTE' | 'SPILLAGE' | 'CORRECTION';
         note?: string;
     }>) => Promise<{ success: boolean; errors: string[]; updatedCount: number }>;
+    saveDailyMarketSales: (params: {
+        date: string;
+        marketId: string;
+        marketName: string;
+        weatherCondition: string | null;
+        logs: Array<{
+            productId: string;
+            variantId?: string;
+            preparedQty: number;
+            soldQty: number;
+            wasteQty: number;
+            freeQty: number;
+            pricePerUnit: number;
+            costPerUnit: number;
+            productName: string;
+            category: string;
+            variantName?: string;
+        }>;
+        totalRevenue: number;
+        totalCOGS: number;
+        totalWasteCost: number;
+        trueProfit: number;
+    }) => Promise<void>;
 }
 
 export interface ProductsSlice {
