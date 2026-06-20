@@ -292,24 +292,31 @@ export const createInventorySlice: StateCreator<AppState, [], [], InventorySlice
 
         // 🛡️ Auto Recalculate Home leftover if updating market record
         if (isMarket) {
-            const { data: homeRecords } = await supabase
+            let homeQuery = supabase
                 .from('daily_inventory')
                 .select('*')
                 .eq('business_date', record.businessDate)
                 .eq('product_id', record.productId)
-                .eq('variant_id', record.variantId || null)
-                .is('market_id', null)
-                .limit(1);
+                .is('market_id', null);
+            
+            if (record.variantId) homeQuery = homeQuery.eq('variant_id', record.variantId);
+            else homeQuery = homeQuery.is('variant_id', null);
+
+            const { data: homeRecords } = await homeQuery.limit(1);
             
             const homeData = homeRecords?.[0];
             if (homeData) {
-                const { data: marketRecords } = await supabase
+                let marketQuery = supabase
                     .from('daily_inventory')
                     .select('to_shop_qty')
                     .eq('business_date', record.businessDate)
                     .eq('product_id', record.productId)
-                    .eq('variant_id', record.variantId || null)
                     .not('market_id', 'is', null);
+                
+                if (record.variantId) marketQuery = marketQuery.eq('variant_id', record.variantId);
+                else marketQuery = marketQuery.is('variant_id', null);
+
+                const { data: marketRecords } = await marketQuery;
                 
                 const totalTransfers = marketRecords?.reduce((sum, m) => sum + (m.to_shop_qty || 0), 0) || 0;
                 const hStockYesterday = homeData.stock_yesterday || 0;
@@ -319,10 +326,25 @@ export const createInventorySlice: StateCreator<AppState, [], [], InventorySlice
                 const hGiveaway = homeData.giveaway_qty || 0;
                 const newLeftoverHome = hStockYesterday + hProduced - totalTransfers - hWaste - hEat - hGiveaway;
                 
-                await supabase
+                const { data: updatedHome } = await supabase
                     .from('daily_inventory')
                     .update({ leftover_home: newLeftoverHome })
-                    .eq('id', homeData.id);
+                    .eq('id', homeData.id)
+                    .select()
+                    .single();
+
+                if (updatedHome) {
+                    const mappedHome = mapDailyInventory(updatedHome);
+                    set(state => {
+                        const index = state.dailyInventory.findIndex(d => d.id === mappedHome.id);
+                        if (index >= 0) {
+                            const updated = [...state.dailyInventory];
+                            updated[index] = mappedHome;
+                            return { dailyInventory: updated };
+                        }
+                        return { dailyInventory: [...state.dailyInventory, mappedHome] };
+                    });
+                }
             }
         }
 
@@ -479,24 +501,31 @@ export const createInventorySlice: StateCreator<AppState, [], [], InventorySlice
                     const [bDate, prodId, varIdStr] = key.split('_');
                     const varId = varIdStr === 'null' ? null : varIdStr;
                     
-                    const { data: homeRecords } = await supabase
+                    let homeQuery = supabase
                         .from('daily_inventory')
                         .select('*')
                         .eq('business_date', bDate)
                         .eq('product_id', prodId)
-                        .eq('variant_id', varId)
-                        .is('market_id', null)
-                        .limit(1);
+                        .is('market_id', null);
+                    
+                    if (varId) homeQuery = homeQuery.eq('variant_id', varId);
+                    else homeQuery = homeQuery.is('variant_id', null);
+
+                    const { data: homeRecords } = await homeQuery.limit(1);
                     
                     const homeData = homeRecords?.[0];
                     if (homeData) {
-                        const { data: marketRecords } = await supabase
+                        let marketQuery = supabase
                             .from('daily_inventory')
                             .select('to_shop_qty')
                             .eq('business_date', bDate)
                             .eq('product_id', prodId)
-                            .eq('variant_id', varId)
                             .not('market_id', 'is', null);
+                        
+                        if (varId) marketQuery = marketQuery.eq('variant_id', varId);
+                        else marketQuery = marketQuery.is('variant_id', null);
+
+                        const { data: marketRecords } = await marketQuery;
                         
                         const totalTransfers = marketRecords?.reduce((sum, m) => sum + (m.to_shop_qty || 0), 0) || 0;
                         const hStockYesterday = homeData.stock_yesterday || 0;
@@ -506,10 +535,25 @@ export const createInventorySlice: StateCreator<AppState, [], [], InventorySlice
                         const hGiveaway = homeData.giveaway_qty || 0;
                         const newLeftoverHome = hStockYesterday + hProduced - totalTransfers - hWaste - hEat - hGiveaway;
                         
-                        await supabase
+                        const { data: updatedHome } = await supabase
                             .from('daily_inventory')
                             .update({ leftover_home: newLeftoverHome })
-                            .eq('id', homeData.id);
+                            .eq('id', homeData.id)
+                            .select()
+                            .single();
+                        
+                        if (updatedHome) {
+                            const mappedHome = mapDailyInventory(updatedHome);
+                            set(state => {
+                                const index = state.dailyInventory.findIndex(d => d.id === mappedHome.id);
+                                if (index >= 0) {
+                                    const updated = [...state.dailyInventory];
+                                    updated[index] = mappedHome;
+                                    return { dailyInventory: updated };
+                                }
+                                return { dailyInventory: [...state.dailyInventory, mappedHome] };
+                            });
+                        }
                     }
                 })
             );
