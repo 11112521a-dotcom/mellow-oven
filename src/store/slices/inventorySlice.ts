@@ -370,197 +370,43 @@ export const createInventorySlice: StateCreator<AppState, [], [], InventorySlice
     bulkUpsertDailyInventory: async (records) => {
         if (records.length === 0) return;
 
-        const uniqueDates = Array.from(new Set(records.map(r => r.businessDate)));
-        const uniqueProductIds = Array.from(new Set(records.map(r => r.productId)));
-
-        const { data: existingRows, error: fetchError } = await supabase
-            .from('daily_inventory')
-            .select('*')
-            .in('business_date', uniqueDates)
-            .in('product_id', uniqueProductIds);
-
-        if (fetchError) {
-            throw new Error(`Failed to fetch existing daily inventory: ${fetchError.message}`);
-        }
-
-        const inserts: Record<string, unknown>[] = [];
-        const updates: Array<{ id: string; fields: Record<string, unknown> }> = [];
-        const homeRecalculateKeys = new Set<string>();
-
-        for (const record of records) {
-            const matches = existingRows?.filter(row =>
-                row.business_date === record.businessDate &&
-                row.product_id === record.productId &&
-                ((!row.variant_id && !record.variantId) || (row.variant_id === record.variantId)) &&
-                ((!row.market_id && !record.marketId) || (row.market_id === record.marketId))
-            ) || [];
-
-            if (matches.length > 1) {
-                matches.sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''));
-            }
-            const existingData = matches[0];
-
+        // Build all db rows
+        const dbRows = records.map(record => {
             const isMarket = !!record.marketId;
-            const stockYesterday = isMarket ? 0 : (record.stockYesterday ?? existingData?.stock_yesterday ?? 0);
-            const produced = isMarket ? 0 : (record.producedQty ?? existingData?.produced_qty ?? 0);
-            const toShop = record.toShopQty ?? existingData?.to_shop_qty ?? 0;
-            const sold = record.soldQty ?? existingData?.sold_qty ?? 0;
-            const waste = record.wasteQty ?? existingData?.waste_qty ?? 0;
-            const eat = record.eatQty ?? existingData?.eat_qty ?? 0; 
-            const giveaway = record.giveawayQty ?? existingData?.giveaway_qty ?? 0; 
-
-            let leftoverHome = 0;
-            let unsoldShop = 0;
-
-            if (isMarket) {
-                unsoldShop = Math.max(0, toShop - sold - waste - eat - giveaway);
-                const key = `${record.businessDate}_${record.productId}_${record.variantId || 'null'}`;
-                homeRecalculateKeys.add(key);
-            } else {
-                // Find total transfers across all markets
-                const state = get();
-                const totalTransfers = state.dailyInventory
-                    .filter(d => 
-                        d.businessDate === record.businessDate && 
-                        d.productId === record.productId && 
-                        ((!d.variantId && !record.variantId) || d.variantId === record.variantId) &&
-                        !!d.marketId
-                    )
-                    .reduce((sum, d) => sum + (d.toShopQty || 0), 0);
-                leftoverHome = stockYesterday + produced - totalTransfers - waste - eat - giveaway;
-            }
-
-            const dbRecord: Record<string, unknown> = {
+            return {
                 business_date: record.businessDate,
                 product_id: record.productId,
                 variant_id: record.variantId || null,
                 variant_name: record.variantName || null,
                 market_id: record.marketId || null,
-                produced_qty: produced,
-                to_shop_qty: toShop,
-                sold_qty: sold,
-                waste_qty: waste,
-                eat_qty: eat,
-                giveaway_qty: giveaway,
-                stock_yesterday: stockYesterday,
-                leftover_home: leftoverHome,
-                unsold_shop: unsoldShop
+                produced_qty: isMarket ? 0 : (record.producedQty ?? 0),
+                to_shop_qty: record.toShopQty ?? 0,
+                sold_qty: record.soldQty ?? 0,
+                waste_qty: record.wasteQty ?? 0,
+                eat_qty: record.eatQty ?? 0,
+                giveaway_qty: record.giveawayQty ?? 0,
+                stock_yesterday: isMarket ? 0 : (record.stockYesterday ?? 0),
+                leftover_home: 0,
+                unsold_shop: 0
             };
+        });
 
-            if (existingData?.id) {
-                const updateFields = { ...dbRecord };
-                delete updateFields.stock_yesterday;
-                updates.push({ id: existingData.id, fields: updateFields });
-            } else {
-                inserts.push(dbRecord);
-            }
+        // 🚀 Use Supabase native upsert — resolves duplicate key errors on multi-variant products
+        const { data: upsertedData, error } = await supabase
+            .from('daily_inventory')
+            .upsert(dbRows, {
+                onConflict: 'business_date,product_id,variant_id,market_id',
+                ignoreDuplicates: false
+            })
+            .select();
+
+        if (error) {
+            throw new Error(`Failed to batch insert daily inventory: ${error.message}`);
         }
 
-        const results: any[] = [];
-
-        if (inserts.length > 0) {
-            const { data, error } = await supabase
-                .from('daily_inventory')
-                .insert(inserts)
-                .select();
-            if (error) {
-                throw new Error(`Failed to batch insert daily inventory: ${error.message}`);
-            }
-            if (data) {
-                results.push(...data);
-            }
-        }
-
-        if (updates.length > 0) {
-            const updateResults = await Promise.all(
-                updates.map(async (upd) => {
-                    const { data, error } = await supabase
-                        .from('daily_inventory')
-                        .update(upd.fields)
-                        .eq('id', upd.id)
-                        .select()
-                        .single();
-                    return { data, error };
-                })
-            );
-
-            for (const res of updateResults) {
-                if (res.error) {
-                    throw new Error(`Failed to update daily inventory: ${res.error.message}`);
-                }
-                if (res.data) {
-                    results.push(res.data);
-                }
-            }
-        }
-
-        // 🛡️ Auto Recalculate Home leftovers in bulk
-        if (homeRecalculateKeys.size > 0) {
-            await Promise.all(
-                Array.from(homeRecalculateKeys).map(async (key) => {
-                    const [bDate, prodId, varIdStr] = key.split('_');
-                    const varId = varIdStr === 'null' ? null : varIdStr;
-                    
-                    let homeQuery = supabase
-                        .from('daily_inventory')
-                        .select('*')
-                        .eq('business_date', bDate)
-                        .eq('product_id', prodId)
-                        .is('market_id', null);
-                    
-                    if (varId) homeQuery = homeQuery.eq('variant_id', varId);
-                    else homeQuery = homeQuery.is('variant_id', null);
-
-                    const { data: homeRecords } = await homeQuery.limit(1);
-                    
-                    const homeData = homeRecords?.[0];
-                    if (homeData) {
-                        let marketQuery = supabase
-                            .from('daily_inventory')
-                            .select('to_shop_qty')
-                            .eq('business_date', bDate)
-                            .eq('product_id', prodId)
-                            .not('market_id', 'is', null);
-                        
-                        if (varId) marketQuery = marketQuery.eq('variant_id', varId);
-                        else marketQuery = marketQuery.is('variant_id', null);
-
-                        const { data: marketRecords } = await marketQuery;
-                        
-                        const totalTransfers = marketRecords?.reduce((sum, m) => sum + (m.to_shop_qty || 0), 0) || 0;
-                        const hStockYesterday = homeData.stock_yesterday || 0;
-                        const hProduced = homeData.produced_qty || 0;
-                        const hWaste = homeData.waste_qty || 0;
-                        const hEat = homeData.eat_qty || 0;
-                        const hGiveaway = homeData.giveaway_qty || 0;
-                        const newLeftoverHome = hStockYesterday + hProduced - totalTransfers - hWaste - hEat - hGiveaway;
-                        
-                        const { data: updatedHome } = await supabase
-                            .from('daily_inventory')
-                            .update({ leftover_home: newLeftoverHome })
-                            .eq('id', homeData.id)
-                            .select()
-                            .single();
-                        
-                        if (updatedHome) {
-                            const mappedHome = mapDailyInventory(updatedHome);
-                            set(state => {
-                                const index = state.dailyInventory.findIndex(d => d.id === mappedHome.id);
-                                if (index >= 0) {
-                                    const updated = [...state.dailyInventory];
-                                    updated[index] = mappedHome;
-                                    return { dailyInventory: updated };
-                                }
-                                return { dailyInventory: [...state.dailyInventory, mappedHome] };
-                            });
-                        }
-                    }
-                })
-            );
-        }
-
-        if (results.length > 0) {
-            const mappedRecords = results.map(mapDailyInventory);
+        // Update local store state immediately
+        if (upsertedData && upsertedData.length > 0) {
+            const mappedRecords = upsertedData.map(mapDailyInventory);
             set(state => {
                 const updatedInventory = [...state.dailyInventory];
                 for (const newRecord of mappedRecords) {
@@ -578,6 +424,79 @@ export const createInventorySlice: StateCreator<AppState, [], [], InventorySlice
                 }
                 return { dailyInventory: updatedInventory };
             });
+        }
+
+        // 🛡️ Recalculate leftover_home for HOME records affected by market transfers
+        const homeRecalculateKeys = new Set<string>();
+        for (const record of records) {
+            if (record.marketId) {
+                const key = `${record.businessDate}_${record.productId}_${record.variantId || 'null'}`;
+                homeRecalculateKeys.add(key);
+            }
+        }
+
+        if (homeRecalculateKeys.size > 0) {
+            await Promise.all(
+                Array.from(homeRecalculateKeys).map(async (key) => {
+                    const [bDate, prodId, varIdStr] = key.split('_');
+                    const varId = varIdStr === 'null' ? null : varIdStr;
+
+                    let homeQuery = supabase
+                        .from('daily_inventory')
+                        .select('*')
+                        .eq('business_date', bDate)
+                        .eq('product_id', prodId)
+                        .is('market_id', null);
+
+                    if (varId) homeQuery = homeQuery.eq('variant_id', varId);
+                    else homeQuery = homeQuery.is('variant_id', null);
+
+                    const { data: homeRecords } = await homeQuery.limit(1);
+
+                    const homeData = homeRecords?.[0];
+                    if (homeData) {
+                        let marketQuery = supabase
+                            .from('daily_inventory')
+                            .select('to_shop_qty')
+                            .eq('business_date', bDate)
+                            .eq('product_id', prodId)
+                            .not('market_id', 'is', null);
+
+                        if (varId) marketQuery = marketQuery.eq('variant_id', varId);
+                        else marketQuery = marketQuery.is('variant_id', null);
+
+                        const { data: marketRecords } = await marketQuery;
+
+                        const totalTransfers = marketRecords?.reduce((sum, m) => sum + (m.to_shop_qty || 0), 0) || 0;
+                        const hStockYesterday = homeData.stock_yesterday || 0;
+                        const hProduced = homeData.produced_qty || 0;
+                        const hWaste = homeData.waste_qty || 0;
+                        const hEat = homeData.eat_qty || 0;
+                        const hGiveaway = homeData.giveaway_qty || 0;
+                        const newLeftoverHome = hStockYesterday + hProduced - totalTransfers - hWaste - hEat - hGiveaway;
+
+                        const { data: updatedHome } = await supabase
+                            .from('daily_inventory')
+                            .update({ leftover_home: newLeftoverHome })
+                            .eq('id', homeData.id)
+                            .select()
+                            .single();
+
+                        if (updatedHome) {
+                            const mappedHome = mapDailyInventory(updatedHome);
+                            set(state => {
+                                const index = state.dailyInventory.findIndex(d => d.id === mappedHome.id);
+                                if (index >= 0) {
+                                    const updated = [...state.dailyInventory];
+                                    updated[index] = mappedHome;
+                                    return { dailyInventory: updated };
+                                }
+                                return { dailyInventory: [...state.dailyInventory, mappedHome] };
+                            });
+                        }
+                    }
+                })
+            );
         }
     },
 
