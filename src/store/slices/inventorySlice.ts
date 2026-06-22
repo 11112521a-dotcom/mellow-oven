@@ -763,29 +763,12 @@ export const createInventorySlice: StateCreator<AppState, [], [], InventorySlice
     }) => {
         const { dailyInventory, bulkUpsertDailyInventory, bulkDeductStockByRecipes, addUnallocatedProfit, addTransaction, fetchData, fetchDailyInventory } = get();
 
-        // 🛡️ 1. ป้องกันข้อมูลเบิ้ล: ลบข้อมูลประวัติเก่าของวันนี้และตลาดนี้ออกก่อน
-        // 1.1 ลบ product_sales เดิม
-        await supabase
-            .from('product_sales')
-            .delete()
-            .eq('sale_date', date)
-            .eq('market_id', marketId);
-
-        // 1.2 ลบ unallocated_profits เดิม
-        await supabase
-            .from('unallocated_profits')
-            .delete()
-            .eq('date', date)
-            .eq('source', `กำไร - ${marketName}`);
-
-        // 1.3 ลบ transactions คืนต้นทุนเดิม
-        await supabase
-            .from('transactions')
-            .delete()
-            .eq('market_id', marketId)
-            .eq('category', 'COGS')
-            .eq('type', 'INCOME')
-            .like('description', `คืนต้นทุน ${date} - ${marketName}%`);
+        // 🛡️ 1. ป้องกันข้อมูลเบิ้ล: ลบข้อมูลประวัติเก่าของวันนี้และตลาดนี้ออกก่อน (Run concurrently)
+        await Promise.all([
+            supabase.from('product_sales').delete().eq('sale_date', date).eq('market_id', marketId),
+            supabase.from('unallocated_profits').delete().eq('date', date).eq('source', `กำไร - ${marketName}`),
+            supabase.from('transactions').delete().eq('market_id', marketId).eq('category', 'COGS').eq('type', 'INCOME').like('description', `คืนต้นทุน ${date} - ${marketName}%`)
+        ]);
 
         // 🛡️ 2. คำนวณ deltaSoldQty เพื่อปรับปรุงสต็อกวัตถุดิบ (Idempotent / Delta Update)
         const recipeDeductions = [];
@@ -832,11 +815,7 @@ export const createInventorySlice: StateCreator<AppState, [], [], InventorySlice
             stockYesterday: 0
         }));
 
-        if (inventoryRecordsToUpsert.length > 0) {
-            await bulkUpsertDailyInventory(inventoryRecordsToUpsert);
-        }
-
-        // 🛡️ 4. บันทึกประวัติการขายรายชิ้นลง product_sales (บันทึกทุกรายการที่เตรียมไปหน้าร้าน หรือมียอดขาย/ของเสีย)
+        // 🛡️ 4. บันทึกประวัติการขายรายชิ้นลง product_sales
         const salesLogsToInsert = logs
             .filter(log => log.preparedQty > 0 || log.soldQty > 0 || log.wasteQty > 0)
             .map(log => ({
@@ -862,27 +841,34 @@ export const createInventorySlice: StateCreator<AppState, [], [], InventorySlice
                 weather_condition: weatherCondition
             }));
 
-        if (salesLogsToInsert.length > 0) {
-            const { error: saleLogError } = await supabase.from('product_sales').insert(salesLogsToInsert);
-            if (saleLogError) throw new Error(`Failed to insert sales logs: ${saleLogError.message}`);
+        // Run independent updates concurrently for blazing fast performance
+        const concurrentTasks = [];
+
+        if (inventoryRecordsToUpsert.length > 0) {
+            concurrentTasks.push(bulkUpsertDailyInventory(inventoryRecordsToUpsert));
         }
 
-        // 🛡️ 5. บันทึกยอดเงินกำไรสะสม (Unallocated Profit) ใหม่
+        if (salesLogsToInsert.length > 0) {
+            concurrentTasks.push((async () => {
+                const { error: saleLogError } = await supabase.from('product_sales').insert(salesLogsToInsert);
+                if (saleLogError) throw new Error(`Failed to insert sales logs: ${saleLogError.message}`);
+            })());
+        }
+
         if (trueProfit > 0) {
-            await addUnallocatedProfit({
+            concurrentTasks.push(addUnallocatedProfit({
                 id: crypto.randomUUID(),
                 date,
                 amount: trueProfit,
                 source: `กำไร - ${marketName}`,
                 createdAt: new Date().toISOString()
-            });
+            }));
         }
 
-        // 🛡️ 6. บันทึกธุรกรรมคืนทุน (Transaction COGS + Waste) ใหม่
         const totalCostRecovery = totalCOGS + totalWasteCost;
         if (totalCostRecovery > 0) {
             const wasteNote = totalWasteCost > 0 ? ` (รวมของเสีย ฿${totalWasteCost.toLocaleString()})` : '';
-            await addTransaction({
+            concurrentTasks.push(addTransaction({
                 id: crypto.randomUUID(),
                 date: new Date().toISOString(),
                 amount: totalCostRecovery,
@@ -891,11 +877,16 @@ export const createInventorySlice: StateCreator<AppState, [], [], InventorySlice
                 description: `คืนต้นทุน ${date} - ${marketName}${wasteNote}`,
                 category: 'COGS',
                 marketId: marketId
-            });
+            }));
         }
 
-        // 🛡️ 7. โหลดข้อมูลใหม่ทั้งหมดกลับมาซิงค์ใน UI
-        await fetchData();
-        await fetchDailyInventory(date);
+        // Wait for all concurrent tasks to finish
+        await Promise.all(concurrentTasks);
+
+        // 🛡️ 5. โหลดข้อมูลใหม่ทั้งหมดกลับมาซิงค์ใน UI (Run concurrently)
+        await Promise.all([
+            fetchData(),
+            fetchDailyInventory(date)
+        ]);
     }
 });
