@@ -282,11 +282,19 @@ export const createInventorySlice: StateCreator<AppState, [], [], InventorySlice
             // Update: Immutable History Fix
             const updateRecord = { ...dbRecord };
             delete updateRecord.stock_yesterday; // Never overwrite historical snapshot
-            const { data } = await supabase.from('daily_inventory').update(updateRecord).eq('id', existingData.id).select().single();
+            const { data, error } = await supabase.from('daily_inventory').update(updateRecord).eq('id', existingData.id).select().single();
+            if (error) {
+                console.error("[upsertDailyInventory] Update Error:", error, "Payload:", updateRecord);
+                throw new Error(`Update failed: ${error.message} (Details: ${error.details || ''} Hint: ${error.hint || ''})`);
+            }
             resultData = data;
         } else {
             // Insert
-            const { data } = await supabase.from('daily_inventory').insert(dbRecord).select().single();
+            const { data, error } = await supabase.from('daily_inventory').insert(dbRecord).select().single();
+            if (error) {
+                console.error("[upsertDailyInventory] Insert Error:", error, "Payload:", dbRecord);
+                throw new Error(`Insert failed: ${error.message} (Details: ${error.details || ''} Hint: ${error.hint || ''})`);
+            }
             resultData = data;
         }
 
@@ -370,13 +378,122 @@ export const createInventorySlice: StateCreator<AppState, [], [], InventorySlice
     bulkUpsertDailyInventory: async (records) => {
         if (records.length === 0) return;
 
-        const { upsertDailyInventory } = get();
+        const businessDate = records[0].businessDate;
+        const productIds = Array.from(new Set(records.map(r => r.productId)));
 
-        // 🚀 Process each record using the proven single upsert function
-        // This correctly handles NULL variant_id/market_id matching
-        for (const record of records) {
-            await upsertDailyInventory(record);
+        // 1. Fetch all existing records for these products on this day (1 API Call)
+        const { data: existingRecords, error: fetchError } = await supabase
+            .from('daily_inventory')
+            .select('*')
+            .eq('business_date', businessDate)
+            .in('product_id', productIds);
+        
+        if (fetchError) {
+            console.error("[bulkUpsertDailyInventory] Fetch Error:", fetchError);
+            throw fetchError;
         }
+        
+        // 2. Build Upsert Payload
+        const state = get();
+        const upsertPayload = records.map(record => {
+            const isMarket = !!record.marketId;
+            const existing = existingRecords?.find(e => 
+                e.product_id === record.productId && 
+                (record.variantId ? e.variant_id === record.variantId : !e.variant_id) &&
+                (record.marketId ? e.market_id === record.marketId : !e.market_id)
+            );
+
+            const stockYesterday = isMarket ? 0 : (record.stockYesterday ?? existing?.stock_yesterday ?? 0);
+            const produced = isMarket ? 0 : (record.producedQty ?? existing?.produced_qty ?? 0);
+            const toShop = record.toShopQty ?? existing?.to_shop_qty ?? 0;
+            const sold = record.soldQty ?? existing?.sold_qty ?? 0;
+            const waste = record.wasteQty ?? existing?.waste_qty ?? 0;
+            const eat = record.eatQty ?? existing?.eat_qty ?? 0;
+            const giveaway = record.giveawayQty ?? existing?.giveaway_qty ?? 0;
+
+            let leftoverHome = 0;
+            let unsoldShop = 0;
+
+            if (isMarket) {
+                unsoldShop = Math.max(0, toShop - sold - waste - eat - giveaway);
+            } else {
+                // Not heavily used in bulk sendAll, but implemented for safety
+                const totalTransfers = state.dailyInventory
+                    .filter(d => 
+                        d.businessDate === record.businessDate && 
+                        d.productId === record.productId && 
+                        ((!d.variantId && !record.variantId) || d.variantId === record.variantId) &&
+                        !!d.marketId
+                    )
+                    .reduce((sum, d) => sum + (d.toShopQty || 0), 0);
+                leftoverHome = stockYesterday + produced - totalTransfers - waste - eat - giveaway;
+            }
+
+            return {
+                ...(existing?.id ? { id: existing.id } : {}), // Trigger UPDATE if ID exists, else INSERT
+                business_date: record.businessDate,
+                product_id: record.productId,
+                variant_id: record.variantId || null,
+                variant_name: record.variantName || null,
+                market_id: record.marketId || null,
+                produced_qty: produced,
+                to_shop_qty: toShop,
+                waste_qty: waste,
+                sold_qty: sold,
+                eat_qty: eat,
+                giveaway_qty: giveaway,
+                ...(existing?.id ? {} : { stock_yesterday: stockYesterday }), // Immutable history check
+                leftover_home: leftoverHome,
+                unsold_shop: unsoldShop
+            };
+        });
+
+        // 3. Upsert Market/Target Records (1 API Call)
+        const { error: upsertError } = await supabase.from('daily_inventory').upsert(upsertPayload, { onConflict: 'id' });
+        if (upsertError) {
+            console.error("[bulkUpsertDailyInventory] Upsert Error:", upsertError);
+            throw upsertError;
+        }
+
+        // 4. Auto-recalculate Home Leftover for all affected variant combinations (2 API Calls)
+        const { data: freshRecords } = await supabase
+            .from('daily_inventory')
+            .select('*')
+            .eq('business_date', businessDate)
+            .in('product_id', productIds);
+
+        if (freshRecords) {
+            const homeUpdates = [];
+            const affectedCombinations = Array.from(new Set(records.map(r => `${r.productId}_${r.variantId || ''}`)));
+            
+            for (const combo of affectedCombinations) {
+                const [pid, vid] = combo.split('_');
+                const homeRecord = freshRecords.find(r => r.product_id === pid && (vid ? r.variant_id === vid : !r.variant_id) && !r.market_id);
+                
+                if (homeRecord) {
+                    const marketRecords = freshRecords.filter(r => r.product_id === pid && (vid ? r.variant_id === vid : !r.variant_id) && !!r.market_id);
+                    const totalTransfers = marketRecords.reduce((sum, r) => sum + (r.to_shop_qty || 0), 0);
+                    const newLeftover = (homeRecord.stock_yesterday || 0) + (homeRecord.produced_qty || 0) - totalTransfers - (homeRecord.waste_qty || 0) - (homeRecord.eat_qty || 0) - (homeRecord.giveaway_qty || 0);
+                    
+                    if (homeRecord.leftover_home !== newLeftover) {
+                        homeUpdates.push({
+                            id: homeRecord.id,
+                            business_date: homeRecord.business_date,
+                            product_id: homeRecord.product_id,
+                            leftover_home: newLeftover
+                        });
+                    }
+                }
+            }
+
+            if (homeUpdates.length > 0) {
+                const { error: homeUpdateError } = await supabase.from('daily_inventory').upsert(homeUpdates, { onConflict: 'id' });
+                if (homeUpdateError) console.error("[bulkUpsertDailyInventory] Home recalculation error:", homeUpdateError);
+            }
+        }
+
+        // 5. Sync State (1 API Call)
+        await state.fetchDailyInventory(businessDate);
     },
 
     getYesterdayStock: (productId, todayDate, variantId) => {
