@@ -430,7 +430,7 @@ export const createInventorySlice: StateCreator<AppState, [], [], InventorySlice
             }
 
             return {
-                ...(existing?.id ? { id: existing.id } : {}), // Trigger UPDATE if ID exists, else INSERT
+                id: existing?.id || crypto.randomUUID(), // Always provide ID to prevent PostgREST from inserting NULL
                 business_date: record.businessDate,
                 product_id: record.productId,
                 variant_id: record.variantId || null,
