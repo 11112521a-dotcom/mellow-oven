@@ -152,7 +152,7 @@ export const AccuracyDashboard: React.FC<Props> = ({ data, title }) => {
                 </div>
 
                 <div className="h-[350px]">
-                    <ResponsiveContainer width="100%" height="100%">
+                    <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
                         <ComposedChart data={data.dailyTrend.slice(-30)} margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
                             <defs>
                                 <linearGradient id="colorAccuracy" x1="0" y1="0" x2="0" y2="1">
@@ -397,7 +397,7 @@ export const AccuracyDashboard: React.FC<Props> = ({ data, title }) => {
                             </div>
                             10 อันดับที่ต้องจับตามอง (AI vs ขายจริง)
                         </h4>
-                        <ResponsiveContainer width="100%" height="100%">
+                        <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
                             <BarChart
                                 data={(Object.values(currentComparison.records.reduce((acc, r) => {
                                     if (!acc[r.productId]) acc[r.productId] = { ...r, forecastQty: 0, actualQty: 0, diff: 0, wasteCost: 0, stockoutRevenue: 0 };

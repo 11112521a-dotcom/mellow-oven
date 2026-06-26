@@ -69,7 +69,7 @@ export const TopProductsChart: React.FC<TopProductsChartProps> = ({ data, mode }
                 </div>
             ) : (
                 <div className="h-80 w-full">
-                    <ResponsiveContainer width="100%" height="100%">
+                    <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
                         <BarChart
                             data={topData}
                             layout="vertical"

@@ -839,7 +839,7 @@ export const ProductionPlanner: React.FC = () => {
                                     </div>
 
                                     <div className="h-[400px] w-full">
-                                        <ResponsiveContainer width="100%" height="100%">
+                                        <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
                                             <ComposedChart data={accuracyAnalysis.dailyTrend.slice(-30)} margin={{ top: 20, right: 0, bottom: 20, left: 0 }}>
                                                 <defs>
                                                     <linearGradient id="accuracyGradient" x1="0" y1="0" x2="0" y2="1">

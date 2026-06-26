@@ -228,7 +228,7 @@ export const ConsignmentDashboard: React.FC = () => {
                             </h3>
                         </div>
                         <div className="h-72 w-full">
-                            <ResponsiveContainer width="100%" height="100%">
+                            <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
                                 <AreaChart data={trendData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
                                     <defs>
                                         <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
@@ -259,7 +259,7 @@ export const ConsignmentDashboard: React.FC = () => {
                             สัดส่วนผลลัพธ์สินค้าฝากขาย
                         </h3>
                         <div className="h-48 w-full relative flex items-center justify-center">
-                            <ResponsiveContainer width="100%" height="100%">
+                            <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
                                 <PieChart>
                                     <Pie
                                         data={pieData}
@@ -303,7 +303,7 @@ export const ConsignmentDashboard: React.FC = () => {
                             เปรียบเทียบยอดขายรายสาขา
                         </h3>
                         <div className="h-64 w-full">
-                            <ResponsiveContainer width="100%" height="100%">
+                            <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
                                 <BarChart data={branchData} layout="vertical" margin={{ top: 5, right: 10, left: 10, bottom: 5 }}>
                                     <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#E5E7EB" />
                                     <XAxis type="number" stroke="#9CA3AF" fontSize={11} tickLine={false} axisLine={false} />
@@ -323,7 +323,7 @@ export const ConsignmentDashboard: React.FC = () => {
                             5 อันดับสินค้าฝากขายดีที่สุด
                         </h3>
                         <div className="h-64 w-full">
-                            <ResponsiveContainer width="100%" height="100%">
+                            <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
                                 <BarChart data={productData} margin={{ top: 20, right: 10, left: -10, bottom: 5 }}>
                                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
                                     <XAxis dataKey="name" stroke="#9CA3AF" fontSize={11} tickLine={false} />
