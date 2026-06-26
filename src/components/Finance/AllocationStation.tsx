@@ -3,6 +3,7 @@ import { useStore } from '@/src/store';
 import { useShallow } from 'zustand/react/shallow';
 import { JarType, AllocationProfile } from '@/types';
 import { formatCurrency } from '@/src/lib/utils';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
     PieChart, Save, Trash2, ArrowRight, Percent, DollarSign, Zap,
     Calendar, TrendingUp, Sparkles, Check, Plus, Eye, Wallet,
@@ -112,6 +113,18 @@ export const AllocationStation = React.memo(({ onAllocate }: AllocationStationPr
 
     const [amount, setAmount] = useState<string>('');
     const [isAllocating, setIsAllocating] = useState(false);
+    const [showSuccess, setShowSuccess] = useState(false);
+    const [successAllocatedData, setSuccessAllocatedData] = useState<{
+        amount: number;
+        jarAmounts: Record<JarType, number>;
+        jarPercentages: Record<JarType, number>;
+        debtDeducted: number;
+    }>({
+        amount: 0,
+        jarAmounts: { 'Working': 0, 'CapEx': 0, 'Opex': 0, 'Emergency': 0, 'Owner': 0 },
+        jarPercentages: { 'Working': 0, 'CapEx': 0, 'Opex': 0, 'Emergency': 0, 'Owner': 0 },
+        debtDeducted: 0
+    });
     const isInternalAmountChange = React.useRef(false);
     const [selectedProfileId, setSelectedProfileId] = useState<string>(defaultProfileId || 'default');
     const [renameModal, setRenameModal] = useState<{ isOpen: boolean; profileId: string; currentName: string }>({ isOpen: false, profileId: '', currentName: '' });
@@ -496,7 +509,25 @@ export const AllocationStation = React.memo(({ onAllocate }: AllocationStationPr
 
         setIsAllocating(true);
         try {
+            // Save state for success pop-up
+            setSuccessAllocatedData({
+                amount: numAmount,
+                jarAmounts: {
+                    'Working': previewAmounts['Working'] || 0,
+                    'CapEx': previewAmounts['CapEx'] || 0,
+                    'Opex': previewAmounts['Opex'] || 0,
+                    'Emergency': previewAmounts['Emergency'] || 0,
+                    'Owner': previewAmounts['Owner'] || 0,
+                },
+                jarPercentages: { ...currentAllocations },
+                debtDeducted: effectiveDebtAmount
+            });
+
             await onAllocate(numAmount, currentAllocations, allocationSource === 'profit', specificProfits, effectiveDebtAmount);
+            
+            // Show success animation modal
+            setShowSuccess(true);
+
             if (allocationSource === 'manual') {
                 setAmount('');
             }
@@ -1411,6 +1442,116 @@ export const AllocationStation = React.memo(({ onAllocate }: AllocationStationPr
                     </div>
                 </div>
             )}
+
+            {/* Success Animation Modal */}
+            <AnimatePresence>
+                {showSuccess && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                        <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            className="absolute inset-0 bg-stone-900/50 backdrop-blur-md"
+                            onClick={() => setShowSuccess(false)}
+                        />
+                        
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                            transition={{ type: "spring", damping: 25, stiffness: 350 }}
+                            className="relative w-full max-w-md bg-white rounded-[2.5rem] shadow-2xl border border-stone-100 overflow-hidden z-10"
+                        >
+                            {/* Decorative glowing background */}
+                            <div className="absolute -top-12 -left-12 w-40 h-40 bg-emerald-100 rounded-full blur-3xl opacity-60 pointer-events-none" />
+                            <div className="absolute -bottom-12 -right-12 w-40 h-40 bg-teal-100 rounded-full blur-3xl opacity-60 pointer-events-none" />
+
+                            <div className="relative p-8 flex flex-col items-center text-center">
+                                {/* Success Checkmark Badge with bounce */}
+                                <motion.div
+                                    initial={{ scale: 0, rotate: -30 }}
+                                    animate={{ scale: 1, rotate: 0 }}
+                                    transition={{ delay: 0.1, type: "spring", stiffness: 200, damping: 15 }}
+                                    className="w-24 h-24 bg-gradient-to-tr from-emerald-400 to-teal-500 rounded-full flex items-center justify-center text-white shadow-xl shadow-emerald-500/30 mb-6 relative"
+                                >
+                                    <Check size={48} strokeWidth={3} className="animate-in zoom-in-50 duration-300 delay-200" />
+                                    
+                                    {/* Cute floating coins particles */}
+                                    <motion.div
+                                        animate={{ y: [-10, -25, -10], opacity: [0, 1, 0] }}
+                                        transition={{ repeat: Infinity, duration: 2, delay: 0 }}
+                                        className="absolute -top-2 -left-2 text-xl font-bold pointer-events-none"
+                                    >
+                                        🪙
+                                    </motion.div>
+                                    <motion.div
+                                        animate={{ y: [-15, -35, -15], opacity: [0, 1, 0] }}
+                                        transition={{ repeat: Infinity, duration: 2.2, delay: 0.4 }}
+                                        className="absolute -top-4 right-1 text-base font-bold pointer-events-none"
+                                    >
+                                        ✨
+                                    </motion.div>
+                                    <motion.div
+                                        animate={{ y: [-5, -20, -5], opacity: [0, 1, 0] }}
+                                        transition={{ repeat: Infinity, duration: 1.8, delay: 0.8 }}
+                                        className="absolute -right-3 top-6 text-lg font-bold pointer-events-none"
+                                    >
+                                        💵
+                                    </motion.div>
+                                </motion.div>
+
+                                <h3 className="text-2xl font-black text-stone-850 tracking-tight">
+                                    จัดสรรเงินสำเร็จ! 🎉
+                                </h3>
+                                <p className="text-stone-500 text-sm font-medium mt-2">
+                                    ระบบได้กระจายเงินเข้ากระปุกต่าง ๆ เรียบร้อยแล้ว
+                                </p>
+
+                                <div className="w-full bg-emerald-50/50 rounded-2xl p-4 my-6 border border-emerald-100/50 text-center">
+                                    <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest">ยอดเงินจัดสรรรวม</p>
+                                    <p className="text-3xl font-black bg-gradient-to-r from-emerald-600 to-teal-600 bg-clip-text text-transparent mt-1">
+                                        {formatCurrency(successAllocatedData.amount)}
+                                    </p>
+                                </div>
+
+                                {/* Distribution list */}
+                                <div className="w-full space-y-2 mb-6">
+                                    {successAllocatedData.debtDeducted > 0 && (
+                                        <div className="flex items-center justify-between bg-rose-50/40 rounded-xl p-3 border border-rose-100/50">
+                                            <span className="text-xs font-bold text-rose-700">🎯 หักเข้ากองทุนหนี้ (Debt)</span>
+                                            <span className="text-sm font-black text-rose-600">
+                                                -{formatCurrency(successAllocatedData.debtDeducted)}
+                                            </span>
+                                        </div>
+                                    )}
+                                    {jars.map(jar => {
+                                        const style = jarStyles[jar.id];
+                                        const previewAmt = successAllocatedData.jarAmounts[jar.id] || 0;
+                                        const percentage = successAllocatedData.jarPercentages[jar.id] || 0;
+
+                                        return (
+                                            <div key={jar.id} className="flex items-center justify-between bg-stone-50/50 rounded-xl p-3 border border-stone-100">
+                                                <span className={`text-xs font-bold ${style.text}`}>{getJarThaiName(jar.id)}</span>
+                                                <div className="text-right">
+                                                    <span className="text-sm font-black text-stone-700">{formatCurrency(previewAmt)}</span>
+                                                    <span className="text-[10px] text-stone-400 font-bold ml-1.5">({percentage.toFixed(0)}%)</span>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+
+                                <button
+                                    onClick={() => setShowSuccess(false)}
+                                    className="w-full py-4 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-black text-base rounded-2xl shadow-xl shadow-emerald-500/20 hover:shadow-emerald-500/30 transition-all duration-300 hover:-translate-y-0.5 active:translate-y-0"
+                                >
+                                    ตกลง (ยอดเยี่ยม)
+                                </button>
+                            </div>
+                        </motion.div>
+                    </div>
+                )}
+            </AnimatePresence>
         </div >
     );
 });

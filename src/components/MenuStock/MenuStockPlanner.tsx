@@ -805,6 +805,58 @@ export const MenuStockPlanner: React.FC = () => {
             // 🛡️ PHASE 1 FIX #1: Silent Fetch - Get latest data before processing
             await fetchDailyInventory(businessDate);
 
+            // 🌟 FIX STALE CLOSURE: Read fresh state directly from Zustand store
+            const freshState = useStore.getState();
+            const freshDailyInventory = freshState.dailyInventory;
+            const freshGetYesterdayStock = freshState.getYesterdayStock;
+
+            // Build fresh O(1) lookup maps from the fetched data
+            const freshInventoryMap = new Map<string, typeof freshDailyInventory[0]>();
+            freshDailyInventory.forEach(d => {
+                const key = `${d.businessDate}|${d.productId}|${d.variantId || ''}|${d.marketId || ''}`;
+                freshInventoryMap.set(key, d);
+            });
+
+            const freshTotalToShopMap = new Map<string, number>();
+            freshDailyInventory.forEach(d => {
+                if (d.marketId) {
+                    const key = `${d.businessDate}|${d.productId}|${d.variantId || ''}`;
+                    freshTotalToShopMap.set(key, (freshTotalToShopMap.get(key) || 0) + (d.toShopQty || 0));
+                }
+            });
+
+            // Construct fresh local helpers
+            const getFreshHomeRecord = (item: InventoryItem) => {
+                const key = `${businessDate}|${item.productId}|${item.variantId || ''}|`;
+                const saved = freshInventoryMap.get(key);
+                return saved || {
+                    producedQty: 0,
+                    wasteQty: 0,
+                    eatQty: 0,
+                    giveawayQty: 0,
+                    stockYesterday: freshGetYesterdayStock(item.productId, businessDate, item.variantId)
+                };
+            };
+
+            const getFreshMarketRecord = (item: InventoryItem, marketId: string) => {
+                if (!marketId) return { toShopQty: 0, soldQty: 0, unsoldShop: 0, wasteQty: 0, eatQty: 0, giveawayQty: 0 };
+                const key = `${businessDate}|${item.productId}|${item.variantId || ''}|${marketId}`;
+                const saved = freshInventoryMap.get(key);
+                return saved || {
+                    toShopQty: 0,
+                    soldQty: 0,
+                    unsoldShop: 0,
+                    wasteQty: 0,
+                    eatQty: 0,
+                    giveawayQty: 0
+                };
+            };
+
+            const getFreshTotalToShop = (item: InventoryItem) => {
+                const key = `${businessDate}|${item.productId}|${item.variantId || ''}`;
+                return freshTotalToShopMap.get(key) || 0;
+            };
+
             // 🚀 PHASE 2: Build batch records array (instead of loop upsert)
             const batchRecords: Array<{
                 businessDate: string;
@@ -833,9 +885,9 @@ export const MenuStockPlanner: React.FC = () => {
                     continue;
                 }
 
-                const home = getHomeRecord(item);
-                const market = getMarketRecord(item, selectedMarketId);
-                const stockYesterday = home.stockYesterday ?? getYesterdayForItem(item);
+                const home = getFreshHomeRecord(item);
+                const market = getFreshMarketRecord(item, selectedMarketId);
+                const stockYesterday = home.stockYesterday ?? freshGetYesterdayStock(item.productId, businessDate, item.variantId);
 
                 if (bulkActionModal.type === 'produceAll') {
                     // ADD to existing production (HOME POOL)
@@ -856,7 +908,7 @@ export const MenuStockPlanner: React.FC = () => {
                 } else if (bulkActionModal.type === 'sendAll') {
                     // ADD to existing transfer with safety check (MARKET SPECIFIC)
                     const totalProduced = stockYesterday + (home.producedQty || 0);
-                    const alreadySentToAllMarkets = getTotalToShop(item);
+                    const alreadySentToAllMarkets = getFreshTotalToShop(item);
                     const alreadySentToThisMarket = market.toShopQty || 0;
                     const wasteQty = home.wasteQty || 0;  
                     const eatQty = home.eatQty || 0;      
