@@ -442,7 +442,7 @@ export const createInventorySlice: StateCreator<AppState, [], [], InventorySlice
                 sold_qty: sold,
                 eat_qty: eat,
                 giveaway_qty: giveaway,
-                ...(existing?.id ? {} : { stock_yesterday: stockYesterday }), // Immutable history check
+                stock_yesterday: existing?.id ? (existing.stock_yesterday || 0) : stockYesterday, // Always include key to ensure uniform object shape for PostgREST batch upsert
                 leftover_home: leftoverHome,
                 unsold_shop: unsoldShop
             };
@@ -451,7 +451,7 @@ export const createInventorySlice: StateCreator<AppState, [], [], InventorySlice
         // 3. Upsert Market/Target Records (1 API Call)
         const { error: upsertError } = await supabase.from('daily_inventory').upsert(upsertPayload, { onConflict: 'id' });
         if (upsertError) {
-            console.error("[bulkUpsertDailyInventory] Upsert Error:", upsertError);
+            console.error("[bulkUpsertDailyInventory] Upsert Error Details:", JSON.stringify(upsertError, null, 2));
             throw upsertError;
         }
 
