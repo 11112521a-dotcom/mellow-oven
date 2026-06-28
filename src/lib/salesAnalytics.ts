@@ -122,7 +122,7 @@ export const calculateProductGroups = (filteredSales: ProductSaleLog[]): Product
     return Object.values(groups).sort((a, b) => b.totalRevenue - a.totalRevenue) as ProductGroupStats[];
 };
 
-export const calculateDailyBreakdown = (filteredSales: ProductSaleLog[]): DailyBreakdownStat[] => {
+export const calculateDailyBreakdown = (filteredSales: ProductSaleLog[], externalShops: any[] = []): DailyBreakdownStat[] => {
     const dateMap = new Map<string, DailyBreakdownStat & { _marketNames: Set<string> }>();
     filteredSales.forEach(sale => {
         const existing = dateMap.get(sale.saleDate) || { 
@@ -140,7 +140,15 @@ export const calculateDailyBreakdown = (filteredSales: ProductSaleLog[]): DailyB
         if (!mName) {
             mName = sale.marketId === 'home' ? 'หน้าบ้าน' : sale.marketId;
         }
-        existing._marketNames.add(mName);
+
+        const isConsignment = externalShops.some(s => s.id === sale.marketId) || mName.startsWith('ฝากขาย:');
+        
+        if (isConsignment) {
+            const cleanName = mName.replace('ฝากขาย: ', '').replace('ฝากขาย:', '').trim();
+            existing._marketNames.add(`[ฝากขาย] ${cleanName}`);
+        } else {
+            existing._marketNames.add(`[ตลาด] ${mName}`);
+        }
 
         dateMap.set(sale.saleDate, {
             ...existing,

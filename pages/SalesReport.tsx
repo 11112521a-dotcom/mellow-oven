@@ -62,7 +62,7 @@ import {
     calculatePerMarketProductData, 
     calculateWasteSummary 
 } from '@/src/lib/salesAnalytics';
-import { ProductSaleLog } from '@/types';
+import { ProductSaleLog, Market } from '@/types';
 
 interface EditSalesModalProps {
     isOpen: boolean;
@@ -443,9 +443,17 @@ export const SalesReport: React.FC = () => {
         return productSales.filter(sale => {
             const matchDate = sale.saleDate >= startDate && sale.saleDate <= endDate;
             const matchMarket = selectedMarket === 'all' || sale.marketId === selectedMarket;
-            return matchDate && matchMarket;
+            
+            let matchType = true;
+            if (saleTypeFilter !== 'all') {
+                const isConsignment = externalShops.some(s => s.id === sale.marketId) || sale.marketName?.startsWith('ฝากขาย:');
+                if (saleTypeFilter === 'market' && isConsignment) matchType = false;
+                if (saleTypeFilter === 'consignment' && !isConsignment) matchType = false;
+            }
+
+            return matchDate && matchMarket && matchType;
         });
-    }, [productSales, startDate, endDate, selectedMarket]);
+    }, [productSales, startDate, endDate, selectedMarket, saleTypeFilter, externalShops]);
 
     const summary = useMemo(() => calculateSalesSummary(filteredSales), [filteredSales]);
 
@@ -460,7 +468,7 @@ export const SalesReport: React.FC = () => {
         return Array.from(dateMap.entries()).map(([date, data]) => ({ date: new Date(date).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' }), revenue: data.revenue, profit: data.profit })).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
     }, [filteredSales]);
 
-    const dailyBreakdownData = useMemo(() => calculateDailyBreakdown(filteredSales), [filteredSales]);
+    const dailyBreakdownData = useMemo(() => calculateDailyBreakdown(filteredSales, externalShops), [filteredSales, externalShops]);
 
     const perMarketProductData = useMemo(() => calculatePerMarketProductData(filteredSales, markets), [filteredSales, markets]);
 
@@ -479,23 +487,26 @@ export const SalesReport: React.FC = () => {
     }, [productGroups, topProductsMode]);
 
     const marketComparisonData = useMemo(() => {
-        const marketMap = new Map<string, { marketName: string; revenue: number; profit: number; quantity: number }>();
+        const marketMap = new Map<string, { marketName: string; revenue: number; profit: number; quantity: number; isConsignment: boolean }>();
         filteredSales.forEach(sale => {
-            const existing = marketMap.get(sale.marketId) || { marketName: sale.marketName || sale.marketId, revenue: 0, profit: 0, quantity: 0 };
+            const isConsignment = externalShops.some(s => s.id === sale.marketId) || sale.marketName?.startsWith('ฝากขาย:');
+            const existing = marketMap.get(sale.marketId) || { marketName: sale.marketName || sale.marketId, revenue: 0, profit: 0, quantity: 0, isConsignment };
             marketMap.set(sale.marketId, {
                 marketName: existing.marketName,
                 revenue: existing.revenue + sale.totalRevenue,
                 profit: existing.profit + sale.grossProfit,
-                quantity: existing.quantity + sale.quantitySold
+                quantity: existing.quantity + sale.quantitySold,
+                isConsignment: existing.isConsignment
             });
         });
         return Array.from(marketMap.entries()).map(([marketId, data]) => ({
             marketName: markets.find(m => m.id === marketId)?.name || data.marketName,
             revenue: data.revenue,
             profit: data.profit,
-            quantity: data.quantity
+            quantity: data.quantity,
+            isConsignment: data.isConsignment
         }));
-    }, [filteredSales, markets]);
+    }, [filteredSales, markets, externalShops]);
 
     const wasteSummary = useMemo(() => calculateWasteSummary(filteredSales), [filteredSales]);
 
@@ -567,7 +578,15 @@ export const SalesReport: React.FC = () => {
         const prevSales = productSales.filter(sale => {
             const matchDate = sale.saleDate >= prevStartStr && sale.saleDate <= prevEndStr;
             const matchMarket = selectedMarket === 'all' || sale.marketId === selectedMarket;
-            return matchDate && matchMarket;
+            
+            let matchType = true;
+            if (saleTypeFilter !== 'all') {
+                const isConsignment = externalShops.some(s => s.id === sale.marketId) || sale.marketName?.startsWith('ฝากขาย:');
+                if (saleTypeFilter === 'market' && isConsignment) matchType = false;
+                if (saleTypeFilter === 'consignment' && !isConsignment) matchType = false;
+            }
+
+            return matchDate && matchMarket && matchType;
         });
 
         const prevRevenue = prevSales.reduce((sum, s) => sum + s.totalRevenue, 0);
@@ -667,6 +686,18 @@ export const SalesReport: React.FC = () => {
                                 />
                             </div>
                         )}
+                        
+                        {/* Sale Type Filter Toggle */}
+                        <AnimatedSelect
+                            value={saleTypeFilter}
+                            onChange={(val) => setSaleTypeFilter(val as 'all' | 'market' | 'consignment')}
+                            icon={Package}
+                            options={[
+                                { value: 'all', label: 'ทั้งหมด' },
+                                { value: 'market', label: '🏪 ไปขายตลาด' },
+                                { value: 'consignment', label: '📦 ฝากขาย' }
+                            ]}
+                        />
 
                         <AnimatedSelect
                             value={selectedMarket}
@@ -754,7 +785,7 @@ export const SalesReport: React.FC = () => {
                 <EnhancedMarketDetailView
                     marketId={selectedMarketForDetail}
                     marketName={getMarketName(selectedMarketForDetail)}
-                    sales={productSales}
+                    sales={filteredSales}
                     totalRevenue={filteredSales.reduce((sum, s) => sum + s.totalRevenue, 0)}
                     fromDate={startDate}
                     toDate={endDate}
@@ -765,23 +796,46 @@ export const SalesReport: React.FC = () => {
             ) : (
                 <>
                     {/* TAB: MARKETS */}
-                    {activeTab === 'markets' && (
-                        <MarketComparisonTable
-                            sales={productSales}
-                            markets={markets}
-                            dateRange={dateRangeObj}
-                            onViewMarketDetail={(marketId) => setSelectedMarketForDetail(marketId)}
-                        />
-                    )}
+                    {activeTab === 'markets' && (() => {
+                        let displayMarkets = [...markets];
+                        if (saleTypeFilter === 'consignment') {
+                            displayMarkets = externalShops.map(s => ({...s, name: `ฝากขาย: ${s.name}`}) as Market);
+                        } else if (saleTypeFilter === 'all') {
+                            displayMarkets = [
+                                ...markets, 
+                                ...externalShops.map(s => ({...s, name: `ฝากขาย: ${s.name}`}) as Market)
+                            ];
+                        }
+                        
+                        return (
+                            <MarketComparisonTable
+                                sales={filteredSales}
+                                markets={displayMarkets}
+                                dateRange={dateRangeObj}
+                                onViewMarketDetail={(marketId) => setSelectedMarketForDetail(marketId)}
+                            />
+                        );
+                    })()}
 
                     {/* TAB: COMPARISON */}
-                    {activeTab === 'comparison' && (
-                        <EnhancedComparisonView
-                            sales={productSales}
-                            markets={markets}
-                            selectedMarketId={selectedMarket === 'all' ? undefined : selectedMarket}
-                        />
-                    )}
+                    {activeTab === 'comparison' && (() => {
+                        let displayMarkets = [...markets];
+                        if (saleTypeFilter === 'consignment') {
+                            displayMarkets = externalShops.map(s => ({...s, name: `ฝากขาย: ${s.name}`}) as Market);
+                        } else if (saleTypeFilter === 'all') {
+                            displayMarkets = [
+                                ...markets, 
+                                ...externalShops.map(s => ({...s, name: `ฝากขาย: ${s.name}`}) as Market)
+                            ];
+                        }
+                        return (
+                            <EnhancedComparisonView
+                                sales={filteredSales}
+                                markets={displayMarkets}
+                                selectedMarketId={selectedMarket === 'all' ? undefined : selectedMarket}
+                            />
+                        );
+                    })()}
 
                     {/* TAB: PATTERNS (New Oracle Core) */}
                     {activeTab === 'patterns' && (
@@ -965,7 +1019,33 @@ export const SalesReport: React.FC = () => {
                                                 ))}
                                             </div>
                                         </div>
-                                        <MarketComparisonChart data={marketComparisonData} mode={marketComparisonMode} />
+                                        
+                                        <div className="space-y-6">
+                                            {marketComparisonData.filter(d => !d.isConsignment).length > 0 && (
+                                                <MarketComparisonChart 
+                                                    data={marketComparisonData.filter(d => !d.isConsignment)} 
+                                                    mode={marketComparisonMode} 
+                                                    customTitle={marketComparisonMode === 'quantity' ? 'จำนวนสินค้า (ตลาด)' : marketComparisonMode === 'revenue' ? 'รายรับ (ตลาด)' : 'กำไร (ตลาด)'}
+                                                    customIcon="🏪"
+                                                />
+                                            )}
+                                            
+                                            {marketComparisonData.filter(d => d.isConsignment).length > 0 && (
+                                                <MarketComparisonChart 
+                                                    data={marketComparisonData.filter(d => d.isConsignment)} 
+                                                    mode={marketComparisonMode} 
+                                                    customTitle={marketComparisonMode === 'quantity' ? 'จำนวนสินค้า (ฝากขาย)' : marketComparisonMode === 'revenue' ? 'รายรับ (ฝากขาย)' : 'กำไร (ฝากขาย)'}
+                                                    customIcon="📦"
+                                                />
+                                            )}
+
+                                            {marketComparisonData.length === 0 && (
+                                                <div className="h-72 flex flex-col items-center justify-center text-cafe-400 bg-cafe-50/50 rounded-2xl border border-dashed border-cafe-200">
+                                                    <span className="text-2xl mb-2">📊</span>
+                                                    <p>ไม่พบข้อมูลยอดขาย</p>
+                                                </div>
+                                            )}
+                                        </div>
                                     </div>
                                 </div>
                             </div>

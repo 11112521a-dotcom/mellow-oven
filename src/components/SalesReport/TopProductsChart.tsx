@@ -58,10 +58,7 @@ export const TopProductsChart: React.FC<TopProductsChartProps> = ({ data, mode }
     const topData = data.slice(0, 10);
 
     return (
-        <div className="bg-white rounded-3xl shadow-sm border border-cafe-100 p-6 hover:shadow-lg transition-all duration-300">
-            <h3 className="text-lg font-bold text-cafe-800 mb-6 flex items-center gap-2">
-                <span className="bg-cafe-100 p-2 rounded-xl">🏆</span> Top 10 เมนูขายดี ({getModeLabel()})
-            </h3>
+        <div className="w-full h-full flex flex-col">
             {topData.length === 0 ? (
                 <div className="h-80 flex flex-col items-center justify-center text-cafe-400 bg-cafe-50/50 rounded-2xl border border-dashed border-cafe-200">
                     <span className="text-2xl mb-2">🏆</span>

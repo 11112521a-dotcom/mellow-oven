@@ -44,7 +44,7 @@ export const DayOfWeekChart: React.FC<DayOfWeekChartProps> = ({ data, mode = 're
     const worstDay = sortedData.reduce((worst, item) => getValue(item) < getValue(worst) ? item : worst, sortedData[0]);
 
     return (
-        <div className="space-y-6 bg-white rounded-3xl shadow-sm border border-cafe-100 p-6 hover:shadow-lg transition-all duration-300 h-full flex flex-col">
+        <div className="w-full h-full flex flex-col">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-0 mb-2">
                 <h3 className="text-lg font-bold text-cafe-800 flex items-center gap-2 whitespace-nowrap">
                     <span className="bg-cafe-100 p-2 rounded-xl">📅</span> ยอดขายแยกตามวัน

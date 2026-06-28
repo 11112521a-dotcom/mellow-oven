@@ -29,7 +29,7 @@ export const RevenueTrendChart: React.FC<RevenueTrendChartProps> = ({ data }) =>
     };
 
     return (
-        <div className="bg-white rounded-3xl shadow-sm border border-cafe-100 p-6 hover:shadow-lg transition-all duration-300">
+        <div className="w-full h-full flex flex-col">
             <h3 className="text-lg font-bold text-cafe-800 mb-6 flex items-center gap-2">
                 <span className="bg-cafe-100 p-2 rounded-xl">📈</span> แนวโน้มรายรับและกำไร
             </h3>

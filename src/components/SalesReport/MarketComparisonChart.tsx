@@ -10,28 +10,30 @@ interface MarketComparisonChartProps {
         quantity: number;
     }>;
     mode: 'revenue' | 'profit' | 'quantity';
+    customTitle?: string;
+    customIcon?: string;
 }
 
-export const MarketComparisonChart: React.FC<MarketComparisonChartProps> = ({ data, mode }) => {
+export const MarketComparisonChart: React.FC<MarketComparisonChartProps> = ({ data, mode, customTitle, customIcon }) => {
     const getModeConfig = () => {
         switch (mode) {
             case 'revenue':
                 return {
-                    title: 'รายรับแยกตามตลาด',
+                    title: customTitle || 'รายรับแยกตามตลาด',
                     dataKey: 'revenue',
                     color: '#3b82f6',
                     formatter: formatCurrency
                 };
             case 'profit':
                 return {
-                    title: 'กำไรแยกตามตลาด',
+                    title: customTitle || 'กำไรแยกตามตลาด',
                     dataKey: 'profit',
                     color: '#22c55e',
                     formatter: formatCurrency
                 };
             case 'quantity':
                 return {
-                    title: 'จำนวนสินค้าแยกตามตลาด',
+                    title: customTitle || 'จำนวนสินค้าแยกตามตลาด',
                     dataKey: 'quantity',
                     color: '#8b5cf6',
                     formatter: (value: number) => `${value.toLocaleString()} ชิ้น`
@@ -62,10 +64,7 @@ export const MarketComparisonChart: React.FC<MarketComparisonChartProps> = ({ da
     };
 
     return (
-        <div className="bg-white rounded-3xl shadow-sm border border-cafe-100 p-6 hover:shadow-lg transition-all duration-300">
-            <h3 className="text-lg font-bold text-cafe-800 mb-6 flex items-center gap-2">
-                <span className="bg-cafe-100 p-2 rounded-xl">🏪</span> {config.title}
-            </h3>
+        <div className="w-full h-full flex flex-col">
             {data.length === 0 ? (
                 <div className="h-72 flex flex-col items-center justify-center text-cafe-400 bg-cafe-50/50 rounded-2xl border border-dashed border-cafe-200">
                     <span className="text-2xl mb-2">🏪</span>
