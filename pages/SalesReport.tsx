@@ -888,35 +888,123 @@ export const SalesReport: React.FC = () => {
 
 
 
-                            {/* NEW: Moneyball Insights Row */}
-                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                                {/* Day of Week Chart */}
-                                <div className="bg-white rounded-2xl shadow-sm border border-cafe-100 p-6 hover:shadow-lg transition-shadow">
-                                    <DayOfWeekChart data={dayOfWeekData} />
+                            {/* UNIFIED SALES ANALYTICS DASHBOARD */}
+                            <div className="bg-white rounded-3xl shadow-sm border border-cafe-200 mb-6 overflow-hidden">
+                                <div className="p-6 md:p-8 bg-gradient-to-r from-cafe-50 to-white border-b border-cafe-100">
+                                    <div className="flex items-center gap-3">
+                                        <div className="bg-cafe-500 p-2.5 rounded-xl shadow-inner text-white">
+                                            <Activity size={24} />
+                                        </div>
+                                        <div>
+                                            <h2 className="text-xl font-bold text-cafe-900">กระดานวิเคราะห์ยอดขายแบบรวม (Unified Analytics)</h2>
+                                            <p className="text-sm text-cafe-500">แสดงแนวโน้ม, ยอดขายรายวัน, สินค้าขายดี และเปรียบเทียบตลาดในที่เดียว</p>
+                                        </div>
+                                    </div>
                                 </div>
 
-                                {/* Weather Analysis OR Waste Details */}
-                                {weatherData.length > 0 ? (
-                                    <WeatherAnalysisCard data={weatherData} />
-                                ) : (
-                                    <WasteSummaryCard
-                                        totalWasteQty={wasteSummary.totalWasteQty}
-                                        totalWasteCost={wasteSummary.totalWasteCost}
-                                        wasteByProduct={wasteSummary.byProduct}
-                                        totalRevenue={summary.totalRevenue}
-                                    />
-                                )}
+                                <div className="flex flex-col">
+                                    {/* Top Half: Revenue Trend & Day of Week */}
+                                    <div className="grid grid-cols-1 lg:grid-cols-2 divide-y lg:divide-y-0 lg:divide-x divide-cafe-100">
+                                        <div className="p-6 md:p-8">
+                                            <RevenueTrendChart data={revenueTrendData} />
+                                        </div>
+                                        <div className="p-6 md:p-8 bg-cafe-50/30">
+                                            <DayOfWeekChart data={dayOfWeekData} />
+                                        </div>
+                                    </div>
+
+                                    {/* Divider */}
+                                    <div className="h-px w-full bg-cafe-100"></div>
+
+                                    {/* Bottom Half: Top Products & Market Comparison */}
+                                    <div className="grid grid-cols-1 lg:grid-cols-2 divide-y lg:divide-y-0 lg:divide-x divide-cafe-100">
+                                        <div className="p-6 md:p-8 bg-cafe-50/30 flex flex-col h-full">
+                                            <div className="flex justify-between items-center mb-6">
+                                                <h3 className="text-lg font-bold text-cafe-900 flex items-center gap-2">
+                                                    <span className="bg-cafe-100 p-2 rounded-xl">🏆</span> Top 10 สินค้า
+                                                </h3>
+                                                <div className="flex gap-1 bg-white rounded-lg p-1 border border-cafe-100 shadow-sm">
+                                                    {['quantity', 'revenue', 'profit'].map(mode => (
+                                                        <button key={mode} onClick={() => setTopProductsMode(mode as 'quantity' | 'revenue' | 'profit')}
+                                                            className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${topProductsMode === mode ? 'bg-cafe-100 text-cafe-800' : 'text-cafe-600 hover:text-cafe-800'}`}>
+                                                            {mode === 'quantity' ? 'จำนวน' : mode === 'revenue' ? 'รายรับ' : 'กำไร'}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                            <TopProductsChart data={topProductsData} mode={topProductsMode} />
+                                        </div>
+                                        
+                                        <div className="p-6 md:p-8">
+                                            <div className="flex justify-between items-center mb-6">
+                                                <h3 className="text-lg font-bold text-cafe-900 flex items-center gap-2">
+                                                    <span className="bg-cafe-100 p-2 rounded-xl">⚡</span> เปรียบเทียบตลาด
+                                                </h3>
+                                                <div className="flex gap-1 bg-white rounded-lg p-1 border border-cafe-100 shadow-sm">
+                                                    {['revenue', 'profit', 'quantity'].map(mode => (
+                                                        <button key={mode} onClick={() => setMarketComparisonMode(mode as 'revenue' | 'profit' | 'quantity')}
+                                                            className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${marketComparisonMode === mode ? 'bg-cafe-100 text-cafe-800' : 'text-cafe-600 hover:text-cafe-800'}`}>
+                                                            {mode === 'quantity' ? 'จำนวน' : mode === 'revenue' ? 'รายรับ' : 'กำไร'}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                            <div className="space-y-6">
+                                                {marketComparisonData.filter(d => !d.isConsignment).length > 0 && (
+                                                    <MarketComparisonChart 
+                                                        data={marketComparisonData.filter(d => !d.isConsignment)} 
+                                                        mode={marketComparisonMode} 
+                                                        customTitle={marketComparisonMode === 'quantity' ? 'จำนวนสินค้า (ตลาด)' : marketComparisonMode === 'revenue' ? 'รายรับ (ตลาด)' : 'กำไร (ตลาด)'}
+                                                        customIcon="🏪"
+                                                    />
+                                                )}
+                                                
+                                                {marketComparisonData.filter(d => d.isConsignment).length > 0 && (
+                                                    <MarketComparisonChart 
+                                                        data={marketComparisonData.filter(d => d.isConsignment)} 
+                                                        mode={marketComparisonMode} 
+                                                        customTitle={marketComparisonMode === 'quantity' ? 'จำนวนสินค้า (ฝากขาย)' : marketComparisonMode === 'revenue' ? 'รายรับ (ฝากขาย)' : 'กำไร (ฝากขาย)'}
+                                                        customIcon="📦"
+                                                    />
+                                                )}
+
+                                                {marketComparisonData.length === 0 && (
+                                                    <div className="h-72 flex flex-col items-center justify-center text-cafe-400 bg-cafe-50/50 rounded-2xl border border-dashed border-cafe-200">
+                                                        <span className="text-2xl mb-2">📊</span>
+                                                        <p>ไม่พบข้อมูลยอดขาย</p>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
 
-                            {/* NEW: Daily Breakdown & Revenue Trend Row */}
-                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+                            {/* Additional Info Row (Weather/Waste & Daily Breakdown) */}
+                            <div className="mt-6 space-y-6">
+                                {/* Weather OR Waste */}
+                                {weatherData.length > 0 ? (
+                                    <div className="w-full lg:w-1/2">
+                                        <WeatherAnalysisCard data={weatherData} />
+                                    </div>
+                                ) : (
+                                    <div className="w-full lg:w-1/2">
+                                        <WasteSummaryCard
+                                            totalWasteQty={wasteSummary.totalWasteQty}
+                                            totalWasteCost={wasteSummary.totalWasteCost}
+                                            wasteByProduct={wasteSummary.byProduct}
+                                            totalRevenue={summary.totalRevenue}
+                                        />
+                                    </div>
+                                )}
+
                                 {/* Daily Breakdown Table */}
-                                <div className="bg-white rounded-2xl shadow-sm border border-cafe-100 p-6 hover:shadow-lg transition-shadow flex flex-col max-h-[450px]">
+                                <div className="bg-white rounded-2xl shadow-sm border border-cafe-100 p-6 hover:shadow-lg transition-shadow flex flex-col max-h-[600px]">
                                     <h3 className="text-lg font-bold text-cafe-900 flex items-center gap-2 mb-4 shrink-0">
                                         <Calendar size={20} className="text-blue-500" />
                                         รายงานการขายรายวัน
                                     </h3>
-                                    <div className="overflow-y-auto flex-1 pr-2 custom-scrollbar">
+                                    <div className="overflow-x-auto overflow-y-auto flex-1 pr-2 custom-scrollbar">
                                         <table className="w-full text-sm">
                                             <thead className="bg-cafe-50 sticky top-0 z-10 shadow-sm">
                                                 <tr>
@@ -973,79 +1061,6 @@ export const SalesReport: React.FC = () => {
                                                 })()}
                                             </tbody>
                                         </table>
-                                    </div>
-                                </div>
-
-                                <div className="bg-white rounded-2xl shadow-sm border border-cafe-100 p-6 hover:shadow-lg transition-shadow">
-                                    <RevenueTrendChart data={revenueTrendData} />
-                                </div>
-                            </div>
-
-                            <div className="space-y-6 mt-6">
-
-                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                                    {/* Top Products */}
-                                    <div className="bg-white rounded-2xl shadow-sm border border-cafe-100 p-6 hover:shadow-lg transition-shadow">
-                                        <div className="flex justify-between items-center mb-4">
-                                            <h3 className="text-lg font-bold text-cafe-900 flex items-center gap-2">
-                                                <Award className="text-yellow-500" size={20} />
-                                                Top 10 สินค้า
-                                            </h3>
-                                            <div className="flex gap-1 bg-cafe-100 rounded-lg p-1">
-                                                {['quantity', 'revenue', 'profit'].map(mode => (
-                                                    <button key={mode} onClick={() => setTopProductsMode(mode as 'quantity' | 'revenue' | 'profit')}
-                                                        className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${topProductsMode === mode ? 'bg-white shadow text-cafe-800' : 'text-cafe-600 hover:text-cafe-800'}`}>
-                                                        {mode === 'quantity' ? 'จำนวน' : mode === 'revenue' ? 'รายรับ' : 'กำไร'}
-                                                    </button>
-                                                ))}
-                                            </div>
-                                        </div>
-                                        <TopProductsChart data={topProductsData} mode={topProductsMode} />
-                                    </div>
-
-                                    {/* Market Comparison */}
-                                    <div className="bg-white rounded-2xl shadow-sm border border-cafe-100 p-6 hover:shadow-lg transition-shadow">
-                                        <div className="flex justify-between items-center mb-4">
-                                            <h3 className="text-lg font-bold text-cafe-900 flex items-center gap-2">
-                                                <Zap className="text-amber-500" size={20} />
-                                                เปรียบเทียบตลาด
-                                            </h3>
-                                            <div className="flex gap-1 bg-cafe-100 rounded-lg p-1">
-                                                {['revenue', 'profit', 'quantity'].map(mode => (
-                                                    <button key={mode} onClick={() => setMarketComparisonMode(mode as 'revenue' | 'profit' | 'quantity')}
-                                                        className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${marketComparisonMode === mode ? 'bg-white shadow text-cafe-800' : 'text-cafe-600 hover:text-cafe-800'}`}>
-                                                        {mode === 'quantity' ? 'จำนวน' : mode === 'revenue' ? 'รายรับ' : 'กำไร'}
-                                                    </button>
-                                                ))}
-                                            </div>
-                                        </div>
-                                        
-                                        <div className="space-y-6">
-                                            {marketComparisonData.filter(d => !d.isConsignment).length > 0 && (
-                                                <MarketComparisonChart 
-                                                    data={marketComparisonData.filter(d => !d.isConsignment)} 
-                                                    mode={marketComparisonMode} 
-                                                    customTitle={marketComparisonMode === 'quantity' ? 'จำนวนสินค้า (ตลาด)' : marketComparisonMode === 'revenue' ? 'รายรับ (ตลาด)' : 'กำไร (ตลาด)'}
-                                                    customIcon="🏪"
-                                                />
-                                            )}
-                                            
-                                            {marketComparisonData.filter(d => d.isConsignment).length > 0 && (
-                                                <MarketComparisonChart 
-                                                    data={marketComparisonData.filter(d => d.isConsignment)} 
-                                                    mode={marketComparisonMode} 
-                                                    customTitle={marketComparisonMode === 'quantity' ? 'จำนวนสินค้า (ฝากขาย)' : marketComparisonMode === 'revenue' ? 'รายรับ (ฝากขาย)' : 'กำไร (ฝากขาย)'}
-                                                    customIcon="📦"
-                                                />
-                                            )}
-
-                                            {marketComparisonData.length === 0 && (
-                                                <div className="h-72 flex flex-col items-center justify-center text-cafe-400 bg-cafe-50/50 rounded-2xl border border-dashed border-cafe-200">
-                                                    <span className="text-2xl mb-2">📊</span>
-                                                    <p>ไม่พบข้อมูลยอดขาย</p>
-                                                </div>
-                                            )}
-                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -1183,17 +1198,26 @@ export const SalesReport: React.FC = () => {
                                                 year: 'numeric',
                                                 weekday: 'long' 
                                             });
+                                            
+                                            const marketProducts = day.products.filter(p => !p.marketName?.startsWith('ฝากขาย:'));
+                                            const consignmentProducts = day.products.filter(p => p.marketName?.startsWith('ฝากขาย:'));
+                                            
                                             const uniqueMarkets = Array.from(new Set(day.products.map(p => p.marketName).filter(Boolean)));
                                             const marketShops = uniqueMarkets.filter(m => !m.startsWith('ฝากขาย:'));
                                             const consignmentShops = uniqueMarkets
                                                 .filter(m => m.startsWith('ฝากขาย:'))
                                                 .map(m => m.replace('ฝากขาย:', '').trim());
 
+                                            const marketRevenue = marketProducts.reduce((sum, p) => sum + p.revenue, 0);
+                                            const marketProfit = marketProducts.reduce((sum, p) => sum + p.profit, 0);
+                                            const consignmentRevenue = consignmentProducts.reduce((sum, p) => sum + p.revenue, 0);
+                                            const consignmentProfit = consignmentProducts.reduce((sum, p) => sum + p.profit, 0);
+
                                             return (
                                                 <details key={day.date} className="group bg-white rounded-2xl shadow-sm border border-cafe-100 overflow-hidden [&_summary::-webkit-details-marker]:hidden">
-                                                    <summary className="flex items-center justify-between p-5 cursor-pointer bg-gradient-to-r hover:from-amber-50/50 hover:to-white transition-colors min-h-[44px]">
+                                                    <summary className="flex flex-col md:flex-row md:items-center justify-between p-5 cursor-pointer bg-gradient-to-r hover:from-amber-50/50 hover:to-white transition-colors min-h-[44px] gap-4">
                                                         <div className="flex items-center gap-4">
-                                                            <div className="w-10 h-10 bg-amber-100 rounded-xl flex items-center justify-center text-amber-600">
+                                                            <div className="w-10 h-10 bg-amber-100 rounded-xl flex items-center justify-center text-amber-600 shrink-0">
                                                                 <Calendar size={20} />
                                                             </div>
                                                             <div>
@@ -1221,12 +1245,29 @@ export const SalesReport: React.FC = () => {
                                                                 </div>
                                                             </div>
                                                         </div>
-                                                        <div className="flex items-center gap-6">
-                                                            <div className="text-right hidden sm:block">
-                                                                <div className="font-bold text-cafe-900 text-base">{formatCurrency(day.revenue)}</div>
-                                                                <div className="text-xs text-green-600 font-semibold">กำไร {formatCurrency(day.profit)}</div>
+                                                        <div className="flex items-center gap-6 self-end md:self-center ml-14 md:ml-0">
+                                                            <div className="flex gap-4 md:gap-6">
+                                                                {marketRevenue > 0 && (
+                                                                    <div className="text-right border-r border-cafe-100 pr-4 md:pr-6">
+                                                                        <div className="text-[10px] text-blue-600 font-medium uppercase tracking-wider mb-0.5">🏪 ตลาด</div>
+                                                                        <div className="font-bold text-cafe-900">{formatCurrency(marketRevenue)}</div>
+                                                                        <div className="text-[11px] text-green-600 font-semibold">กำไร {formatCurrency(marketProfit)}</div>
+                                                                    </div>
+                                                                )}
+                                                                {consignmentRevenue > 0 && (
+                                                                    <div className="text-right border-r border-cafe-100 pr-4 md:pr-6">
+                                                                        <div className="text-[10px] text-purple-600 font-medium uppercase tracking-wider mb-0.5">📦 ฝากขาย</div>
+                                                                        <div className="font-bold text-cafe-900">{formatCurrency(consignmentRevenue)}</div>
+                                                                        <div className="text-[11px] text-green-600 font-semibold">กำไร {formatCurrency(consignmentProfit)}</div>
+                                                                    </div>
+                                                                )}
+                                                                <div className="text-right">
+                                                                    <div className="text-[10px] text-amber-600 font-medium uppercase tracking-wider mb-0.5">รวมทั้งหมด</div>
+                                                                    <div className="font-bold text-cafe-900 text-base">{formatCurrency(day.revenue)}</div>
+                                                                    <div className="text-[11px] text-green-600 font-semibold">กำไร {formatCurrency(day.profit)}</div>
+                                                                </div>
                                                             </div>
-                                                            <div className="w-8 h-8 rounded-full bg-cafe-50 flex items-center justify-center group-open:rotate-180 transition-transform text-cafe-500">
+                                                            <div className="w-8 h-8 rounded-full bg-cafe-50 flex items-center justify-center shrink-0 group-open:rotate-180 transition-transform text-cafe-500">
                                                                 <ChevronDown size={20} />
                                                             </div>
                                                         </div>

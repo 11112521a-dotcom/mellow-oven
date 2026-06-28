@@ -65,12 +65,12 @@ export const TopProductsChart: React.FC<TopProductsChartProps> = ({ data, mode }
                     <p>ยังไม่มีข้อมูลเพียงพอ</p>
                 </div>
             ) : (
-                <div className="h-80 w-full">
+                <div className="flex-1 w-full min-h-[400px]">
                     <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
                         <BarChart
                             data={topData}
                             layout="vertical"
-                            margin={{ top: 0, right: 30, left: 100, bottom: 0 }}
+                            margin={{ top: 0, right: 30, left: 10, bottom: 0 }}
                         >
                             <defs>
                                 {topData.map((_, index) => (
@@ -97,7 +97,7 @@ export const TopProductsChart: React.FC<TopProductsChartProps> = ({ data, mode }
                                 fontWeight={500}
                                 axisLine={false}
                                 tickLine={false}
-                                width={90}
+                                width={140}
                                 tick={{ fill: '#475569' }}
                             />
                             <Tooltip content={<CustomTooltip />} cursor={{ fill: '#f8fafc' }} />
