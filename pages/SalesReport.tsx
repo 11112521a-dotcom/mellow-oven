@@ -840,45 +840,7 @@ export const SalesReport: React.FC = () => {
                                 <StatCard icon={<Package size={28} />} label="เมนูที่ขาย" value={`${enhancedData.metrics.uniqueProductCount} เมนู`} subValue="ประเภทสินค้าที่ทำเงิน" gradient="from-amber-500 to-orange-600" delay={500} />
                             </div>
 
-                            {/* Smart Insights Panel */}
-                            {enhancedData.insights && enhancedData.insights.length > 0 && (
-                                <div className="bg-gradient-to-br from-amber-50/50 via-orange-50/30 to-stone-50/50 rounded-2xl border border-amber-100 p-6 shadow-sm hover:shadow-md transition-all duration-300 mt-6">
-                                    <h3 className="text-lg font-bold text-stone-800 flex items-center gap-2 mb-4">
-                                        <Sparkles className="text-amber-500 animate-pulse" size={20} />
-                                        วิเคราะห์อัจฉริยะ (Smart Insights)
-                                    </h3>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                        {enhancedData.insights.map((insight) => {
-                                            let badgeClass = 'bg-stone-50 border-stone-200 text-stone-700';
-                                            let iconWrapperClass = 'bg-stone-100 text-stone-600';
-                                            if (insight.type === 'positive') {
-                                                badgeClass = 'bg-emerald-50/80 border-emerald-100 text-emerald-800 shadow-sm shadow-emerald-100/50';
-                                                iconWrapperClass = 'bg-emerald-100/80 text-emerald-700';
-                                            } else if (insight.type === 'warning' || insight.type === 'negative') {
-                                                badgeClass = 'bg-rose-50/80 border-rose-100 text-rose-800 shadow-sm shadow-rose-100/50';
-                                                iconWrapperClass = 'bg-rose-100/80 text-rose-700';
-                                            } else if (insight.type === 'neutral') {
-                                                badgeClass = 'bg-amber-50/80 border-amber-100 text-amber-800 shadow-sm shadow-amber-100/50';
-                                                iconWrapperClass = 'bg-amber-100/80 text-amber-700';
-                                            }
 
-                                            return (
-                                                <div key={insight.id} className={`flex items-start gap-4 p-4 rounded-xl border ${badgeClass} backdrop-blur-sm transition-all hover:scale-[1.02] duration-200`}>
-                                                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-xl shrink-0 ${iconWrapperClass}`}>
-                                                        {insight.icon}
-                                                    </div>
-                                                    <div>
-                                                        <h4 className="font-bold text-sm text-stone-800">{insight.title}</h4>
-                                                        <p className="text-xs text-stone-600 mt-1 leading-relaxed">{insight.description}</p>
-                                                    </div>
-                                                </div>
-                                            );
-                                        })}
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* Oracle Card Removed from here */}
 
                             {/* NEW: Moneyball Insights Row */}
                             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -1300,7 +1262,7 @@ export const SalesReport: React.FC = () => {
                                                                             : p.marketName;
 
                                                                         return (
-                                                                            <tr key={`${p.productId}-${p.variantId || ''}-${idx}`} className="hover:bg-white transition-colors">
+                                                                            <tr key={`${p.productId}-${idx}`} className="hover:bg-white transition-colors">
                                                                                 <td className="px-5 py-3">
                                                                                     <div className="font-semibold text-cafe-900">{p.productName}</div>
                                                                                     <div className="flex flex-wrap items-center gap-2 mt-0.5">
@@ -1342,31 +1304,30 @@ export const SalesReport: React.FC = () => {
                                                                     };
 
                                                                     return (
-                                                                            </td>
-                                                                            <td className="px-5 py-3 text-center font-medium text-stone-600">
-                                                                                {p.preparedQty !== undefined ? `${p.preparedQty} ชิ้น` : '-'}
-                                                                            </td>
-                                                                            <td className="px-5 py-3 text-center font-bold text-cafe-800">
-                                                                                {p.quantity}
-                                                                            </td>
-                                                                            <td className="px-5 py-3 text-center font-medium text-stone-600">
-                                                                                {p.leftoverQty !== undefined ? `${p.leftoverQty} ชิ้น` : '-'}
-                                                                            </td>
-                                                                            <td className={`px-5 py-3 text-center font-medium ${eatGiveaway > 0 ? 'text-amber-600' : 'text-cafe-300'}`}>
-                                                                                {eatGiveaway > 0 ? `${eatGiveaway} ชิ้น` : '-'}
-                                                                            </td>
-                                                                            <td className={`px-5 py-3 text-center font-medium ${p.wasteQty && p.wasteQty > 0 ? 'text-red-600' : 'text-cafe-300'}`}>
-                                                                                {p.wasteQty && p.wasteQty > 0 ? `${p.wasteQty} ชิ้น` : '-'}
-                                                                            </td>
-                                                                            <td className="px-5 py-3 text-right font-semibold text-cafe-900">
-                                                                                {formatCurrency(p.revenue)}
-                                                                            </td>
-                                                                            <td className="px-5 py-3 text-right font-bold text-green-600">
-                                                                                {formatCurrency(p.profit)}
-                                                                            </td>
-                                                                        </tr>
+                                                                        <>
+                                                                            {marketProducts.length > 0 && (
+                                                                                <>
+                                                                                    <tr className="bg-blue-50/20 border-b border-blue-100/50">
+                                                                                        <td colSpan={8} className="px-5 py-2.5 font-bold text-blue-900 text-[10px] uppercase tracking-wider">
+                                                                                            🏪 ยอดขายตลาด / หน้าร้าน
+                                                                                        </td>
+                                                                                    </tr>
+                                                                                    {marketProducts.map((p, idx) => renderRow(p, idx, false))}
+                                                                                </>
+                                                                            )}
+                                                                            {consignmentProducts.length > 0 && (
+                                                                                <>
+                                                                                    <tr className="bg-purple-50/20 border-b border-purple-100/50">
+                                                                                        <td colSpan={8} className="px-5 py-2.5 font-bold text-purple-900 text-[10px] uppercase tracking-wider">
+                                                                                            📦 ยอดขายฝากร้าน (Consignment)
+                                                                                        </td>
+                                                                                    </tr>
+                                                                                    {consignmentProducts.map((p, idx) => renderRow(p, idx, true))}
+                                                                                </>
+                                                                            )}
+                                                                        </>
                                                                     );
-                                                                })}
+                                                                })()}
                                                             </tbody>
                                                         </table>
                                                     </div>
