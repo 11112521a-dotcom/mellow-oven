@@ -689,16 +689,7 @@ export const SalesReport: React.FC = () => {
                             Export PDF
                         </AnimatedButton>
 
-                        {/* Detailed Report Button */}
-                        <AnimatedButton
-                            onClick={() => setIsDetailedReportOpen(true)}
-                            icon={FileText}
-                            variant="primary"
-                            glow
-                            title="รายงานละเอียด"
-                        >
-                            รายงานละเอียด
-                        </AnimatedButton>
+
                     </div>
                 </div>
             </div>
