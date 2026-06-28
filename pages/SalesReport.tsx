@@ -913,6 +913,7 @@ export const SalesReport: React.FC = () => {
                                             <thead className="bg-cafe-50 sticky top-0 z-10 shadow-sm">
                                                 <tr>
                                                     <th className="px-3 py-2 text-left font-semibold text-cafe-700 rounded-tl-lg">วันที่</th>
+                                                    <th className="px-3 py-2 text-left font-semibold text-cafe-700">ตลาด</th>
                                                     <th className="px-3 py-2 text-center font-semibold text-cafe-700">อากาศ</th>
                                                     <th className="px-3 py-2 text-right font-semibold text-cafe-700">รายได้</th>
                                                     <th className="px-3 py-2 text-right font-semibold text-cafe-700">กำไร</th>
@@ -930,11 +931,15 @@ export const SalesReport: React.FC = () => {
                                                     return dailyBreakdownData.map((day, i) => {
                                                         const isBest = day.revenue === maxRev && maxRev > 0;
                                                         const isWorst = day.revenue === minRev && minRev >= 0 && maxRev !== minRev;
+                                                        const marketNamesStr = day.marketNames?.join(', ') || '-';
                                                         
                                                         return (
                                                             <tr key={day.date} className={`hover:bg-cafe-50 transition-colors ${isBest ? 'bg-emerald-50/50' : isWorst ? 'bg-red-50/50' : ''}`}>
                                                                 <td className="px-3 py-2 whitespace-nowrap">
                                                                     <div className="font-medium text-cafe-900">{new Date(day.date).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })}</div>
+                                                                </td>
+                                                                <td className="px-3 py-2 text-left text-sm text-cafe-600 max-w-[150px] truncate" title={marketNamesStr}>
+                                                                    {marketNamesStr}
                                                                 </td>
                                                                 <td className="px-3 py-2 text-center">
                                                                     {getWeatherIcon(day.weather)}
@@ -1221,6 +1226,11 @@ export const SalesReport: React.FC = () => {
                                                 year: 'numeric',
                                                 weekday: 'long' 
                                             });
+                                            const uniqueMarkets = Array.from(new Set(day.products.map(p => p.marketName).filter(Boolean)));
+                                            const marketShops = uniqueMarkets.filter(m => !m.startsWith('ฝากขาย:'));
+                                            const consignmentShops = uniqueMarkets
+                                                .filter(m => m.startsWith('ฝากขาย:'))
+                                                .map(m => m.replace('ฝากขาย:', '').trim());
 
                                             return (
                                                 <details key={day.date} className="group bg-white rounded-2xl shadow-sm border border-cafe-100 overflow-hidden [&_summary::-webkit-details-marker]:hidden">
@@ -1238,6 +1248,18 @@ export const SalesReport: React.FC = () => {
                                                                     )}
                                                                     {totalWasteQty > 0 && (
                                                                         <span className="text-red-500 font-medium">เสีย {totalWasteQty} ชิ้น</span>
+                                                                    )}
+                                                                    {marketShops.length > 0 && (
+                                                                        <span className="inline-flex items-center gap-1 text-[11px] text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-100">
+                                                                            <Store size={12} className="text-blue-600" />
+                                                                            {marketShops.join(', ')}
+                                                                        </span>
+                                                                    )}
+                                                                    {consignmentShops.length > 0 && (
+                                                                        <span className="inline-flex items-center gap-1 text-[11px] text-purple-700 bg-purple-50 px-2 py-0.5 rounded-full border border-purple-100">
+                                                                            <Package size={12} className="text-purple-600" />
+                                                                            ฝากขาย: {consignmentShops.join(', ')}
+                                                                        </span>
                                                                     )}
                                                                 </div>
                                                             </div>
@@ -1267,13 +1289,59 @@ export const SalesReport: React.FC = () => {
                                                                 </tr>
                                                             </thead>
                                                             <tbody className="divide-y divide-cafe-100">
-                                                                {day.products.map((p, idx: number) => {
-                                                                    const eatGiveaway = (p.eatQty || 0) + (p.giveawayQty || 0);
+                                                                {(() => {
+                                                                    const marketProducts = day.products.filter(p => !p.marketName?.startsWith('ฝากขาย:'));
+                                                                    const consignmentProducts = day.products.filter(p => p.marketName?.startsWith('ฝากขาย:'));
+
+                                                                    const renderRow = (p: typeof day.products[0], idx: number, isConsignment: boolean) => {
+                                                                        const eatGiveaway = (p.eatQty || 0) + (p.giveawayQty || 0);
+                                                                        const displayName = isConsignment && p.marketName 
+                                                                            ? p.marketName.replace('ฝากขาย:', '').trim()
+                                                                            : p.marketName;
+
+                                                                        return (
+                                                                            <tr key={`${p.productId}-${p.variantId || ''}-${idx}`} className="hover:bg-white transition-colors">
+                                                                                <td className="px-5 py-3">
+                                                                                    <div className="font-semibold text-cafe-900">{p.productName}</div>
+                                                                                    <div className="flex flex-wrap items-center gap-2 mt-0.5">
+                                                                                        {p.variantName && <span className="text-[10px] text-cafe-400">{p.variantName}</span>}
+                                                                                        {p.marketName && (
+                                                                                            <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-medium border ${
+                                                                                                isConsignment 
+                                                                                                    ? 'bg-purple-50 text-purple-700 border-purple-200' 
+                                                                                                    : 'bg-blue-50 text-blue-700 border-blue-200'
+                                                                                            }`}>
+                                                                                                {isConsignment ? `📦 ฝากขาย: ${displayName}` : `🏪 ${displayName}`}
+                                                                                            </span>
+                                                                                        )}
+                                                                                    </div>
+                                                                                </td>
+                                                                                <td className="px-5 py-3 text-center font-medium text-stone-600">
+                                                                                    {p.preparedQty !== undefined ? `${p.preparedQty} ชิ้น` : '-'}
+                                                                                </td>
+                                                                                <td className="px-5 py-3 text-center font-bold text-cafe-800">
+                                                                                    {p.quantity}
+                                                                                </td>
+                                                                                <td className="px-5 py-3 text-center font-medium text-stone-600">
+                                                                                    {p.leftoverQty !== undefined ? `${p.leftoverQty} ชิ้น` : '-'}
+                                                                                </td>
+                                                                                <td className={`px-5 py-3 text-center font-medium ${eatGiveaway > 0 ? 'text-amber-600' : 'text-cafe-300'}`}>
+                                                                                    {eatGiveaway > 0 ? `${eatGiveaway} ชิ้น` : '-'}
+                                                                                </td>
+                                                                                <td className={`px-5 py-3 text-center font-medium ${p.wasteQty && p.wasteQty > 0 ? 'text-red-600' : 'text-cafe-300'}`}>
+                                                                                    {p.wasteQty && p.wasteQty > 0 ? `${p.wasteQty} ชิ้น` : '-'}
+                                                                                </td>
+                                                                                <td className="px-5 py-3 text-right font-semibold text-cafe-900">
+                                                                                    {formatCurrency(p.revenue)}
+                                                                                </td>
+                                                                                <td className="px-5 py-3 text-right font-bold text-green-600">
+                                                                                    {formatCurrency(p.profit)}
+                                                                                </td>
+                                                                            </tr>
+                                                                        );
+                                                                    };
+
                                                                     return (
-                                                                        <tr key={idx} className="hover:bg-white transition-colors">
-                                                                            <td className="px-5 py-3">
-                                                                                <div className="font-semibold text-cafe-900">{p.productName}</div>
-                                                                                {p.variantName && <div className="text-[10px] text-cafe-400">{p.variantName}</div>}
                                                                             </td>
                                                                             <td className="px-5 py-3 text-center font-medium text-stone-600">
                                                                                 {p.preparedQty !== undefined ? `${p.preparedQty} ชิ้น` : '-'}

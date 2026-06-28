@@ -36,6 +36,7 @@ export interface DailyBreakdownStat {
     eatGiveaway: number;
     waste: number;
     weather: string;
+    marketNames?: string[];
 }
 
 export interface MarketProductStat {
@@ -122,7 +123,7 @@ export const calculateProductGroups = (filteredSales: ProductSaleLog[]): Product
 };
 
 export const calculateDailyBreakdown = (filteredSales: ProductSaleLog[]): DailyBreakdownStat[] => {
-    const dateMap = new Map<string, DailyBreakdownStat>();
+    const dateMap = new Map<string, DailyBreakdownStat & { _marketNames: Set<string> }>();
     filteredSales.forEach(sale => {
         const existing = dateMap.get(sale.saleDate) || { 
             date: sale.saleDate, 
@@ -131,19 +132,33 @@ export const calculateDailyBreakdown = (filteredSales: ProductSaleLog[]): DailyB
             quantity: 0, 
             eatGiveaway: 0, 
             waste: 0,
-            weather: sale.weatherCondition || 'unknown'
+            weather: sale.weatherCondition || 'unknown',
+            _marketNames: new Set<string>()
         };
+        
+        let mName = sale.marketName;
+        if (!mName) {
+            mName = sale.marketId === 'home' ? 'หน้าบ้าน' : sale.marketId;
+        }
+        existing._marketNames.add(mName);
+
         dateMap.set(sale.saleDate, {
-            date: sale.saleDate,
+            ...existing,
             revenue: existing.revenue + sale.totalRevenue,
             profit: existing.profit + sale.grossProfit,
             quantity: existing.quantity + sale.quantitySold,
             eatGiveaway: existing.eatGiveaway + (sale.eatQty || 0) + (sale.giveawayQty || 0),
-            waste: existing.waste + (sale.wasteQty || 0),
-            weather: sale.weatherCondition && sale.weatherCondition !== 'unknown' ? sale.weatherCondition : existing.weather
+            waste: existing.waste + (sale.wasteQty || 0)
         });
     });
-    return Array.from(dateMap.values()).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+    return Array.from(dateMap.values()).map(d => {
+        const { _marketNames, ...rest } = d;
+        return {
+            ...rest,
+            marketNames: Array.from(_marketNames)
+        };
+    }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 };
 
 export const calculatePerMarketProductData = (filteredSales: ProductSaleLog[], markets: Market[]): PerMarketStat[] => {
