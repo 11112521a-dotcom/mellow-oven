@@ -225,11 +225,12 @@ export const SalesReport: React.FC = () => {
         }
     }, [startDate, endDate]);
     const [selectedMarket, setSelectedMarket] = useState<string>('all');
+    const [saleTypeFilter, setSaleTypeFilter] = useState<'all' | 'market' | 'consignment'>('all'); // NEW: Filter for Market vs Consignment
     const [topProductsMode, setTopProductsMode] = useState<'quantity' | 'revenue' | 'profit'>('revenue');
     const [marketComparisonMode, setMarketComparisonMode] = useState<'revenue' | 'profit' | 'quantity'>('revenue');
     const [expandedProduct, setExpandedProduct] = useState<string | null>(null);
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-    const [isDetailedReportOpen, setIsDetailedReportOpen] = useState(false); // NEW
+    const [isDetailedReportOpen, setIsDetailedReportOpen] = useState(false);
     const [editingSale, setEditingSale] = useState<ProductSaleLog | null>(null);
 
     const getMarketName = (id: string) => {
@@ -969,85 +970,8 @@ export const SalesReport: React.FC = () => {
                                 </div>
                             </div>
 
-                            {/* NEW: Margin Intelligence & Worst Sellers Grid */}
-                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
-                                {/* Product Profitability & Margin Intelligence Panel */}
-                                <div className="bg-white rounded-2xl shadow-sm border border-cafe-100 p-6 hover:shadow-lg transition-shadow flex flex-col justify-between">
-                                    <div>
-                                        <h3 className="text-lg font-bold text-cafe-900 flex items-center gap-2 mb-1">
-                                            <Sparkles className="text-emerald-500 animate-pulse" size={20} />
-                                            วิเคราะห์อัตรากำไร (Margin Intelligence)
-                                        </h3>
-                                        <p className="text-sm text-cafe-500 mb-4">จัดอันดับสินค้าตามความคุ้มค่าและอัตรากำไรสุทธิ</p>
-                                        
-                                        <div className="space-y-4">
-                                            {/* Margin Stars */}
-                                            <div>
-                                                <div className="flex items-center justify-between mb-2">
-                                                    <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-md flex items-center gap-1">
-                                                        🌟 Margin Stars (&gt;40%)
-                                                    </span>
-                                                    <span className="text-xs text-cafe-500">{enhancedData.productIntelligence.highMarginStars.length} รายการ</span>
-                                                </div>
-                                                {enhancedData.productIntelligence.highMarginStars.length === 0 ? (
-                                                    <p className="text-xs text-cafe-400 italic bg-cafe-50/50 p-3 rounded-xl border border-dashed border-cafe-100">ไม่มีสินค้าที่ได้ Margin สูงในช่วงเวลานี้</p>
-                                                ) : (
-                                                    <div className="space-y-2 max-h-[160px] overflow-y-auto pr-1">
-                                                        {enhancedData.productIntelligence.highMarginStars.slice(0, 3).map((product, idx) => (
-                                                            <div key={idx} className="flex flex-col p-2.5 bg-emerald-50/30 rounded-xl border border-emerald-100/50">
-                                                                <div className="flex justify-between items-center text-xs">
-                                                                    <span className="font-semibold text-stone-800">{product.productName}{product.variantName ? ` (${product.variantName})` : ''}</span>
-                                                                    <span className="font-bold text-emerald-600">{product.margin.toFixed(0)}% Margin</span>
-                                                                </div>
-                                                                <div className="w-full bg-emerald-100 h-1.5 rounded-full mt-1.5 overflow-hidden">
-                                                                    <div className="bg-emerald-500 h-full rounded-full" style={{ width: `${Math.min(product.margin, 100)}%` }} />
-                                                                </div>
-                                                            </div>
-                                                        ))}
-                                                        {enhancedData.productIntelligence.highMarginStars.length > 3 && (
-                                                            <p className="text-[10px] text-center text-emerald-600 font-medium">+ อีก {enhancedData.productIntelligence.highMarginStars.length - 3} เมนูที่มีกำไรสูง</p>
-                                                        )}
-                                                    </div>
-                                                )}
-                                            </div>
-
-                                            {/* Low Margin Warnings */}
-                                            <div>
-                                                <div className="flex items-center justify-between mb-2">
-                                                    <span className="text-xs font-bold text-rose-700 bg-rose-50 px-2.5 py-1 rounded-md flex items-center gap-1">
-                                                        ⚠️ Low Margin Warnings (&lt;20%)
-                                                    </span>
-                                                    <span className="text-xs text-cafe-500">{enhancedData.productIntelligence.lowMarginProducts.length} รายการ</span>
-                                                </div>
-                                                {enhancedData.productIntelligence.lowMarginProducts.length === 0 ? (
-                                                    <p className="text-xs text-cafe-400 italic bg-cafe-50/50 p-3 rounded-xl border border-dashed border-cafe-100">ยอดเยี่ยม! ไม่มีสินค้า Margin ต่ำกว่า 20%</p>
-                                                ) : (
-                                                    <div className="space-y-2 max-h-[160px] overflow-y-auto pr-1">
-                                                        {enhancedData.productIntelligence.lowMarginProducts.slice(0, 3).map((product, idx) => (
-                                                            <div key={idx} className="flex flex-col p-2.5 bg-rose-50/30 rounded-xl border border-rose-100/50">
-                                                                <div className="flex justify-between items-center text-xs">
-                                                                    <span className="font-semibold text-stone-800">{product.productName}{product.variantName ? ` (${product.variantName})` : ''}</span>
-                                                                    <span className="font-bold text-rose-600">{product.margin.toFixed(0)}% Margin</span>
-                                                                </div>
-                                                                <div className="w-full bg-rose-100 h-1.5 rounded-full mt-1.5 overflow-hidden">
-                                                                    <div className="bg-rose-500 h-full rounded-full" style={{ width: `${Math.min(product.margin, 100)}%` }} />
-                                                                </div>
-                                                            </div>
-                                                        ))}
-                                                        {enhancedData.productIntelligence.lowMarginProducts.length > 3 && (
-                                                            <p className="text-[10px] text-center text-rose-600 font-medium">+ อีก {enhancedData.productIntelligence.lowMarginProducts.length - 3} เมนูที่มีกำไรค่อนข้างต่ำ</p>
-                                                        )}
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </div>
-                                    </div>
-                                    
-                                    <div className="bg-amber-50/60 rounded-xl p-3.5 border border-amber-100 text-xs text-amber-800 leading-relaxed mt-4">
-                                        💡 <strong>คำแนะนำเชิงกลยุทธ์:</strong> ดันยอดขายของกลุ่ม <strong>Margin Stars</strong> โดยการทำเซ็ตคอมโบร่วมกับเครื่องดื่ม หรือจัดโปรโมชันป้ายหน้าร้าน และทบทวนราคาขายหรือสูตรของเมนูในกลุ่ม <strong>Low Margin Warnings</strong> เพื่อลดต้นทุนวัตถุดิบ
-                                    </div>
-                                </div>
-
+                            {/* NEW: Worst Sellers Panel */}
+                            <div className="mt-6">
                                 {/* Top 5 Worst Selling Products */}
                                 {bottomProductsData.length > 0 && (
                                     <div className="bg-white rounded-2xl shadow-sm border border-orange-200 p-6 hover:shadow-lg transition-shadow flex flex-col justify-between">
