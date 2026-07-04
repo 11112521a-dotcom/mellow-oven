@@ -75,13 +75,11 @@ const Financials: React.FC = () => {
         }
 
         // Call the optimized batch database action in Zustand store
-        await executeAllocation(amount, allocations, fromProfit, specificProfits, manualDebtAmount);
-
-        // Show success message with debt info
-        if (debtDeduction > 0) {
-            alert(`จัดสรรเงิน ${formatCurrency(amount)} เรียบร้อย!\n\n🔒 หักหนี้: ${formatCurrency(debtDeduction)}\n📊 แบ่งกระเป๋า: ${formatCurrency(workingAmount)}`);
-        } else {
-            alert(`จัดสรรเงิน ${formatCurrency(amount)} เรียบร้อยแล้ว!`);
+        try {
+            await executeAllocation(amount, allocations, fromProfit, specificProfits, manualDebtAmount);
+        } catch (error) {
+            console.error('Failed to allocate funds:', error);
+            throw error;
         }
     }, [executeAllocation]);
 
