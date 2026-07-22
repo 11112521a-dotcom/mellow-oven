@@ -465,7 +465,13 @@ export const SalesReport: React.FC = () => {
             const existing = dateMap.get(sale.saleDate) || { revenue: 0, profit: 0 };
             dateMap.set(sale.saleDate, { revenue: existing.revenue + sale.totalRevenue, profit: existing.profit + sale.grossProfit });
         });
-        return Array.from(dateMap.entries()).map(([date, data]) => ({ date: new Date(date).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' }), revenue: data.revenue, profit: data.profit })).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+        return Array.from(dateMap.entries())
+            .sort(([dateA], [dateB]) => new Date(dateA).getTime() - new Date(dateB).getTime())
+            .map(([date, data]) => ({
+                date: new Date(date).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' }),
+                revenue: data.revenue,
+                profit: data.profit
+            }));
     }, [filteredSales]);
 
     const dailyBreakdownData = useMemo(() => calculateDailyBreakdown(filteredSales, externalShops), [filteredSales, externalShops]);
