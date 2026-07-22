@@ -455,6 +455,19 @@ export const SalesReport: React.FC = () => {
         });
     }, [productSales, startDate, endDate, selectedMarket, saleTypeFilter, externalShops]);
 
+    // For Comparison View: Include all date ranges so Period B (e.g. June) is not truncated by top date filter
+    const comparisonSales = useMemo(() => {
+        return productSales.filter(sale => {
+            let matchType = true;
+            if (saleTypeFilter !== 'all') {
+                const isConsignment = externalShops.some(s => s.id === sale.marketId) || sale.marketName?.startsWith('ฝากขาย:');
+                if (saleTypeFilter === 'market' && isConsignment) matchType = false;
+                if (saleTypeFilter === 'consignment' && !isConsignment) matchType = false;
+            }
+            return matchType;
+        });
+    }, [productSales, saleTypeFilter, externalShops]);
+
     const summary = useMemo(() => calculateSalesSummary(filteredSales), [filteredSales]);
 
     const productGroups = useMemo(() => calculateProductGroups(filteredSales), [filteredSales]);
@@ -836,7 +849,7 @@ export const SalesReport: React.FC = () => {
                         }
                         return (
                             <EnhancedComparisonView
-                                sales={filteredSales}
+                                sales={comparisonSales}
                                 markets={displayMarkets}
                                 selectedMarketId={selectedMarket === 'all' ? undefined : selectedMarket}
                             />
