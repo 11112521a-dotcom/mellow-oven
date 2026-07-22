@@ -24,12 +24,18 @@ export const ConsignmentList: React.FC = () => {
     const [activeTab, setActiveTab] = useState<'dashboard' | 'bills' | 'shops' | 'stock'>('dashboard');
     
     const [showCreateModal, setShowCreateModal] = useState(false);
+    const [createModalInitialData, setCreateModalInitialData] = useState<{ shopId: string; items: any[] } | null>(null);
     const [settleOrder, setSettleOrder] = useState<ConsignmentOrder | null>(null);
     const [selectedOrder, setSelectedOrder] = useState<ConsignmentOrder | null>(null);
 
     useEffect(() => {
         fetchConsignmentOrders();
     }, []);
+
+    const handleOpenNextDayBill = (shopId: string, items: any[]) => {
+        setCreateModalInitialData({ shopId, items });
+        setShowCreateModal(true);
+    };
 
     const filteredOrders = consignmentOrders.filter(order => {
         const matchesSearch = order.shopName.toLowerCase().includes(searchTerm.toLowerCase()) || 
@@ -74,7 +80,7 @@ export const ConsignmentList: React.FC = () => {
             )}
 
             {activeTab === 'stock' && (
-                <ConsignmentPendingStock />
+                <ConsignmentPendingStock onOpenNextDayBill={handleOpenNextDayBill} />
             )}
 
             {activeTab === 'shops' && (
@@ -242,7 +248,14 @@ export const ConsignmentList: React.FC = () => {
             
             {/* Modals */}
             {showCreateModal && (
-                <CreateConsignmentModal onClose={() => setShowCreateModal(false)} />
+                <CreateConsignmentModal
+                    onClose={() => {
+                        setShowCreateModal(false);
+                        setCreateModalInitialData(null);
+                    }}
+                    initialShopId={createModalInitialData?.shopId}
+                    initialCarryOverItems={createModalInitialData?.items}
+                />
             )}
             
             {settleOrder && (

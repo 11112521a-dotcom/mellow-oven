@@ -6,17 +6,23 @@ import { ConsignmentOrderStatus } from '../../../types';
 
 interface CreateConsignmentModalProps {
     onClose: () => void;
+    initialShopId?: string;
+    initialCarryOverItems?: any[];
 }
 
-export const CreateConsignmentModal: React.FC<CreateConsignmentModalProps> = ({ onClose }) => {
+export const CreateConsignmentModal: React.FC<CreateConsignmentModalProps> = ({ 
+    onClose, 
+    initialShopId, 
+    initialCarryOverItems 
+}) => {
     const { products, externalShops, createConsignmentOrder } = useStore();
     
-    const [selectedShopId, setSelectedShopId] = useState('');
+    const [selectedShopId, setSelectedShopId] = useState(initialShopId || '');
     const [shopName, setShopName] = useState('');
     const [contactName, setContactName] = useState('');
     const [contactPhone, setContactPhone] = useState('');
     const [deliveryDate, setDeliveryDate] = useState(new Date().toISOString().split('T')[0]);
-    const [notes, setNotes] = useState('');
+    const [notes, setNotes] = useState(initialCarryOverItems && initialCarryOverItems.length > 0 ? 'เปิดบิลขายต่อจากสต็อกค้างสาขา' : '');
     
     const [items, setItems] = useState<any[]>([]);
     const [searchTerm, setSearchTerm] = useState('');
@@ -26,6 +32,36 @@ export const CreateConsignmentModal: React.FC<CreateConsignmentModalProps> = ({ 
     const [unitPrice, setUnitPrice] = useState('');
     
     const [isSubmitting, setIsSubmitting] = useState(false);
+
+    // Initialize shop info & carry-over items when modal opens
+    React.useEffect(() => {
+        if (initialShopId) {
+            setSelectedShopId(initialShopId);
+            const shop = externalShops.find(s => s.id === initialShopId);
+            if (shop) {
+                setShopName(shop.name);
+                setContactName(shop.contactName || '');
+                setContactPhone(shop.contactPhone || '');
+            }
+        }
+        if (initialCarryOverItems && initialCarryOverItems.length > 0) {
+            const preloadedItems = initialCarryOverItems.map(item => ({
+                id: Math.random().toString(),
+                productId: item.productId,
+                variantId: item.variantId || null,
+                productName: item.productName,
+                variantName: item.variantName || null,
+                carryOverQty: item.qty || 0,
+                addedQty: 0,
+                quantitySent: item.qty || 0,
+                unitPrice: item.unitPrice,
+                unitCost: item.unitCost,
+                isCarryOver: true,
+                sortOrder: 0
+            }));
+            setItems(preloadedItems);
+        }
+    }, [initialShopId, initialCarryOverItems, externalShops]);
 
     const activeProducts = useMemo(() => {
         return products.filter(p => p.isActive !== false);
@@ -420,44 +456,96 @@ export const CreateConsignmentModal: React.FC<CreateConsignmentModalProps> = ({ 
                                                             <td className="px-4 py-3">
                                                                 <div className="font-bold text-stone-850">{item.productName}</div>
                                                                 {item.variantName && <div className="text-xs text-stone-500 font-semibold">{item.variantName}</div>}
+                                                                {item.carryOverQty ? (
+                                                                     <div className="inline-flex items-center gap-1 bg-amber-50 border border-amber-200 text-amber-800 text-[10px] font-bold px-2 py-0.5 rounded-full mt-1">
+                                                                         <span>🔄 เดิมค้างสาขา: {item.carryOverQty} ชิ้น</span>
+                                                                     </div>
+                                                                 ) : null}
                                                                 <div className="text-[10px] text-stone-400 mt-0.5">ทุน: ฿{item.unitCost}</div>
                                                             </td>
                                                             <td className="px-4 py-3 text-center">
-                                                                <div className="flex items-center justify-center border border-stone-200 rounded-lg max-w-[120px] mx-auto bg-white overflow-hidden">
-                                                                    <button
-                                                                        type="button"
-                                                                        onClick={() => {
-                                                                            const newItems = [...items];
-                                                                            newItems[index].quantitySent = Math.max(1, (newItems[index].quantitySent || 1) - 1);
-                                                                            setItems(newItems);
-                                                                        }}
-                                                                        className="p-1 hover:bg-stone-150 text-stone-500"
-                                                                    >
-                                                                        <Minus size={14} />
-                                                                    </button>
-                                                                    <input
-                                                                        type="number"
-                                                                        min="1"
-                                                                        value={item.quantitySent}
-                                                                        onChange={e => {
-                                                                            const newItems = [...items];
-                                                                            newItems[index].quantitySent = Math.max(1, parseInt(e.target.value) || 1);
-                                                                            setItems(newItems);
-                                                                        }}
-                                                                        className="w-12 text-center border-none focus:ring-0 font-bold p-0 text-stone-800 text-sm bg-transparent"
-                                                                    />
-                                                                    <button
-                                                                        type="button"
-                                                                        onClick={() => {
-                                                                            const newItems = [...items];
-                                                                            newItems[index].quantitySent = (newItems[index].quantitySent || 1) + 1;
-                                                                            setItems(newItems);
-                                                                        }}
-                                                                        className="p-1 hover:bg-stone-150 text-stone-500"
-                                                                    >
-                                                                        <Plus size={14} />
-                                                                    </button>
-                                                                </div>
+                                                                {item.carryOverQty ? (
+                                                                    <div className="flex flex-col items-center gap-1">
+                                                                        <div className="text-[10px] font-bold text-emerald-700">+ส่งเพิ่มวันนี้</div>
+                                                                        <div className="flex items-center justify-center border border-emerald-300 bg-emerald-50 rounded-lg max-w-[120px] mx-auto overflow-hidden">
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={() => {
+                                                                                    const newItems = [...items];
+                                                                                    const currentAdded = newItems[index].addedQty || 0;
+                                                                                    newItems[index].addedQty = Math.max(0, currentAdded - 1);
+                                                                                    newItems[index].quantitySent = newItems[index].carryOverQty + newItems[index].addedQty;
+                                                                                    setItems(newItems);
+                                                                                }}
+                                                                                className="p-1 hover:bg-emerald-100 text-emerald-700"
+                                                                            >
+                                                                                <Minus size={14} />
+                                                                            </button>
+                                                                            <input
+                                                                                type="number"
+                                                                                min="0"
+                                                                                value={item.addedQty || 0}
+                                                                                onChange={e => {
+                                                                                    const newItems = [...items];
+                                                                                    newItems[index].addedQty = Math.max(0, parseInt(e.target.value) || 0);
+                                                                                    newItems[index].quantitySent = newItems[index].carryOverQty + newItems[index].addedQty;
+                                                                                    setItems(newItems);
+                                                                                }}
+                                                                                className="w-12 text-center border-none focus:ring-0 font-bold p-0 text-emerald-800 text-sm bg-transparent"
+                                                                            />
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={() => {
+                                                                                    const newItems = [...items];
+                                                                                    const currentAdded = newItems[index].addedQty || 0;
+                                                                                    newItems[index].addedQty = currentAdded + 1;
+                                                                                    newItems[index].quantitySent = newItems[index].carryOverQty + newItems[index].addedQty;
+                                                                                    setItems(newItems);
+                                                                                }}
+                                                                                className="p-1 hover:bg-emerald-100 text-emerald-700"
+                                                                            >
+                                                                                <Plus size={14} />
+                                                                            </button>
+                                                                        </div>
+                                                                        <span className="text-[11px] font-black text-stone-700">รวมส่งวันนี้: {item.quantitySent}</span>
+                                                                    </div>
+                                                                ) : (
+                                                                    <div className="flex items-center justify-center border border-stone-200 rounded-lg max-w-[120px] mx-auto bg-white overflow-hidden">
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => {
+                                                                                const newItems = [...items];
+                                                                                newItems[index].quantitySent = Math.max(1, (newItems[index].quantitySent || 1) - 1);
+                                                                                setItems(newItems);
+                                                                            }}
+                                                                            className="p-1 hover:bg-stone-150 text-stone-500"
+                                                                        >
+                                                                            <Minus size={14} />
+                                                                        </button>
+                                                                        <input
+                                                                            type="number"
+                                                                            min="1"
+                                                                            value={item.quantitySent}
+                                                                            onChange={e => {
+                                                                                const newItems = [...items];
+                                                                                newItems[index].quantitySent = Math.max(1, parseInt(e.target.value) || 1);
+                                                                                setItems(newItems);
+                                                                            }}
+                                                                            className="w-12 text-center border-none focus:ring-0 font-bold p-0 text-stone-800 text-sm bg-transparent"
+                                                                        />
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => {
+                                                                                const newItems = [...items];
+                                                                                newItems[index].quantitySent = (newItems[index].quantitySent || 1) + 1;
+                                                                                setItems(newItems);
+                                                                            }}
+                                                                            className="p-1 hover:bg-stone-150 text-stone-500"
+                                                                        >
+                                                                            <Plus size={14} />
+                                                                        </button>
+                                                                    </div>
+                                                                )}
                                                             </td>
                                                             <td className="px-4 py-3 text-right">
                                                                 <div className="flex items-center justify-end gap-1">
