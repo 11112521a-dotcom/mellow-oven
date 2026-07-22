@@ -132,24 +132,36 @@ export const createConsignmentSlice: StateCreator<AppState, [], [], ConsignmentS
                 updatedAt: o.updated_at,
                 items: (items || [])
                     .filter(i => i.consignment_id === o.id)
-                    .map(i => ({
-                        id: i.id,
-                        consignmentId: i.consignment_id,
-                        productId: i.product_id,
-                        variantId: i.variant_id,
-                        productName: i.product_name,
-                        variantName: i.variant_name,
-                        quantitySent: Number(i.quantity_sent),
-                        quantitySold: Number(i.quantity_sold),
-                        quantityWaste: Number(i.quantity_waste),
-                        quantityReturned: Number(i.quantity_returned),
-                        quantityGiveaway: Number(i.quantity_giveaway || 0),
-                        quantityCarryOver: Number(i.quantity_carry_over || 0),
-                        unitPrice: Number(i.unit_price),
-                        unitCost: Number(i.unit_cost),
-                        lineTotal: Number(i.line_total),
-                        sortOrder: i.sort_order
-                    })).sort((a, b) => a.sortOrder - b.sortOrder)
+                    .map(i => {
+                        const qSent = Number(i.quantity_sent || 0);
+                        const qSold = Number(i.quantity_sold || 0);
+                        const qWaste = Number(i.quantity_waste || 0);
+                        const qReturned = Number(i.quantity_returned || 0);
+                        const qGiveaway = Number(i.quantity_giveaway || 0);
+                        const calcCarryOver = Math.max(0, qSent - (qSold + qWaste + qReturned + qGiveaway));
+                        const carryOver = i.quantity_carry_over !== undefined && i.quantity_carry_over !== null
+                            ? Number(i.quantity_carry_over)
+                            : calcCarryOver;
+
+                        return {
+                            id: i.id,
+                            consignmentId: i.consignment_id,
+                            productId: i.product_id,
+                            variantId: i.variant_id,
+                            productName: i.product_name,
+                            variantName: i.variant_name,
+                            quantitySent: qSent,
+                            quantitySold: qSold,
+                            quantityWaste: qWaste,
+                            quantityReturned: qReturned,
+                            quantityGiveaway: qGiveaway,
+                            quantityCarryOver: carryOver,
+                            unitPrice: Number(i.unit_price),
+                            unitCost: Number(i.unit_cost),
+                            lineTotal: Number(i.line_total),
+                            sortOrder: i.sort_order
+                        };
+                    }).sort((a, b) => a.sortOrder - b.sortOrder)
             }));
 
             set({ consignmentOrders: mappedOrders });
@@ -274,17 +286,29 @@ export const createConsignmentSlice: StateCreator<AppState, [], [], ConsignmentS
                 totalRevenue += item.lineTotal;
                 totalCost += (item.quantitySold + item.quantityWaste + (item.quantityGiveaway || 0)) * originalItem.unitCost;
 
-                return supabase
-                    .from('consignment_order_items')
-                    .update({
+                return (async () => {
+                    const updatePayload: any = {
                         quantity_sold: item.quantitySold,
                         quantity_waste: item.quantityWaste,
                         quantity_returned: item.quantityReturned,
                         quantity_giveaway: item.quantityGiveaway || 0,
-                        quantity_carry_over: item.quantityCarryOver || 0,
                         line_total: item.lineTotal
-                    })
-                    .eq('id', item.id);
+                    };
+
+                    // First try updating with quantity_carry_over
+                    const { error } = await supabase
+                        .from('consignment_order_items')
+                        .update({ ...updatePayload, quantity_carry_over: item.quantityCarryOver || 0 })
+                        .eq('id', item.id);
+
+                    if (error) {
+                        // If column is missing in DB, update standard fields without failing
+                        await supabase
+                            .from('consignment_order_items')
+                            .update(updatePayload)
+                            .eq('id', item.id);
+                    }
+                })();
             });
 
             await Promise.all(itemsPromises);
