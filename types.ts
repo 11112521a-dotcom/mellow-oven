@@ -715,6 +715,7 @@ export interface ConsignmentOrderItem {
   quantityWaste: number;
   quantityReturned: number;
   quantityGiveaway: number;
+  quantityCarryOver?: number;
   unitPrice: number;
   unitCost: number;
   lineTotal: number;

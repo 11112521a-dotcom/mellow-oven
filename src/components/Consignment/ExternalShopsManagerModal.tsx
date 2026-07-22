@@ -171,20 +171,31 @@ export const ExternalShopsManagerModal: React.FC<ExternalShopsManagerModalProps>
                                 />
                             </div>
                             
-                            {/* Favorite Items Section */}
+                            {/* Favorite Items & Custom Price Section */}
                             <div className="md:col-span-2 mt-4 pt-4 border-t border-stone-200">
-                                <label className="block text-sm font-bold text-gray-700 mb-2">เมนูประจำร้าน (Favorite Items)</label>
+                                <div className="mb-3">
+                                    <label className="block text-sm font-bold text-gray-800">
+                                        🏷️ เมนูประจำร้าน & ราคาขายเฉพาะสาขา/ฝากขาย (Shop Pricing & Favorites)
+                                    </label>
+                                    <p className="text-xs text-stone-500 mt-0.5">
+                                        กำหนดจำนวนส่งเริ่มต้น และราคาขายเฉพาะสาขา (หากเว้นว่างราคา จะใช้ราคาปกติของเมนูอัตโนมัติ)
+                                    </p>
+                                </div>
                                 <div className="space-y-2">
                                     {favoriteItems.map((fav, index) => {
                                         const product = products.find(p => p.id === fav.productId);
                                         if (!product) return null;
                                         const variant = product.variants?.find(v => v.id === fav.variantId);
+                                        const normalPrice = variant ? variant.price : product.price;
+
                                         return (
-                                            <div key={index} className="flex flex-wrap md:flex-nowrap gap-2 items-center bg-stone-50 p-2 rounded-xl">
-                                                <div className="flex-1 min-w-[150px] text-sm font-medium">
+                                            <div key={index} className="flex flex-wrap md:flex-nowrap gap-2 items-center bg-stone-50 border border-stone-200 p-2.5 rounded-xl">
+                                                <div className="flex-1 min-w-[150px] text-sm font-semibold text-stone-800">
                                                     {product.name} {variant ? `(${variant.name})` : ''}
+                                                    <div className="text-[11px] font-normal text-stone-500">ราคาปกติ: ฿{normalPrice}</div>
                                                 </div>
-                                                <div className="w-24 shrink-0">
+                                                <div className="w-28 shrink-0">
+                                                    <label className="block text-[10px] text-stone-500 font-bold mb-0.5">จำนวนส่งหลัก</label>
                                                     <input
                                                         type="number"
                                                         min="0"
@@ -194,31 +205,34 @@ export const ExternalShopsManagerModal: React.FC<ExternalShopsManagerModalProps>
                                                             newFavs[index].defaultQty = Number(e.target.value);
                                                             setFavoriteItems(newFavs);
                                                         }}
-                                                        className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-center text-base md:text-sm"
-                                                        placeholder="จำนวน"
+                                                        className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-center text-base md:text-sm font-bold bg-white"
+                                                        placeholder="0"
                                                         title="จำนวนส่งเริ่มต้น"
                                                     />
                                                 </div>
-                                                <div className="w-28 shrink-0 relative">
-                                                    <span className="absolute left-2 top-2 text-stone-400 text-xs font-bold">฿</span>
-                                                    <input
-                                                        type="number"
-                                                        min="0"
-                                                        value={fav.defaultPrice !== undefined ? fav.defaultPrice : ''}
-                                                        onChange={e => {
-                                                            const newFavs = [...favoriteItems];
-                                                            const val = e.target.value;
-                                                            if (val === '') {
-                                                                delete newFavs[index].defaultPrice;
-                                                            } else {
-                                                                newFavs[index].defaultPrice = Number(val);
-                                                            }
-                                                            setFavoriteItems(newFavs);
-                                                        }}
-                                                        className="w-full pl-6 pr-2 py-1.5 border border-emerald-200 bg-emerald-50 focus:bg-white rounded-lg text-right text-base md:text-sm"
-                                                        placeholder={variant ? variant.price.toString() : product.price.toString()}
-                                                        title="ราคาขายส่ง (เว้นว่างเพื่อใช้ราคาเต็ม)"
-                                                    />
+                                                <div className="w-32 shrink-0">
+                                                    <label className="block text-[10px] text-emerald-700 font-bold mb-0.5">ราคาเฉพาะสาขา</label>
+                                                    <div className="relative">
+                                                        <span className="absolute left-2.5 top-1.5 text-emerald-600 text-xs font-bold">฿</span>
+                                                        <input
+                                                            type="number"
+                                                            min="0"
+                                                            value={fav.defaultPrice !== undefined ? fav.defaultPrice : ''}
+                                                            onChange={e => {
+                                                                const newFavs = [...favoriteItems];
+                                                                const val = e.target.value;
+                                                                if (val === '') {
+                                                                    delete newFavs[index].defaultPrice;
+                                                                } else {
+                                                                    newFavs[index].defaultPrice = Number(val);
+                                                                }
+                                                                setFavoriteItems(newFavs);
+                                                            }}
+                                                            className="w-full pl-6 pr-2 py-1.5 border border-emerald-300 bg-emerald-50/50 focus:bg-white rounded-lg text-right font-bold text-emerald-800 text-base md:text-sm"
+                                                            placeholder={normalPrice.toString()}
+                                                            title="ราคาขายเฉพาะสาขา/ฝากขาย (เว้นว่างใช้ราคาปกติ)"
+                                                        />
+                                                    </div>
                                                 </div>
                                                 <button
                                                     type="button"
@@ -227,7 +241,7 @@ export const ExternalShopsManagerModal: React.FC<ExternalShopsManagerModalProps>
                                                         newFavs.splice(index, 1);
                                                         setFavoriteItems(newFavs);
                                                     }}
-                                                    className="p-2 min-h-[40px] min-w-[40px] flex items-center justify-center text-red-500 hover:bg-red-50 rounded shrink-0"
+                                                    className="p-2 min-h-[40px] min-w-[40px] flex items-center justify-center text-red-500 hover:bg-red-50 rounded shrink-0 self-end md:self-center"
                                                 >
                                                     <X className="w-4 h-4" />
                                                 </button>

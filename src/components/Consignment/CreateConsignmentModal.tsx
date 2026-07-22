@@ -301,7 +301,13 @@ export const CreateConsignmentModal: React.FC<CreateConsignmentModalProps> = ({ 
                                                 setSelectedProductId(e.target.value);
                                                 setSelectedVariantId('');
                                                 const p = products.find(x => x.id === e.target.value);
-                                                if (p) setUnitPrice(p.price.toString());
+                                                if (p) {
+                                                    const shop = externalShops.find(s => s.id === selectedShopId);
+                                                    const fav = shop?.favoriteItems?.find(f => f.productId === p.id && !f.variantId);
+                                                    const price = fav?.defaultPrice !== undefined ? fav.defaultPrice : p.price;
+                                                    setUnitPrice(price.toString());
+                                                    if (fav?.defaultQty) setQuantity(fav.defaultQty.toString());
+                                                }
                                             }}
                                             className="w-full px-3 py-2 border border-stone-300 rounded-xl text-base md:text-sm bg-white"
                                         >
@@ -321,7 +327,13 @@ export const CreateConsignmentModal: React.FC<CreateConsignmentModalProps> = ({ 
                                                 onChange={e => {
                                                     setSelectedVariantId(e.target.value);
                                                     const v = selectedProduct.variants?.find(x => x.id === e.target.value);
-                                                    if (v) setUnitPrice(v.price.toString());
+                                                    if (v) {
+                                                        const shop = externalShops.find(s => s.id === selectedShopId);
+                                                        const fav = shop?.favoriteItems?.find(f => f.productId === selectedProductId && f.variantId === v.id);
+                                                        const price = fav?.defaultPrice !== undefined ? fav.defaultPrice : v.price;
+                                                        setUnitPrice(price.toString());
+                                                        if (fav?.defaultQty) setQuantity(fav.defaultQty.toString());
+                                                    }
                                                 }}
                                                 className="w-full px-3 py-2 border border-stone-300 rounded-xl text-base md:text-sm bg-white"
                                             >

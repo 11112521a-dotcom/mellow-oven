@@ -15,7 +15,7 @@ export interface ConsignmentSlice {
     fetchConsignmentOrders: () => Promise<void>;
     createConsignmentOrder: (order: Omit<ConsignmentOrder, 'id' | 'createdAt' | 'updatedAt' | 'items'>, items: Omit<ConsignmentOrderItem, 'id' | 'consignmentId'>[]) => Promise<void>;
     updateConsignmentOrderStatus: (id: string, status: ConsignmentOrderStatus) => Promise<void>;
-    settleConsignmentOrder: (id: string, items: { id: string; quantitySold: number; quantityWaste: number; quantityReturned: number; quantityGiveaway: number; lineTotal: number }[], settleDate: string) => Promise<void>;
+    settleConsignmentOrder: (id: string, items: { id: string; quantitySold: number; quantityCarryOver?: number; quantityWaste: number; quantityReturned: number; quantityGiveaway: number; lineTotal: number }[], settleDate: string) => Promise<void>;
     deleteConsignmentOrder: (id: string) => Promise<void>;
 }
 
@@ -144,6 +144,7 @@ export const createConsignmentSlice: StateCreator<AppState, [], [], ConsignmentS
                         quantityWaste: Number(i.quantity_waste),
                         quantityReturned: Number(i.quantity_returned),
                         quantityGiveaway: Number(i.quantity_giveaway || 0),
+                        quantityCarryOver: Number(i.quantity_carry_over || 0),
                         unitPrice: Number(i.unit_price),
                         unitCost: Number(i.unit_cost),
                         lineTotal: Number(i.line_total),
@@ -280,6 +281,7 @@ export const createConsignmentSlice: StateCreator<AppState, [], [], ConsignmentS
                         quantity_waste: item.quantityWaste,
                         quantity_returned: item.quantityReturned,
                         quantity_giveaway: item.quantityGiveaway || 0,
+                        quantity_carry_over: item.quantityCarryOver || 0,
                         line_total: item.lineTotal
                     })
                     .eq('id', item.id);

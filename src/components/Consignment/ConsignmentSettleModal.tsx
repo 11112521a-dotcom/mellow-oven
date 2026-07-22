@@ -16,6 +16,7 @@ export const ConsignmentSettleModal: React.FC<ConsignmentSettleModalProps> = ({ 
     const [items, setItems] = useState<{
         id: string;
         quantitySold: number;
+        quantityCarryOver: number;
         quantityWaste: number;
         quantityReturned: number;
         quantityGiveaway: number;
@@ -23,6 +24,7 @@ export const ConsignmentSettleModal: React.FC<ConsignmentSettleModalProps> = ({ 
     }[]>(order.items.map(item => ({
         id: item.id,
         quantitySold: item.quantitySent, // Default assume all sold
+        quantityCarryOver: 0,
         quantityWaste: 0,
         quantityReturned: 0,
         quantityGiveaway: 0,
@@ -32,47 +34,54 @@ export const ConsignmentSettleModal: React.FC<ConsignmentSettleModalProps> = ({ 
     const [settleDate, setSettleDate] = useState(new Date().toISOString().split('T')[0]);
     const [isSubmitting, setIsSubmitting] = useState(false);
 
-    const handleQuantityChange = (itemId: string, field: 'quantitySold' | 'quantityWaste' | 'quantityReturned' | 'quantityGiveaway', value: string) => {
+    const handleQuantityChange = (itemId: string, field: 'quantitySold' | 'quantityCarryOver' | 'quantityWaste' | 'quantityReturned' | 'quantityGiveaway', value: string) => {
         const val = parseInt(value) || 0;
         
         setItems(prevItems => prevItems.map(item => {
             if (item.id === itemId) {
                 const originalItem = order.items.find(i => i.id === itemId)!;
                 let newSold = item.quantitySold;
+                let newCarry = item.quantityCarryOver;
                 let newWaste = item.quantityWaste;
                 let newReturned = item.quantityReturned;
                 let newGiveaway = item.quantityGiveaway;
 
                 if (field === 'quantitySold') newSold = val;
+                if (field === 'quantityCarryOver') newCarry = val;
                 if (field === 'quantityWaste') newWaste = val;
                 if (field === 'quantityReturned') newReturned = val;
                 if (field === 'quantityGiveaway') newGiveaway = val;
 
                 // Auto-adjust if total exceeds sent
-                const total = newSold + newWaste + newReturned + newGiveaway;
+                const total = newSold + newCarry + newWaste + newReturned + newGiveaway;
                 if (total > originalItem.quantitySent) {
                     if (field === 'quantitySold') {
+                        newCarry = 0;
                         newWaste = 0;
                         newGiveaway = 0;
                         newReturned = Math.max(0, originalItem.quantitySent - newSold);
+                    } else if (field === 'quantityCarryOver') {
+                        newSold = Math.max(0, originalItem.quantitySent - newCarry);
+                        newReturned = 0;
                     } else if (field === 'quantityReturned') {
-                        newSold = Math.max(0, originalItem.quantitySent - newReturned - newWaste - newGiveaway);
+                        newSold = Math.max(0, originalItem.quantitySent - newReturned - newCarry - newWaste - newGiveaway);
                     } else if (field === 'quantityWaste') {
-                        newSold = Math.max(0, originalItem.quantitySent - newWaste - newReturned - newGiveaway);
+                        newSold = Math.max(0, originalItem.quantitySent - newWaste - newCarry - newReturned - newGiveaway);
                     } else if (field === 'quantityGiveaway') {
-                        newSold = Math.max(0, originalItem.quantitySent - newGiveaway - newWaste - newReturned);
+                        newSold = Math.max(0, originalItem.quantitySent - newGiveaway - newCarry - newWaste - newReturned);
                     }
                 }
 
                 // If less, auto-fill returned
-                if (field === 'quantitySold' || field === 'quantityWaste' || field === 'quantityGiveaway') {
-                   newReturned = originalItem.quantitySent - newSold - newWaste - newGiveaway;
+                if (field === 'quantitySold' || field === 'quantityCarryOver' || field === 'quantityWaste' || field === 'quantityGiveaway') {
+                   newReturned = originalItem.quantitySent - newSold - newCarry - newWaste - newGiveaway;
                    if (newReturned < 0) newReturned = 0;
                 }
 
                 return {
                     ...item,
                     quantitySold: newSold,
+                    quantityCarryOver: newCarry,
                     quantityWaste: newWaste,
                     quantityReturned: newReturned,
                     quantityGiveaway: newGiveaway,
@@ -91,10 +100,29 @@ export const ConsignmentSettleModal: React.FC<ConsignmentSettleModalProps> = ({ 
                 return {
                     ...item,
                     quantitySold: originalItem.quantitySent,
+                    quantityCarryOver: 0,
                     quantityWaste: 0,
                     quantityReturned: 0,
                     quantityGiveaway: 0,
                     lineTotal: originalItem.quantitySent * originalItem.unitPrice
+                };
+            }
+            return item;
+        }));
+    };
+
+    const handleSetRowCarryOver = (itemId: string) => {
+        setItems(prevItems => prevItems.map(item => {
+            if (item.id === itemId) {
+                const originalItem = order.items.find(i => i.id === itemId)!;
+                return {
+                    ...item,
+                    quantitySold: 0,
+                    quantityCarryOver: originalItem.quantitySent,
+                    quantityWaste: 0,
+                    quantityReturned: 0,
+                    quantityGiveaway: 0,
+                    lineTotal: 0
                 };
             }
             return item;
@@ -108,6 +136,7 @@ export const ConsignmentSettleModal: React.FC<ConsignmentSettleModalProps> = ({ 
                 return {
                     ...item,
                     quantitySold: 0,
+                    quantityCarryOver: 0,
                     quantityWaste: 0,
                     quantityReturned: originalItem.quantitySent,
                     quantityGiveaway: 0,
@@ -125,10 +154,26 @@ export const ConsignmentSettleModal: React.FC<ConsignmentSettleModalProps> = ({ 
             return {
                 ...item,
                 quantitySold: originalItem.quantitySent,
+                quantityCarryOver: 0,
                 quantityWaste: 0,
                 quantityReturned: 0,
                 quantityGiveaway: 0,
                 lineTotal: originalItem.quantitySent * originalItem.unitPrice
+            };
+        }));
+    };
+
+    const handleSetAllCarryOver = () => {
+        setItems(prevItems => prevItems.map(item => {
+            const originalItem = order.items.find(i => i.id === item.id)!;
+            return {
+                ...item,
+                quantitySold: 0,
+                quantityCarryOver: originalItem.quantitySent,
+                quantityWaste: 0,
+                quantityReturned: 0,
+                quantityGiveaway: 0,
+                lineTotal: 0
             };
         }));
     };
@@ -139,6 +184,7 @@ export const ConsignmentSettleModal: React.FC<ConsignmentSettleModalProps> = ({ 
             return {
                 ...item,
                 quantitySold: 0,
+                quantityCarryOver: 0,
                 quantityWaste: 0,
                 quantityReturned: originalItem.quantitySent,
                 quantityGiveaway: 0,
@@ -148,6 +194,7 @@ export const ConsignmentSettleModal: React.FC<ConsignmentSettleModalProps> = ({ 
     };
 
     const totalSold = items.reduce((sum, item) => sum + item.quantitySold, 0);
+    const totalCarryOver = items.reduce((sum, item) => sum + item.quantityCarryOver, 0);
     const totalWaste = items.reduce((sum, item) => sum + item.quantityWaste, 0);
     const totalGiveaway = items.reduce((sum, item) => sum + item.quantityGiveaway, 0);
     const totalReturned = items.reduce((sum, item) => sum + item.quantityReturned, 0);
@@ -228,6 +275,13 @@ export const ConsignmentSettleModal: React.FC<ConsignmentSettleModalProps> = ({ 
                                 </button>
                                 <button
                                     type="button"
+                                    onClick={handleSetAllCarryOver}
+                                    className="px-3 py-1.5 bg-blue-600 text-white hover:bg-blue-700 rounded-xl text-xs font-bold transition-all shadow-md shadow-blue-600/10 hover:-translate-y-0.5 active:translate-y-0"
+                                >
+                                    🔄 เหลือขายต่อทั้งหมด
+                                </button>
+                                <button
+                                    type="button"
                                     onClick={handleSetAllReturned}
                                     className="px-3 py-1.5 bg-stone-250 text-stone-700 hover:bg-stone-300 rounded-xl text-xs font-bold transition-all border border-stone-300 hover:-translate-y-0.5 active:translate-y-0"
                                 >
@@ -241,13 +295,14 @@ export const ConsignmentSettleModal: React.FC<ConsignmentSettleModalProps> = ({ 
                             <table className="w-full text-left text-sm">
                                 <thead className="bg-stone-100 border-b border-stone-200 text-stone-700">
                                     <tr>
-                                        <th className="px-4 py-3 font-semibold">สินค้า</th>
-                                        <th className="px-4 py-3 font-semibold text-center w-24">ยอดส่ง</th>
-                                        <th className="px-4 py-3 font-semibold text-center w-24">ยอดขายได้</th>
-                                        <th className="px-4 py-3 font-semibold text-center w-24">ของเสีย</th>
-                                        <th className="px-4 py-3 font-semibold text-center w-24">แจก/กินเอง</th>
-                                        <th className="px-4 py-3 font-semibold text-center w-24">รับคืน</th>
-                                        <th className="px-4 py-3 text-right w-32">รวมเงิน (฿)</th>
+                                        <th className="px-3 py-3 font-semibold">สินค้า</th>
+                                        <th className="px-3 py-3 font-semibold text-center w-20">ยอดส่ง</th>
+                                        <th className="px-3 py-3 font-semibold text-center w-20">ขายได้</th>
+                                        <th className="px-3 py-3 font-semibold text-center w-24 text-blue-700">🔄 เหลือขายต่อ</th>
+                                        <th className="px-3 py-3 font-semibold text-center w-20 text-rose-600">🗑️ ของเสีย</th>
+                                        <th className="px-3 py-3 font-semibold text-center w-20">แจก/กิน</th>
+                                        <th className="px-3 py-3 font-semibold text-center w-20">รับคืน</th>
+                                        <th className="px-3 py-3 text-right w-28">รวมเงิน (฿)</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-stone-100">
@@ -255,7 +310,7 @@ export const ConsignmentSettleModal: React.FC<ConsignmentSettleModalProps> = ({ 
                                         const currentState = items.find(i => i.id === item.id)!;
                                         return (
                                             <tr key={item.id} className="hover:bg-stone-50">
-                                                <td className="px-4 py-3">
+                                                <td className="px-3 py-3">
                                                     <div className="font-bold text-stone-850">{item.productName}</div>
                                                     {item.variantName && <div className="text-xs text-stone-500 font-semibold">{item.variantName}</div>}
                                                     <div className="text-xs text-emerald-600 mt-0.5">@ ฿{item.unitPrice}</div>
@@ -271,6 +326,13 @@ export const ConsignmentSettleModal: React.FC<ConsignmentSettleModalProps> = ({ 
                                                         </button>
                                                         <button
                                                             type="button"
+                                                            onClick={() => handleSetRowCarryOver(item.id)}
+                                                            className="text-[10px] px-2 py-0.5 bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 rounded-lg font-bold transition-all"
+                                                        >
+                                                            🔄 ขายต่อ
+                                                        </button>
+                                                        <button
+                                                            type="button"
                                                             onClick={() => handleSetRowReturned(item.id)}
                                                             className="text-[10px] px-2 py-0.5 bg-stone-100 text-stone-600 border border-stone-250 hover:bg-stone-200 rounded-lg font-bold transition-all"
                                                         >
@@ -278,10 +340,10 @@ export const ConsignmentSettleModal: React.FC<ConsignmentSettleModalProps> = ({ 
                                                         </button>
                                                     </div>
                                                 </td>
-                                                <td className="px-4 py-3 text-center font-bold text-blue-600 bg-blue-50/30">
+                                                <td className="px-3 py-3 text-center font-bold text-blue-600 bg-blue-50/30">
                                                     {item.quantitySent}
                                                 </td>
-                                                <td className="px-4 py-3 text-center">
+                                                <td className="px-3 py-3 text-center">
                                                     <input
                                                         type="number"
                                                         min="0"
@@ -291,7 +353,17 @@ export const ConsignmentSettleModal: React.FC<ConsignmentSettleModalProps> = ({ 
                                                         className="w-full text-center py-1.5 border border-emerald-300 rounded focus:ring-1 focus:ring-emerald-500 bg-emerald-50 font-semibold text-base md:text-sm"
                                                     />
                                                 </td>
-                                                <td className="px-4 py-3 text-center">
+                                                <td className="px-3 py-3 text-center">
+                                                    <input
+                                                        type="number"
+                                                        min="0"
+                                                        max={item.quantitySent}
+                                                        value={currentState.quantityCarryOver}
+                                                        onChange={e => handleQuantityChange(item.id, 'quantityCarryOver', e.target.value)}
+                                                        className="w-full text-center py-1.5 border border-blue-300 rounded focus:ring-1 focus:ring-blue-500 bg-blue-50/50 font-semibold text-base md:text-sm text-blue-800"
+                                                    />
+                                                </td>
+                                                <td className="px-3 py-3 text-center">
                                                     <input
                                                         type="number"
                                                         min="0"
@@ -300,7 +372,7 @@ export const ConsignmentSettleModal: React.FC<ConsignmentSettleModalProps> = ({ 
                                                         className="w-full text-center py-1.5 border border-rose-300 rounded focus:ring-1 focus:ring-rose-500 bg-rose-50 font-semibold text-base md:text-sm"
                                                     />
                                                 </td>
-                                                <td className="px-4 py-3 text-center">
+                                                <td className="px-3 py-3 text-center">
                                                     <input
                                                         type="number"
                                                         min="0"
@@ -309,10 +381,10 @@ export const ConsignmentSettleModal: React.FC<ConsignmentSettleModalProps> = ({ 
                                                         className="w-full text-center py-1.5 border border-amber-300 rounded focus:ring-1 focus:ring-amber-500 bg-amber-50 font-semibold text-base md:text-sm"
                                                     />
                                                 </td>
-                                                <td className="px-4 py-3 text-center font-bold text-stone-500">
+                                                <td className="px-3 py-3 text-center font-bold text-stone-500">
                                                     {currentState.quantityReturned}
                                                 </td>
-                                                <td className="px-4 py-3 text-right font-bold text-emerald-700">
+                                                <td className="px-3 py-3 text-right font-bold text-emerald-700">
                                                     {currentState.lineTotal.toLocaleString()}
                                                 </td>
                                             </tr>
@@ -345,20 +417,27 @@ export const ConsignmentSettleModal: React.FC<ConsignmentSettleModalProps> = ({ 
                                             <button
                                                 type="button"
                                                 onClick={() => handleSetRowSold(item.id)}
-                                                className="flex-1 py-1.5 px-3 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-250 rounded-xl text-xs font-bold transition-all text-center min-h-[36px] flex items-center justify-center"
+                                                className="flex-1 py-1.5 px-2 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-250 rounded-xl text-xs font-bold transition-all text-center min-h-[36px] flex items-center justify-center"
                                             >
                                                 ขายหมด
                                             </button>
                                             <button
                                                 type="button"
+                                                onClick={() => handleSetRowCarryOver(item.id)}
+                                                className="flex-1 py-1.5 px-2 bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-250 rounded-xl text-xs font-bold transition-all text-center min-h-[36px] flex items-center justify-center"
+                                            >
+                                                🔄 ขายต่อ
+                                            </button>
+                                            <button
+                                                type="button"
                                                 onClick={() => handleSetRowReturned(item.id)}
-                                                className="flex-1 py-1.5 px-3 bg-stone-100 text-stone-600 hover:bg-stone-200 border border-stone-250 rounded-xl text-xs font-bold transition-all text-center min-h-[36px] flex items-center justify-center"
+                                                className="flex-1 py-1.5 px-2 bg-stone-100 text-stone-600 hover:bg-stone-200 border border-stone-250 rounded-xl text-xs font-bold transition-all text-center min-h-[36px] flex items-center justify-center"
                                             >
                                                 คืนหมด
                                             </button>
                                         </div>
 
-                                        <div className="grid grid-cols-3 gap-2.5">
+                                        <div className="grid grid-cols-4 gap-2">
                                             <div>
                                                 <label className="block text-[10px] font-bold text-stone-450 uppercase mb-1">ขายได้</label>
                                                 <input
@@ -367,7 +446,18 @@ export const ConsignmentSettleModal: React.FC<ConsignmentSettleModalProps> = ({ 
                                                     max={item.quantitySent}
                                                     value={currentState.quantitySold}
                                                     onChange={e => handleQuantityChange(item.id, 'quantitySold', e.target.value)}
-                                                    className="w-full text-center py-2.5 border border-emerald-300 rounded-xl focus:ring-2 focus:ring-emerald-500 bg-emerald-50/50 font-bold text-base md:text-sm"
+                                                    className="w-full text-center py-2 border border-emerald-300 rounded-xl focus:ring-2 focus:ring-emerald-500 bg-emerald-50/50 font-bold text-sm"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-[10px] font-bold text-blue-600 uppercase mb-1">🔄 ขายต่อ</label>
+                                                <input
+                                                    type="number"
+                                                    min="0"
+                                                    max={item.quantitySent}
+                                                    value={currentState.quantityCarryOver}
+                                                    onChange={e => handleQuantityChange(item.id, 'quantityCarryOver', e.target.value)}
+                                                    className="w-full text-center py-2 border border-blue-300 rounded-xl focus:ring-2 focus:ring-blue-500 bg-blue-50/50 font-bold text-sm text-blue-800"
                                                 />
                                             </div>
                                             <div>
@@ -377,7 +467,7 @@ export const ConsignmentSettleModal: React.FC<ConsignmentSettleModalProps> = ({ 
                                                     min="0"
                                                     value={currentState.quantityWaste}
                                                     onChange={e => handleQuantityChange(item.id, 'quantityWaste', e.target.value)}
-                                                    className="w-full text-center py-2.5 border border-rose-300 rounded-xl focus:ring-2 focus:ring-rose-500 bg-rose-50/50 font-bold text-base md:text-sm"
+                                                    className="w-full text-center py-2 border border-rose-300 rounded-xl focus:ring-2 focus:ring-rose-500 bg-rose-50/50 font-bold text-sm"
                                                 />
                                             </div>
                                             <div>
@@ -387,7 +477,7 @@ export const ConsignmentSettleModal: React.FC<ConsignmentSettleModalProps> = ({ 
                                                     min="0"
                                                     value={currentState.quantityGiveaway}
                                                     onChange={e => handleQuantityChange(item.id, 'quantityGiveaway', e.target.value)}
-                                                    className="w-full text-center py-2.5 border border-amber-300 rounded-xl focus:ring-2 focus:ring-amber-500 bg-amber-50/50 font-bold text-base md:text-sm"
+                                                    className="w-full text-center py-2 border border-amber-300 rounded-xl focus:ring-2 focus:ring-amber-500 bg-amber-50/50 font-bold text-sm"
                                                 />
                                             </div>
                                         </div>
@@ -402,26 +492,30 @@ export const ConsignmentSettleModal: React.FC<ConsignmentSettleModalProps> = ({ 
                         </div>
 
                         {/* Summary Grid */}
-                        <div className="grid grid-cols-3 sm:grid-cols-5 gap-3">
-                            <div className="bg-stone-50 p-3 rounded-2xl border border-stone-100 text-center">
+                        <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+                            <div className="bg-stone-50 p-2.5 rounded-2xl border border-stone-100 text-center">
                                 <p className="text-[10px] sm:text-xs text-stone-400 font-bold">ส่งทั้งหมด</p>
-                                <p className="text-lg sm:text-xl font-black text-stone-750">{order.totalQuantitySent}</p>
+                                <p className="text-base sm:text-lg font-black text-stone-750">{order.totalQuantitySent}</p>
                             </div>
-                            <div className="bg-emerald-50 p-3 rounded-2xl border border-emerald-100 text-center">
+                            <div className="bg-emerald-50 p-2.5 rounded-2xl border border-emerald-100 text-center">
                                 <p className="text-[10px] sm:text-xs text-emerald-600 font-bold">ขายได้รวม</p>
-                                <p className="text-lg sm:text-xl font-black text-emerald-700">{totalSold}</p>
+                                <p className="text-base sm:text-lg font-black text-emerald-700">{totalSold}</p>
                             </div>
-                            <div className="bg-rose-50 p-3 rounded-2xl border border-rose-100 text-center">
+                            <div className="bg-blue-50 p-2.5 rounded-2xl border border-blue-100 text-center">
+                                <p className="text-[10px] sm:text-xs text-blue-600 font-bold">🔄 เหลือขายต่อ</p>
+                                <p className="text-base sm:text-lg font-black text-blue-700">{totalCarryOver}</p>
+                            </div>
+                            <div className="bg-rose-50 p-2.5 rounded-2xl border border-rose-100 text-center">
                                 <p className="text-[10px] sm:text-xs text-rose-600 font-bold">เสีย/ทิ้ง</p>
-                                <p className="text-lg sm:text-xl font-black text-rose-700">{totalWaste}</p>
+                                <p className="text-base sm:text-lg font-black text-rose-700">{totalWaste}</p>
                             </div>
-                            <div className="bg-amber-50 p-3 rounded-2xl border border-amber-100 text-center">
+                            <div className="bg-amber-50 p-2.5 rounded-2xl border border-amber-100 text-center">
                                 <p className="text-[10px] sm:text-xs text-amber-600 font-bold">แจก/กิน</p>
-                                <p className="text-lg sm:text-xl font-black text-amber-700">{totalGiveaway}</p>
+                                <p className="text-base sm:text-lg font-black text-amber-700">{totalGiveaway}</p>
                             </div>
-                            <div className="bg-blue-50 p-3 rounded-2xl border border-blue-100 text-center col-span-3 sm:col-span-1">
-                                <p className="text-[10px] sm:text-xs text-blue-600 font-bold">รับคืนดี</p>
-                                <p className="text-lg sm:text-xl font-black text-blue-700">{totalReturned}</p>
+                            <div className="bg-stone-100 p-2.5 rounded-2xl border border-stone-200 text-center">
+                                <p className="text-[10px] sm:text-xs text-stone-500 font-bold">รับคืนดี</p>
+                                <p className="text-base sm:text-lg font-black text-stone-700">{totalReturned}</p>
                             </div>
                         </div>
                     </div>
