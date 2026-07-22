@@ -34,7 +34,7 @@ interface ForecastResult {
 }
 
 export const ProductionPlanner: React.FC = () => {
-    const { products, markets, saveForecast, productSales, dailyReports, productionForecasts, dailyInventory } = useStore();
+    const { products, markets, marketSchedules, saveForecast, productSales, dailyReports, productionForecasts, dailyInventory } = useStore();
     const [activeTab, setActiveTab] = useState<'plan' | 'accuracy' | 'schedule'>('plan');
 
     // State for Production Planner
@@ -50,8 +50,10 @@ export const ProductionPlanner: React.FC = () => {
     const [isSaving, setIsSaving] = useState(false);
     const [results, setResults] = useState<ForecastResult[]>([]);
 
-    // Smart Mode State
+    // Smart Mode & Auto-Pilot State
     const [smartMode, setSmartMode] = useState(true); // Default ON
+    const [autoPilot, setAutoPilot] = useState(true); // AI Auto-Pilot ON
+    const [autoSavedDates, setAutoSavedDates] = useState<Record<string, boolean>>({});
     const [smartWeather, setSmartWeather] = useState<WeatherForecast | null>(null);
     const [upcomingEvents, setUpcomingEvents] = useState<ThaiCalendarEvent[]>([]);
     const [isFetchingWeather, setIsFetchingWeather] = useState(false);
@@ -61,12 +63,17 @@ export const ProductionPlanner: React.FC = () => {
         return markets.find(m => m.id === marketId)?.name || marketId;
     };
 
-    // Auto-select "all markets" when markets load (FIX: use empty string for all markets)
+    // Auto-select market matching marketSchedules for day of week when date changes
     useEffect(() => {
-        if (markets.length > 0 && selectedMarket === undefined) {
-            setSelectedMarket(''); // Default to "all markets"
+        if (selectedDate && marketSchedules && marketSchedules.length > 0) {
+            const dateObj = new Date(selectedDate);
+            const dayOfWeek = dateObj.getDay(); // 0 = Sun, 1 = Mon, ..., 6 = Sat
+            const scheduled = marketSchedules.find(s => s.dayOfWeek === dayOfWeek && s.isActive !== false);
+            if (scheduled) {
+                setSelectedMarket(scheduled.marketId);
+            }
         }
-    }, [markets, selectedMarket]);
+    }, [selectedDate, marketSchedules]);
 
     // Smart Mode: Auto-fetch weather and calendar events
     useEffect(() => {
@@ -193,6 +200,40 @@ export const ProductionPlanner: React.FC = () => {
     useEffect(() => {
         calculateForecasts();
     }, [calculateForecasts]);
+
+    // AI Auto-Pilot: Auto-save predictions if target date does not have a saved forecast yet
+    useEffect(() => {
+        if (!autoPilot || results.length === 0 || isCalculating || isSaving) return;
+
+        const dateKey = `${selectedDate}_${selectedMarket}`;
+        const existingForecast = productionForecasts.find(
+            f => (f as any).forecastForDate === selectedDate && (f.marketId === selectedMarket || (!selectedMarket && !f.marketId))
+        );
+
+        if (!existingForecast && !autoSavedDates[dateKey]) {
+            const validResults = results.filter(r => !r.error && r.forecast && !r.forecast.noData);
+            if (validResults.length > 0) {
+                setIsSaving(true);
+                const promises = validResults.map(r => saveForecast(
+                    r.forecast,
+                    r.productId,
+                    r.productName,
+                    selectedMarket,
+                    getMarketName(selectedMarket),
+                    selectedDate,
+                    selectedWeather
+                ));
+
+                Promise.all(promises).then(() => {
+                    setAutoSavedDates(prev => ({ ...prev, [dateKey]: true }));
+                    setIsSaving(false);
+                }).catch(err => {
+                    console.error('Auto-pilot save failed:', err);
+                    setIsSaving(false);
+                });
+            }
+        }
+    }, [selectedDate, selectedMarket, results, isCalculating, isSaving, productionForecasts, autoSavedDates, autoPilot, selectedWeather, saveForecast]);
 
     const handleSavePlan = async () => {
         setIsSaving(true);
@@ -334,6 +375,19 @@ export const ProductionPlanner: React.FC = () => {
                                 <span className="hidden md:inline">Smart Mode</span>
                                 {smartMode && isFetchingWeather && <Loader2 size={14} className="animate-spin" />}
                             </button>
+
+                            {/* Auto-Pilot Toggle */}
+                            <button
+                                onClick={() => setAutoPilot(!autoPilot)}
+                                title="โหมด AI ทำนายและบันทึกแผนให้อัตโนมัติ"
+                                className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-semibold transition-all ${autoPilot
+                                    ? 'bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-md shadow-emerald-200'
+                                    : 'bg-stone-100 text-stone-500 hover:bg-stone-200'
+                                    }`}
+                            >
+                                <Zap size={16} className={autoPilot ? 'text-yellow-300 fill-yellow-300' : ''} />
+                                <span>Auto-Pilot {autoPilot ? 'ON' : 'OFF'}</span>
+                            </button>
                         </div>
 
                         <div className="flex items-center gap-4 w-full md:w-auto justify-between md:justify-end">
@@ -351,6 +405,17 @@ export const ProductionPlanner: React.FC = () => {
                             </button>
                         </div>
                     </div>
+
+                    {/* Auto-Pilot Notification Banner */}
+                    {autoPilot && autoSavedDates[`${selectedDate}_${selectedMarket}`] && (
+                        <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 px-4 flex items-center justify-between text-emerald-800 text-sm font-medium animate-in fade-in duration-300">
+                            <div className="flex items-center gap-2">
+                                <ShieldCheck size={18} className="text-emerald-600 shrink-0" />
+                                <span>🤖 <strong>AI Auto-Pilot:</strong> ระบบวิเคราะห์ยอดขายและบันทึกแผนการผลิตสำหรับวันที่นี้ให้อัตโนมัติเรียบร้อยแล้ว</span>
+                            </div>
+                            <span className="text-xs bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full font-bold">บันทึกสำเร็จ</span>
+                        </div>
+                    )}
 
                     {/* AI Insight Panel - How AI Calculates */}
                     {results.length > 0 && !isCalculating && (
