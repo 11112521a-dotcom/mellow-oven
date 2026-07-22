@@ -11,6 +11,90 @@ export const ConsignmentPendingStock: React.FC<ConsignmentPendingStockProps> = (
     const { consignmentOrders, externalShops } = useStore();
     const [viewMode, setViewMode] = useState<'shops' | 'products'>('shops');
 
+    // Extract current active stock per shop (only latest open orders OR latest settled order carry-over)
+    const activeConsignmentItems = useMemo(() => {
+        const shopOrdersMap: Record<string, typeof consignmentOrders> = {};
+
+        consignmentOrders.forEach(o => {
+            if (o.status === 'cancelled') return;
+            if (!shopOrdersMap[o.shopId]) shopOrdersMap[o.shopId] = [];
+            shopOrdersMap[o.shopId].push(o);
+        });
+
+        const activeItemsList: {
+            shopId: string;
+            shopName: string;
+            contactPhone?: string;
+            orderNumber: string;
+            productId: string;
+            variantId?: string;
+            productName: string;
+            variantName?: string;
+            qty: number;
+            unitPrice: number;
+            unitCost: number;
+        }[] = [];
+
+        Object.entries(shopOrdersMap).forEach(([shopId, orders]) => {
+            const sorted = [...orders].sort((a, b) => 
+                new Date(b.deliveryDate || b.createdAt).getTime() - new Date(a.deliveryDate || a.createdAt).getTime()
+            );
+
+            const openOrders = sorted.filter(o => o.status === 'pending' || o.status === 'shipped');
+
+            if (openOrders.length > 0) {
+                // If shop has active open orders, only count items in open orders
+                openOrders.forEach(o => {
+                    o.items.forEach(i => {
+                        if (i.quantitySent > 0) {
+                            activeItemsList.push({
+                                shopId: o.shopId,
+                                shopName: o.shopName,
+                                contactPhone: o.contactPhone,
+                                orderNumber: o.orderNumber,
+                                productId: i.productId,
+                                variantId: i.variantId || undefined,
+                                productName: i.productName,
+                                variantName: i.variantName || undefined,
+                                qty: i.quantitySent,
+                                unitPrice: i.unitPrice,
+                                unitCost: i.unitCost
+                            });
+                        }
+                    });
+                });
+            } else {
+                // No open orders -> take carry-over from LATEST settled order for this shop
+                const latestSettled = sorted.find(o => o.status === 'settled');
+                if (latestSettled) {
+                    latestSettled.items.forEach(i => {
+                        const carryOver = i.quantityCarryOver !== undefined && i.quantityCarryOver > 0
+                            ? i.quantityCarryOver
+                            : Math.max(0, i.quantitySent - (i.quantitySold + i.quantityWaste + i.quantityReturned + (i.quantityGiveaway || 0)));
+
+                        if (carryOver > 0) {
+                            activeItemsList.push({
+                                shopId: latestSettled.shopId,
+                                shopName: latestSettled.shopName,
+                                contactPhone: latestSettled.contactPhone,
+                                orderNumber: latestSettled.orderNumber,
+                                productId: i.productId,
+                                variantId: i.variantId || undefined,
+                                productName: i.productName,
+                                variantName: i.variantName || undefined,
+                                qty: carryOver,
+                                unitPrice: i.unitPrice,
+                                unitCost: i.unitCost
+                            });
+                        }
+                    });
+                }
+            }
+        });
+
+        return activeItemsList;
+    }, [consignmentOrders]);
+
     // Group pending & carry-over stock by Shop
     const shopCardsData = useMemo(() => {
         const shopMap: Record<string, {
@@ -19,7 +103,6 @@ export const ConsignmentPendingStock: React.FC<ConsignmentPendingStockProps> = (
             contactPhone?: string;
             totalQty: number;
             totalValue: number;
-            lastOrderDate?: string;
             items: {
                 productId: string;
                 variantId?: string;
@@ -32,59 +115,44 @@ export const ConsignmentPendingStock: React.FC<ConsignmentPendingStockProps> = (
             }[];
         }> = {};
 
-        consignmentOrders.forEach(order => {
-            if (order.status === 'cancelled') return;
+        activeConsignmentItems.forEach(item => {
+            if (!shopMap[item.shopId]) {
+                const shopInfo = externalShops.find(s => s.id === item.shopId);
+                shopMap[item.shopId] = {
+                    shopId: item.shopId,
+                    shopName: item.shopName,
+                    contactPhone: shopInfo?.contactPhone || item.contactPhone || undefined,
+                    totalQty: 0,
+                    totalValue: 0,
+                    items: []
+                };
+            }
 
-            order.items.forEach(item => {
-                let pendingQty = 0;
-                if (order.status === 'pending' || order.status === 'shipped') {
-                    pendingQty = item.quantitySent;
-                } else if (order.status === 'settled' && item.quantityCarryOver && item.quantityCarryOver > 0) {
-                    pendingQty = item.quantityCarryOver;
-                }
+            shopMap[item.shopId].totalQty += item.qty;
+            shopMap[item.shopId].totalValue += item.qty * item.unitPrice;
 
-                if (pendingQty > 0) {
-                    if (!shopMap[order.shopId]) {
-                        const shopInfo = externalShops.find(s => s.id === order.shopId);
-                        shopMap[order.shopId] = {
-                            shopId: order.shopId,
-                            shopName: order.shopName,
-                            contactPhone: shopInfo?.contactPhone || order.contactPhone || undefined,
-                            totalQty: 0,
-                            totalValue: 0,
-                            lastOrderDate: order.deliveryDate,
-                            items: []
-                        };
-                    }
+            const existingItem = shopMap[item.shopId].items.find(
+                i => i.productId === item.productId && i.variantId === item.variantId
+            );
 
-                    shopMap[order.shopId].totalQty += pendingQty;
-                    shopMap[order.shopId].totalValue += pendingQty * item.unitPrice;
-
-                    // Check if product+variant already in shop items list
-                    const existingItem = shopMap[order.shopId].items.find(
-                        i => i.productId === item.productId && i.variantId === (item.variantId || undefined)
-                    );
-
-                    if (existingItem) {
-                        existingItem.qty += pendingQty;
-                    } else {
-                        shopMap[order.shopId].items.push({
-                            productId: item.productId,
-                            variantId: item.variantId || undefined,
-                            productName: item.productName,
-                            variantName: item.variantName || undefined,
-                            qty: pendingQty,
-                            unitPrice: item.unitPrice,
-                            unitCost: item.unitCost,
-                            orderNumber: order.orderNumber
-                        });
-                    }
-                }
-            });
+            if (existingItem) {
+                existingItem.qty += item.qty;
+            } else {
+                shopMap[item.shopId].items.push({
+                    productId: item.productId,
+                    variantId: item.variantId,
+                    productName: item.productName,
+                    variantName: item.variantName,
+                    qty: item.qty,
+                    unitPrice: item.unitPrice,
+                    unitCost: item.unitCost,
+                    orderNumber: item.orderNumber
+                });
+            }
         });
 
         return Object.values(shopMap).sort((a, b) => b.totalQty - a.totalQty);
-    }, [consignmentOrders, externalShops]);
+    }, [activeConsignmentItems, externalShops]);
 
     // Group pending stock by Product
     const productData = useMemo(() => {
@@ -98,44 +166,31 @@ export const ConsignmentPendingStock: React.FC<ConsignmentPendingStockProps> = (
             shops: { shopName: string; qty: number; orderNumber: string }[];
         }> = {};
 
-        consignmentOrders.forEach(order => {
-            if (order.status === 'cancelled') return;
+        activeConsignmentItems.forEach(item => {
+            const key = item.variantId ? `${item.productId}-${item.variantId}` : item.productId;
+            if (!productMap[key]) {
+                productMap[key] = {
+                    productId: item.productId,
+                    productName: item.productName,
+                    variantId: item.variantId,
+                    variantName: item.variantName,
+                    totalPendingQty: 0,
+                    totalValue: 0,
+                    shops: []
+                };
+            }
 
-            order.items.forEach(item => {
-                let pendingQty = 0;
-                if (order.status === 'pending' || order.status === 'shipped') {
-                    pendingQty = item.quantitySent;
-                } else if (order.status === 'settled' && item.quantityCarryOver && item.quantityCarryOver > 0) {
-                    pendingQty = item.quantityCarryOver;
-                }
-
-                if (pendingQty > 0) {
-                    const key = item.variantId ? `${item.productId}-${item.variantId}` : item.productId;
-                    if (!productMap[key]) {
-                        productMap[key] = {
-                            productId: item.productId,
-                            productName: item.productName,
-                            variantId: item.variantId || undefined,
-                            variantName: item.variantName || undefined,
-                            totalPendingQty: 0,
-                            totalValue: 0,
-                            shops: []
-                        };
-                    }
-
-                    productMap[key].totalPendingQty += pendingQty;
-                    productMap[key].totalValue += pendingQty * item.unitPrice;
-                    productMap[key].shops.push({
-                        shopName: order.shopName,
-                        qty: pendingQty,
-                        orderNumber: order.orderNumber
-                    });
-                }
+            productMap[key].totalPendingQty += item.qty;
+            productMap[key].totalValue += item.qty * item.unitPrice;
+            productMap[key].shops.push({
+                shopName: item.shopName,
+                qty: item.qty,
+                orderNumber: item.orderNumber
             });
         });
 
         return Object.values(productMap).sort((a, b) => b.totalPendingQty - a.totalPendingQty);
-    }, [consignmentOrders]);
+    }, [activeConsignmentItems]);
 
     const totalPendingItems = shopCardsData.reduce((sum, shop) => sum + shop.totalQty, 0);
     const totalPendingValue = shopCardsData.reduce((sum, shop) => sum + shop.totalValue, 0);
