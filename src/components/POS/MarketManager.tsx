@@ -319,23 +319,31 @@ export const MarketManager: React.FC = () => {
         setIsModalOpen(true);
     };
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (formData.name) {
+            const targetType = formData.type || 'market';
+            const targetActive = formData.isActive !== undefined ? formData.isActive : true;
+
             if (editingMarket) {
-                updateMarket(editingMarket.id, formData);
+                await updateMarket(editingMarket.id, {
+                    ...formData,
+                    type: targetType,
+                    isActive: targetActive
+                });
             } else {
-                addMarket({
+                await addMarket({
                     id: crypto.randomUUID(),
                     name: formData.name,
                     location: formData.location,
                     description: formData.description,
                     color: formData.color,
-                    type: formData.type || 'market',
-                    isActive: formData.isActive !== undefined ? formData.isActive : true
+                    type: targetType,
+                    isActive: targetActive
                 } as Market);
             }
             setIsModalOpen(false);
+            setEditingMarket(null);
         }
     };
 
@@ -564,7 +572,7 @@ export const MarketManager: React.FC = () => {
                         <div className="grid grid-cols-2 gap-3">
                             <button
                                 type="button"
-                                onClick={() => setFormData({ ...formData, type: 'market' })}
+                                onClick={() => setFormData(prev => ({ ...prev, type: 'market' }))}
                                 className={`p-3 rounded-xl border-2 flex items-center gap-2.5 transition-all text-left ${
                                     (formData.type || 'market') === 'market'
                                         ? 'border-emerald-500 bg-emerald-50 text-emerald-800 font-bold shadow-sm'
@@ -580,7 +588,7 @@ export const MarketManager: React.FC = () => {
 
                             <button
                                 type="button"
-                                onClick={() => setFormData({ ...formData, type: 'consignment' })}
+                                onClick={() => setFormData(prev => ({ ...prev, type: 'consignment' }))}
                                 className={`p-3 rounded-xl border-2 flex items-center gap-2.5 transition-all text-left ${
                                     formData.type === 'consignment'
                                         ? 'border-purple-500 bg-purple-50 text-purple-800 font-bold shadow-sm'
@@ -604,7 +612,7 @@ export const MarketManager: React.FC = () => {
                         </div>
                         <button
                             type="button"
-                            onClick={() => setFormData({ ...formData, isActive: !(formData.isActive !== false) })}
+                            onClick={() => setFormData(prev => ({ ...prev, isActive: !(prev.isActive !== false) }))}
                             className={`w-12 h-6 rounded-full p-1 transition-colors flex items-center ${
                                 formData.isActive !== false ? 'bg-green-500 justify-end' : 'bg-stone-300 justify-start'
                             }`}
