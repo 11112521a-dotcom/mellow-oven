@@ -214,12 +214,13 @@ export const ProductionPlanner: React.FC = () => {
     }, [calculateForecasts]);
 
     // AI Auto-Pilot: Auto-save predictions if target date does not have a saved forecast yet
+    // 🛡️ Strict Rule: AI จะไม่มีวันบันทึกการทำนายเป็น "ทุกตลาด" (ต้องมี selectedMarket เฉพาะเจาะจงเท่านั้น)
     useEffect(() => {
-        if (!autoPilot || results.length === 0 || isCalculating || isSaving) return;
+        if (!autoPilot || !selectedMarket || selectedMarket === 'all' || results.length === 0 || isCalculating || isSaving) return;
 
         const dateKey = `${selectedDate}_${selectedMarket}`;
         const existingForecast = productionForecasts.find(
-            f => (f as any).forecastForDate === selectedDate && (f.marketId === selectedMarket || (!selectedMarket && !f.marketId))
+            f => (f as any).forecastForDate === selectedDate && f.marketId === selectedMarket
         );
 
         if (!existingForecast && !autoSavedDates[dateKey]) {
