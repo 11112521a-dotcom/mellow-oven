@@ -367,11 +367,25 @@ export const useStore = create<AppState>()(
                         return mappedProduct;
                     }) || state.products;
 
-                    const mappedMarkets = markets?.map((row: any) => ({
-                        ...row,
-                        isActive: row.is_active !== undefined ? row.is_active : (row.isActive !== undefined ? row.isActive : true),
-                        type: row.type || 'market'
-                    }));
+                    let overridesMap = new Map<string, { isActive?: boolean; type?: 'market' | 'consignment' }>();
+                    try {
+                        const stored = localStorage.getItem('mellow_oven_market_overrides');
+                        if (stored) {
+                            const parsed = JSON.parse(stored);
+                            parsed.forEach((o: any) => overridesMap.set(o.id, o));
+                        }
+                    } catch (e) {}
+
+                    const mappedMarkets = markets?.map((row: any) => {
+                        const override = overridesMap.get(row.id);
+                        return {
+                            ...row,
+                            isActive: override?.isActive !== undefined 
+                                ? override.isActive 
+                                : (row.is_active !== undefined ? row.is_active : (row.isActive !== undefined ? row.isActive : true)),
+                            type: override?.type || row.type || 'market'
+                        };
+                    });
 
                     return {
                         ...state,

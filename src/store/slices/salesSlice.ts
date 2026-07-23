@@ -146,7 +146,15 @@ export const createSalesSlice: StateCreator<AppState, [], [], SalesSlice> = (set
             isActive: market.isActive !== undefined ? market.isActive : true,
             type: market.type || 'market'
         };
-        set((state) => ({ markets: [...state.markets, newMarket] }));
+        set((state) => {
+            const updatedMarkets = [...state.markets, newMarket];
+            try {
+                localStorage.setItem('mellow_oven_market_overrides', JSON.stringify(
+                    updatedMarkets.map(m => ({ id: m.id, isActive: m.isActive, type: m.type }))
+                ));
+            } catch (e) {}
+            return { markets: updatedMarkets };
+        });
         
         const dbPayload: any = {
             id: newMarket.id,
@@ -157,19 +165,56 @@ export const createSalesSlice: StateCreator<AppState, [], [], SalesSlice> = (set
             is_active: newMarket.isActive,
             type: newMarket.type
         };
-        await supabase.from('markets').insert(dbPayload);
+        
+        try {
+            const { error } = await supabase.from('markets').insert(dbPayload);
+            if (error) {
+                delete dbPayload.is_active;
+                delete dbPayload.type;
+                await supabase.from('markets').insert(dbPayload);
+            }
+        } catch (e) {}
     },
+
     updateMarket: async (id, updates) => {
-        set((state) => ({ markets: state.markets.map((m) => m.id === id ? { ...m, ...updates } : m) }));
+        set((state) => {
+            const updatedMarkets = state.markets.map((m) => m.id === id ? { ...m, ...updates } : m);
+            try {
+                localStorage.setItem('mellow_oven_market_overrides', JSON.stringify(
+                    updatedMarkets.map(m => ({ id: m.id, isActive: m.isActive, type: m.type }))
+                ));
+            } catch (e) {}
+            return { markets: updatedMarkets };
+        });
         
         const dbUpdates: any = { ...updates };
         if (updates.isActive !== undefined) {
             dbUpdates.is_active = updates.isActive;
+            delete dbUpdates.isActive;
         }
-        await supabase.from('markets').update(dbUpdates).eq('id', id);
+        
+        try {
+            const { error } = await supabase.from('markets').update(dbUpdates).eq('id', id);
+            if (error) {
+                delete dbUpdates.is_active;
+                delete dbUpdates.type;
+                if (Object.keys(dbUpdates).length > 0) {
+                    await supabase.from('markets').update(dbUpdates).eq('id', id);
+                }
+            }
+        } catch (e) {}
     },
+
     removeMarket: async (id) => {
-        set((state) => ({ markets: state.markets.filter((m) => m.id !== id) }));
+        set((state) => {
+            const updatedMarkets = state.markets.filter((m) => m.id !== id);
+            try {
+                localStorage.setItem('mellow_oven_market_overrides', JSON.stringify(
+                    updatedMarkets.map(m => ({ id: m.id, isActive: m.isActive, type: m.type }))
+                ));
+            } catch (e) {}
+            return { markets: updatedMarkets };
+        });
         await supabase.from('markets').delete().eq('id', id);
     },
 
