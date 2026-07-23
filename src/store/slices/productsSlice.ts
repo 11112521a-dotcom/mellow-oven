@@ -265,24 +265,29 @@ export const createProductsSlice: StateCreator<AppState, [], [], ProductsSlice> 
 
     deleteForecastsForMarket: async (marketId) => {
         try {
-            const isAllMarkets = !marketId || marketId === 'all' || marketId === 'all_markets' || marketId === 'ทุกตลาด';
+            const isUnassignedOrAllGroup = !marketId || marketId === 'all' || marketId === 'all_markets' || marketId === 'ทุกตลาด';
 
-            if (isAllMarkets) {
-                // Delete ALL production forecasts from Supabase
+            if (isUnassignedOrAllGroup) {
+                // Delete ONLY forecasts where market_id is null, empty string, or 'all'
+                // DO NOT delete forecasts belonging to specific markets!
                 const { error } = await supabase
                     .from('production_forecasts')
                     .delete()
-                    .neq('id', '00000000-0000-0000-0000-000000000000');
+                    .or('market_id.is.null,market_id.eq.,market_id.eq.all,market_id.eq.all_markets');
 
                 if (error) {
-                    console.error('Failed to delete all forecasts:', error);
+                    console.error('Failed to delete unassigned/all forecasts:', error);
                     throw error;
                 }
 
-                // Clear all from local state
-                set({ productionForecasts: [] });
+                // Update local state by removing unassigned/all forecasts only
+                set((state) => ({
+                    productionForecasts: state.productionForecasts.filter(
+                        f => f.marketId && f.marketId !== 'all' && f.marketId !== 'all_markets'
+                    )
+                }));
             } else {
-                // Delete forecasts for specific marketId
+                // Delete forecasts for specific marketId only
                 const { error } = await supabase
                     .from('production_forecasts')
                     .delete()
@@ -293,7 +298,7 @@ export const createProductsSlice: StateCreator<AppState, [], [], ProductsSlice> 
                     throw error;
                 }
 
-                // Update local state by filtering out deleted forecasts
+                // Update local state by filtering out deleted forecasts for this specific marketId
                 set((state) => ({
                     productionForecasts: state.productionForecasts.filter(f => f.marketId !== marketId)
                 }));
