@@ -1,4 +1,4 @@
-import { Product, ProductSaleLog, DailyInventory } from '@/types';
+import { Product, ProductSaleLog, DailyInventory, Market } from '@/types';
 import { generateChillAdvice } from './aiAdvisor';
 
 export interface ProductionForecast {
@@ -59,7 +59,8 @@ export function analyzeAccuracy(
     forecasts: ProductionForecast[],
     sales: ProductSaleLog[],
     products: Product[],
-    dailyInventory: DailyInventory[] = []
+    dailyInventory: DailyInventory[] = [],
+    markets: Market[] = []
 ): AccuracyAnalysisResult {
     // Helper: Find actual sale
     const findActualSale = (f: ProductionForecast, salesList: ProductSaleLog[]) => {
@@ -73,9 +74,16 @@ export function analyzeAccuracy(
     const records: ComparisonRecord[] = [];
     const dayNames = ['อาทิตย์', 'จันทร์', 'อังคาร', 'พุธ', 'พฤหัสบดี', 'ศุกร์', 'เสาร์'];
 
+    const consignmentMarketIds = new Set(
+        markets.filter(m => m.type === 'consignment').map(m => m.id)
+    );
+
     forecasts.forEach(f => {
+        // Exclude consignment markets from AI accuracy analysis 100%
+        if (f.marketId && consignmentMarketIds.has(f.marketId)) return;
+
         const dateObj = new Date(f.forecastForDate);
-        const salesOnDate = sales.filter(s => s.saleDate === f.forecastForDate);
+        const salesOnDate = sales.filter(s => s.saleDate === f.forecastForDate && (!s.marketId || !consignmentMarketIds.has(s.marketId)));
         const actualSale = findActualSale(f, salesOnDate);
         const actualQtyFromSales = actualSale ? actualSale.quantitySold : 0;
         const hasSalesData = !!actualSale;

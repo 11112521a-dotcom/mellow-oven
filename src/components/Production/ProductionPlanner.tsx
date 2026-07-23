@@ -128,15 +128,15 @@ export const ProductionPlanner: React.FC = () => {
     // Accuracy Calculations - ULTRA VERSION
     const accuracyAnalysis = useMemo(() => {
         if (activeTab !== 'accuracy') return null;
-        return analyzeAccuracy(productionForecasts as any, productSales, products, dailyInventory);
-    }, [activeTab, productionForecasts, productSales, products, dailyInventory]);
+        return analyzeAccuracy(productionForecasts as any, productSales, products, dailyInventory, markets);
+    }, [activeTab, productionForecasts, productSales, products, dailyInventory, markets]);
 
     const viewingMarketAnalysis = useMemo(() => {
         if (!viewingMarketId || !accuracyAnalysis) return null;
         // Filter forecasts for the selected market
         const filteredForecasts = productionForecasts.filter(f => f.marketId === viewingMarketId);
-        return analyzeAccuracy(filteredForecasts as any, productSales, products, dailyInventory);
-    }, [viewingMarketId, accuracyAnalysis, productionForecasts, productSales, products, dailyInventory]);
+        return analyzeAccuracy(filteredForecasts as any, productSales, products, dailyInventory, markets);
+    }, [viewingMarketId, accuracyAnalysis, productionForecasts, productSales, products, dailyInventory, markets]);
 
     // Auto-Calculate Logic
     const calculateForecasts = useCallback(async () => {
@@ -146,8 +146,15 @@ export const ProductionPlanner: React.FC = () => {
         // Small delay to prevent UI flickering on fast inputs and allow loading state to show
         await new Promise(resolve => setTimeout(resolve, 300));
 
-        const forecastResults: ForecastResult[] = [];
-        const { productSales } = useStore.getState();
+        const { productSales, markets } = useStore.getState();
+
+        // 🛡️ กรองยอดขายย้อนหลัง เฉพาะตลาดนัดเท่านั้น (ไม่ดึงยอดขายจากฝากขาย/ส่งสาขา เข้ามาทำนาย AI 100%)
+        const consignmentMarketIds = new Set(
+            markets.filter(m => m.type === 'consignment').map(m => m.id)
+        );
+        const regularMarketSales = productSales.filter(s => 
+            !s.marketId || !consignmentMarketIds.has(s.marketId)
+        );
 
         // แสดงสินค้าที่ active ทั้งหมด
         const filteredProducts = products.filter(p => p.isActive !== false);
@@ -172,7 +179,7 @@ export const ProductionPlanner: React.FC = () => {
                     marketId: selectedMarket,
                     marketName: getMarketName(selectedMarket),
                     targetDate: selectedDate,
-                    productSales: productSales,
+                    productSales: regularMarketSales,
                     historicalForecasts: productionForecasts as any,
                     autoFetchWeather: false,
                     weatherCondition: selectedWeather as any
@@ -185,7 +192,7 @@ export const ProductionPlanner: React.FC = () => {
                     marketName: getMarketName(selectedMarket),
                     weatherForecast: selectedWeather as any,
                     product: item.variant ? { ...item.product, price: item.variant.price, cost: item.variant.cost } : item.product,
-                    productSales: productSales,
+                    productSales: regularMarketSales,
                     targetDate: selectedDate
                 };
             }
