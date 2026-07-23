@@ -378,12 +378,20 @@ export const useStore = create<AppState>()(
 
                     const mappedMarkets = markets?.map((row: any) => {
                         const override = overridesMap.get(row.id);
+                        const existingStateMarket = state.markets.find((m: any) => m.id === row.id);
+
+                        const finalIsActive = override?.isActive !== undefined 
+                            ? override.isActive 
+                            : (row.is_active !== undefined 
+                                ? row.is_active 
+                                : (existingStateMarket?.isActive !== undefined ? existingStateMarket.isActive : true));
+
+                        const finalType = override?.type || row.type || existingStateMarket?.type || 'market';
+
                         return {
                             ...row,
-                            isActive: override?.isActive !== undefined 
-                                ? override.isActive 
-                                : (row.is_active !== undefined ? row.is_active : (row.isActive !== undefined ? row.isActive : true)),
-                            type: override?.type || row.type || 'market'
+                            isActive: finalIsActive,
+                            type: finalType
                         };
                     });
 
