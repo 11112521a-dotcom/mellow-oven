@@ -136,27 +136,7 @@ const MarketCard: React.FC<MarketCardProps> = ({
                     </p>
                 )}
 
-                {/* Mini Stats Row */}
-                <div className="grid grid-cols-2 gap-3">
-                    <div className="bg-stone-50 rounded-xl px-3 py-2.5">
-                        <div className="flex items-center gap-1.5 mb-1">
-                            <DollarSign size={12} className="text-emerald-500" />
-                            <span className="text-[10px] font-semibold text-stone-400 uppercase tracking-wider">รายได้รวม</span>
-                        </div>
-                        <p className="text-sm font-bold text-stone-800">
-                            ฿{stats.revenue.toLocaleString('th-TH', { minimumFractionDigits: 0 })}
-                        </p>
-                    </div>
-                    <div className="bg-stone-50 rounded-xl px-3 py-2.5">
-                        <div className="flex items-center gap-1.5 mb-1">
-                            <ShoppingBag size={12} className="text-blue-500" />
-                            <span className="text-[10px] font-semibold text-stone-400 uppercase tracking-wider">จำนวนวันขาย</span>
-                        </div>
-                        <p className="text-sm font-bold text-stone-800">
-                            {stats.orders} วัน
-                        </p>
-                    </div>
-                </div>
+
 
                 {/* Day of Week Schedules */}
                 <div className="mt-4 pt-3 border-t border-stone-100">
@@ -493,25 +473,7 @@ export const MarketManager: React.FC = () => {
                         </button>
                     </div>
 
-                    {/* Summary Stats Bar */}
-                    {markets.length > 0 && (
-                        <div className="flex flex-wrap gap-4 mt-3">
-                            <div className="flex items-center gap-2 bg-violet-50 px-3.5 py-1.5 rounded-xl">
-                                <BarChart3 size={14} className="text-violet-500" />
-                                <span className="text-xs text-violet-600 font-medium">รายได้รวม</span>
-                                <span className="text-xs font-bold text-violet-800">
-                                    ฿{totalRevenue.toLocaleString('th-TH', { minimumFractionDigits: 0 })}
-                                </span>
-                            </div>
-                            <div className="flex items-center gap-2 bg-emerald-50 px-3.5 py-1.5 rounded-xl">
-                                <TrendingUp size={14} className="text-emerald-500" />
-                                <span className="text-xs text-emerald-600 font-medium">เฉลี่ย/ตลาด</span>
-                                <span className="text-xs font-bold text-emerald-800">
-                                    ฿{markets.length > 0 ? (totalRevenue / markets.length).toLocaleString('th-TH', { minimumFractionDigits: 0 }) : 0}
-                                </span>
-                            </div>
-                        </div>
-                    )}
+
                 </div>
             </header>
 
