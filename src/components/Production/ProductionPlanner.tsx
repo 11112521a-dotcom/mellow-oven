@@ -1020,14 +1020,20 @@ export const ProductionPlanner: React.FC = () => {
 
                                             {/* Delete Button (Z-Index higher to be clickable) */}
                                             <button
-                                                onClick={(e) => {
+                                                onClick={async (e) => {
                                                     e.stopPropagation();
                                                     if (window.confirm(`คุณต้องการลบประวัติการทำนายทั้งหมดของ "${market.marketName}" ใช่ไหม? \n(ข้อมูลจะหายไปถาวร)`)) {
-                                                        const deleteForecasts = useStore.getState().deleteForecastsForMarket;
-                                                        deleteForecasts(market.marketId);
+                                                        try {
+                                                            const deleteForecasts = useStore.getState().deleteForecastsForMarket;
+                                                            await deleteForecasts(market.marketId);
+                                                            alert(`ลบประวัติการทำนายของ "${market.marketName}" เรียบร้อยแล้ว`);
+                                                        } catch (err) {
+                                                            console.error('Delete failed:', err);
+                                                            alert('เกิดข้อผิดพลาดในการลบข้อมูล กรุณาลองใหม่อีกครั้ง');
+                                                        }
                                                     }
                                                 }}
-                                                className="absolute top-4 right-4 z-10 p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-full transition-all opacity-0 group-hover:opacity-100"
+                                                className="absolute top-4 right-4 z-10 p-2 text-stone-400 hover:text-red-500 hover:bg-red-50 rounded-full transition-all shadow-sm bg-stone-50"
                                                 title="ลบประวัติการทำนาย"
                                             >
                                                 <Trash2 size={18} />

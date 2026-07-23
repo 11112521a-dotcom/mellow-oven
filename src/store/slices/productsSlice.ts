@@ -265,19 +265,39 @@ export const createProductsSlice: StateCreator<AppState, [], [], ProductsSlice> 
 
     deleteForecastsForMarket: async (marketId) => {
         try {
-            // Delete from Supabase
-            const { error } = await supabase.from('production_forecasts').delete().eq('market_id', marketId);
+            const isAllMarkets = !marketId || marketId === 'all' || marketId === 'all_markets' || marketId === 'ทุกตลาด';
 
-            if (error) {
-                console.error('Failed to delete forecasts for market:', error);
-                throw error;
+            if (isAllMarkets) {
+                // Delete ALL production forecasts from Supabase
+                const { error } = await supabase
+                    .from('production_forecasts')
+                    .delete()
+                    .neq('id', '00000000-0000-0000-0000-000000000000');
+
+                if (error) {
+                    console.error('Failed to delete all forecasts:', error);
+                    throw error;
+                }
+
+                // Clear all from local state
+                set({ productionForecasts: [] });
+            } else {
+                // Delete forecasts for specific marketId
+                const { error } = await supabase
+                    .from('production_forecasts')
+                    .delete()
+                    .eq('market_id', marketId);
+
+                if (error) {
+                    console.error('Failed to delete forecasts for market:', error);
+                    throw error;
+                }
+
+                // Update local state by filtering out deleted forecasts
+                set((state) => ({
+                    productionForecasts: state.productionForecasts.filter(f => f.marketId !== marketId)
+                }));
             }
-
-            // Update local state by filtering out deleted forecasts
-            set((state) => ({
-                productionForecasts: state.productionForecasts.filter(f => f.marketId !== marketId)
-            }));
-
         } catch (error) {
             console.error('Error in deleteForecastsForMarket:', error);
             throw error;
