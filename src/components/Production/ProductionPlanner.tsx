@@ -239,16 +239,18 @@ export const ProductionPlanner: React.FC = () => {
     }, [calculateForecasts]);
 
     // AI Auto-Pilot: Auto-save predictions if target date does not have a saved forecast yet
-    // 🛡️ Strict Rule: AI จะไม่มีวันบันทึกการทำนายเป็น "ทุกตลาด" (ต้องมี selectedMarket เฉพาะเจาะจงเท่านั้น)
+    // 🛡️ Strict Rule: AI จะไม่มีวันบันทึกซ้ำถ้าวันนั้น/ตลาดนั้นเคยถูกบันทึกแล้ว (ไม่ว่าผู้ใช้บันทึกเอง หรือ AI เคยบันทึกแล้ว)
     useEffect(() => {
         if (!autoPilot || !selectedMarket || selectedMarket === 'all' || results.length === 0 || isCalculating || isSaving) return;
 
         const dateKey = `${selectedDate}_${selectedMarket}`;
-        const existingForecast = productionForecasts.find(
-            f => (f as any).forecastForDate === selectedDate && f.marketId === selectedMarket
+
+        // 🛑 Check if forecast already exists for this date and market (saved by user or prior AI run)
+        const hasExistingForecast = productionForecasts.some(
+            f => f.forecastForDate === selectedDate && f.marketId === selectedMarket
         );
 
-        if (!existingForecast && !autoSavedDates[dateKey]) {
+        if (!hasExistingForecast && !autoSavedDates[dateKey]) {
             const validResults = results.filter(r => !r.error && r.forecast && !r.forecast.noData);
             if (validResults.length > 0) {
                 setIsSaving(true);
