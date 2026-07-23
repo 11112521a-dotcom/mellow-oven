@@ -202,14 +202,32 @@ export const ProductionPlanner: React.FC = () => {
             const resultsFromWorker = await forecasterEngine.calculateBatchForecasts(inputsToProcess, smartMode);
             setResults(resultsFromWorker);
         } catch (error) {
-            console.error('Worker failed:', error);
-            // Fallback empty state
-            setResults(forecastItems.map(item => ({
-                productId: item.id,
-                productName: item.name,
-                forecast: {} as ForecastOutput,
-                error: 'Worker calculation failed'
-            })));
+            console.warn('Worker calculation failed, executing fallback calculation on main thread:', error);
+            try {
+                const fallbackResults = await Promise.all(inputsToProcess.map(async (input, idx) => {
+                    const item = forecastItems[idx];
+                    let forecast;
+                    if (smartMode) {
+                        forecast = await calculateEcosystemForecast(input);
+                    } else {
+                        forecast = await calculateOptimalProduction(input as any);
+                    }
+                    return {
+                        productId: item.id,
+                        productName: item.name,
+                        forecast
+                    };
+                }));
+                setResults(fallbackResults);
+            } catch (fallbackError) {
+                console.error('Fallback calculation failed:', fallbackError);
+                setResults(forecastItems.map(item => ({
+                    productId: item.id,
+                    productName: item.name,
+                    forecast: {} as ForecastOutput,
+                    error: 'Calculation failed'
+                })));
+            }
         }
 
         setIsCalculating(false);

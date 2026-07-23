@@ -39,18 +39,27 @@ class ForecasterEngine {
             this.callbacks.set(requestId, { resolve, reject });
 
             // Set a timeout to prevent hanging UI
-            setTimeout(() => {
+            const timeoutId = setTimeout(() => {
                 if (this.callbacks.has(requestId)) {
                     this.callbacks.delete(requestId);
                     reject(new Error('Forecaster Worker Timeout (> 15s)'));
                 }
             }, 15000);
 
-            worker.postMessage({
-                type: 'RUN_FORECASTS',
-                requestId,
-                payload: { inputs, smartMode }
-            });
+            try {
+                // Ensure inputs are cleanly serializable object literal to prevent DataCloneError
+                const cleanInputs = JSON.parse(JSON.stringify(inputs));
+
+                worker.postMessage({
+                    type: 'RUN_FORECASTS',
+                    requestId,
+                    payload: { inputs: cleanInputs, smartMode }
+                });
+            } catch (err) {
+                clearTimeout(timeoutId);
+                this.callbacks.delete(requestId);
+                reject(err);
+            }
         });
     }
 
