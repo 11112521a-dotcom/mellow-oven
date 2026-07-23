@@ -209,6 +209,8 @@ export interface Market {
   location?: string;
   description?: string;
   color?: string;
+  isActive?: boolean;                 // Toggle active/inactive state (default: true)
+  type?: 'market' | 'consignment';    // 'market' = ตลาดนัด, 'consignment' = ฝากขาย/ส่งสาขา (default: 'market')
 }
 
 export interface MarketSchedule {

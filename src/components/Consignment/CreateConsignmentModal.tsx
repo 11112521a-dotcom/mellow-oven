@@ -15,7 +15,21 @@ export const CreateConsignmentModal: React.FC<CreateConsignmentModalProps> = ({
     initialShopId, 
     initialCarryOverItems 
 }) => {
-    const { products, externalShops, createConsignmentOrder } = useStore();
+    const { products, externalShops, markets, createConsignmentOrder } = useStore();
+
+    const allConsignmentShops = useMemo(() => {
+        const consignmentMarkets = markets
+            .filter(m => m.isActive !== false && m.type === 'consignment')
+            .map(m => ({
+                id: m.id,
+                name: m.name,
+                contactName: '',
+                contactPhone: '',
+                commissionRate: 0,
+                favoriteItems: []
+            }));
+        return [...externalShops, ...consignmentMarkets];
+    }, [externalShops, markets]);
     
     const [selectedShopId, setSelectedShopId] = useState(initialShopId || '');
     const [shopName, setShopName] = useState('');
@@ -37,7 +51,7 @@ export const CreateConsignmentModal: React.FC<CreateConsignmentModalProps> = ({
     React.useEffect(() => {
         if (initialShopId) {
             setSelectedShopId(initialShopId);
-            const shop = externalShops.find(s => s.id === initialShopId);
+            const shop = allConsignmentShops.find(s => s.id === initialShopId);
             if (shop) {
                 setShopName(shop.name);
                 setContactName(shop.contactName || '');
@@ -117,7 +131,7 @@ export const CreateConsignmentModal: React.FC<CreateConsignmentModalProps> = ({
     };
 
     const handleShopChange = (shopId: string) => {
-        const shop = externalShops.find(s => s.id === shopId);
+        const shop = allConsignmentShops.find(s => s.id === shopId);
         if (!shop) {
             setSelectedShopId('');
             setShopName('');
@@ -269,7 +283,7 @@ export const CreateConsignmentModal: React.FC<CreateConsignmentModalProps> = ({
                                     className="w-full px-4 py-2.5 border border-stone-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent text-base md:text-sm bg-white font-medium"
                                 >
                                     <option value="">-- เลือกร้านค้า / สาขา --</option>
-                                    {externalShops.map(s => (
+                                    {allConsignmentShops.map(s => (
                                         <option key={s.id} value={s.id}>{s.name}</option>
                                     ))}
                                 </select>

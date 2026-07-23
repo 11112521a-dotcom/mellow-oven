@@ -141,12 +141,32 @@ export const createSalesSlice: StateCreator<AppState, [], [], SalesSlice> = (set
     },
 
     addMarket: async (market) => {
-        set((state) => ({ markets: [...state.markets, market] }));
-        await supabase.from('markets').insert(market);
+        const newMarket = {
+            ...market,
+            isActive: market.isActive !== undefined ? market.isActive : true,
+            type: market.type || 'market'
+        };
+        set((state) => ({ markets: [...state.markets, newMarket] }));
+        
+        const dbPayload: any = {
+            id: newMarket.id,
+            name: newMarket.name,
+            location: newMarket.location,
+            description: newMarket.description,
+            color: newMarket.color,
+            is_active: newMarket.isActive,
+            type: newMarket.type
+        };
+        await supabase.from('markets').insert(dbPayload);
     },
     updateMarket: async (id, updates) => {
         set((state) => ({ markets: state.markets.map((m) => m.id === id ? { ...m, ...updates } : m) }));
-        await supabase.from('markets').update(updates).eq('id', id);
+        
+        const dbUpdates: any = { ...updates };
+        if (updates.isActive !== undefined) {
+            dbUpdates.is_active = updates.isActive;
+        }
+        await supabase.from('markets').update(dbUpdates).eq('id', id);
     },
     removeMarket: async (id) => {
         set((state) => ({ markets: state.markets.filter((m) => m.id !== id) }));

@@ -367,11 +367,17 @@ export const useStore = create<AppState>()(
                         return mappedProduct;
                     }) || state.products;
 
+                    const mappedMarkets = markets?.map((row: any) => ({
+                        ...row,
+                        isActive: row.is_active !== undefined ? row.is_active : (row.isActive !== undefined ? row.isActive : true),
+                        type: row.type || 'market'
+                    }));
+
                     return {
                         ...state,
                         products: mergedProducts,
                         ingredients: ingredients ? mappedIngredients : state.ingredients,
-                        markets: markets || state.markets,
+                        markets: mappedMarkets || state.markets,
                         transactions: transactions ? mappedTransactions : state.transactions,
                         productSales: productSales ? mappedProductSales : state.productSales,
                         productionForecasts: productionForecasts ? mappedProductionForecasts : state.productionForecasts,

@@ -23,11 +23,16 @@ interface MarketCardProps {
     marketSchedules: import('@/types').MarketSchedule[];
     onEdit: (market: Market) => void;
     onDelete: (market: Market) => void;
+    onToggleActive: (market: Market) => void;
     onToggleDay: (marketId: string, dayNum: number) => void;
 }
 
-const MarketCard: React.FC<MarketCardProps> = ({ market, stats, marketSchedules, onEdit, onDelete, onToggleDay }) => {
+const MarketCard: React.FC<MarketCardProps> = ({ 
+    market, stats, marketSchedules, onEdit, onDelete, onToggleActive, onToggleDay 
+}) => {
     const marketColor = market.color || '#b08968';
+    const isMarketActive = market.isActive !== false;
+    const isConsignment = market.type === 'consignment';
 
     const days = [
         { label: 'จ', num: 1, name: 'วันจันทร์' },
@@ -41,27 +46,61 @@ const MarketCard: React.FC<MarketCardProps> = ({ market, stats, marketSchedules,
 
     return (
         <div
-            className="group bg-white rounded-2xl border border-stone-200 overflow-hidden hover:shadow-xl hover:-translate-y-1 transition-all duration-300 relative"
+            className={`group bg-white rounded-2xl border overflow-hidden hover:shadow-xl hover:-translate-y-1 transition-all duration-300 relative ${
+                isMarketActive ? 'border-stone-200' : 'border-stone-300 bg-stone-50/70 opacity-75'
+            }`}
         >
             {/* Color Bar Top */}
             <div
                 className="h-2 w-full"
-                style={{ background: `linear-gradient(90deg, ${marketColor}, ${marketColor}88)` }}
+                style={{ background: isMarketActive ? `linear-gradient(90deg, ${marketColor}, ${marketColor}88)` : '#a8a29e' }}
             />
 
             {/* Content */}
             <div className="p-5">
+                {/* Status & Type Bar */}
+                <div className="flex justify-between items-center mb-3 text-xs">
+                    {/* Type Badge */}
+                    <span className={`px-2.5 py-0.5 rounded-full font-bold text-[11px] flex items-center gap-1 ${
+                        isConsignment
+                            ? 'bg-purple-100 text-purple-700 border border-purple-200'
+                            : 'bg-emerald-100 text-emerald-700 border border-emerald-200'
+                    }`}>
+                        {isConsignment ? '🏬 ฝากขาย / ส่งสาขา' : '🏪 ตลาดนัด'}
+                    </span>
+
+                    {/* Active Toggle Switch */}
+                    <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); onToggleActive(market); }}
+                        className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-extrabold transition-all cursor-pointer ${
+                            isMarketActive
+                                ? 'bg-green-500 text-white shadow-sm hover:bg-green-600'
+                                : 'bg-stone-200 text-stone-600 hover:bg-stone-300'
+                        }`}
+                        title={isMarketActive ? 'คลิกเพื่อปิดใช้งานตลาดนี้' : 'คลิกเพื่อเปิดใช้งานตลาดนี้'}
+                    >
+                        <span className={`w-2 h-2 rounded-full ${isMarketActive ? 'bg-white animate-pulse' : 'bg-stone-400'}`}></span>
+                        <span>{isMarketActive ? 'เปิดใช้งาน' : 'ปิดใช้งาน'}</span>
+                    </button>
+                </div>
+
                 {/* Header Row */}
                 <div className="flex justify-between items-start mb-4">
                     <div className="flex items-center gap-3">
                         <div
                             className="w-12 h-12 rounded-xl flex items-center justify-center text-white text-xl shadow-lg shrink-0"
-                            style={{ background: `linear-gradient(135deg, ${marketColor}, ${marketColor}cc)` }}
+                            style={{ background: isMarketActive ? `linear-gradient(135deg, ${marketColor}, ${marketColor}cc)` : '#a8a29e' }}
                         >
-                            🏪
+                            {isConsignment ? '🏬' : '🏪'}
                         </div>
                         <div>
-                            <h4 className="font-bold text-lg text-stone-800 leading-tight">{market.name}</h4>
+                            <h4 className="font-bold text-lg text-stone-800 leading-tight flex items-center gap-1.5">
+                                {market.name}
+                                {!isMarketActive && (
+                                    <span className="text-[10px] bg-stone-200 text-stone-600 px-1.5 py-0.5 rounded font-bold">ปิดอยู่</span>
+                                )}
+                            </h4>
                             {market.location && (
                                 <p className="text-xs text-stone-400 flex items-center gap-1 mt-0.5">
                                     <MapPin size={11} />
@@ -184,11 +223,15 @@ export const MarketManager: React.FC = () => {
     const [editingMarket, setEditingMarket] = useState<Market | null>(null);
     const [isDeleting, setIsDeleting] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
+    const [filterTab, setFilterTab] = useState<'all' | 'market' | 'consignment' | 'inactive'>('all');
+    
     const [formData, setFormData] = useState<Partial<Market>>({
         name: '',
         location: '',
         description: '',
-        color: '#b08968'
+        color: '#b08968',
+        type: 'market',
+        isActive: true
     });
 
     useEffect(() => {
@@ -206,6 +249,11 @@ export const MarketManager: React.FC = () => {
                 isActive: true
             });
         }
+    };
+
+    const handleToggleActive = async (market: Market) => {
+        const nextActive = !(market.isActive !== false);
+        await updateMarket(market.id, { isActive: nextActive });
     };
 
     // ============================================================
@@ -234,16 +282,25 @@ export const MarketManager: React.FC = () => {
         return statsMap;
     }, [markets, dailyReports]);
 
-    // Filter markets by search
+    // Filter markets by tab and search query
     const filteredMarkets = useMemo(() => {
-        if (!searchQuery.trim()) return markets;
+        let list = markets;
+        if (filterTab === 'market') {
+            list = list.filter(m => m.isActive !== false && (m.type === 'market' || !m.type));
+        } else if (filterTab === 'consignment') {
+            list = list.filter(m => m.isActive !== false && m.type === 'consignment');
+        } else if (filterTab === 'inactive') {
+            list = list.filter(m => m.isActive === false);
+        }
+
+        if (!searchQuery.trim()) return list;
         const q = searchQuery.toLowerCase();
-        return markets.filter(m =>
+        return list.filter(m =>
             m.name.toLowerCase().includes(q) ||
             (m.location || '').toLowerCase().includes(q) ||
             (m.description || '').toLowerCase().includes(q)
         );
-    }, [markets, searchQuery]);
+    }, [markets, searchQuery, filterTab]);
 
     // Total revenue across all markets
     const totalRevenue = useMemo(() => {
@@ -252,19 +309,33 @@ export const MarketManager: React.FC = () => {
         return sum;
     }, [marketStats]);
 
+    // Counts for tabs
+    const marketCounts = useMemo(() => {
+        return {
+            all: markets.length,
+            market: markets.filter(m => m.isActive !== false && (m.type === 'market' || !m.type)).length,
+            consignment: markets.filter(m => m.isActive !== false && m.type === 'consignment').length,
+            inactive: markets.filter(m => m.isActive === false).length
+        };
+    }, [markets]);
+
     // ============================================================
     // Handlers
     // ============================================================
 
     const handleOpenAdd = () => {
         setEditingMarket(null);
-        setFormData({ name: '', location: '', description: '', color: '#b08968' });
+        setFormData({ name: '', location: '', description: '', color: '#b08968', type: 'market', isActive: true });
         setIsModalOpen(true);
     };
 
     const handleOpenEdit = (market: Market) => {
         setEditingMarket(market);
-        setFormData(market);
+        setFormData({
+            ...market,
+            type: market.type || 'market',
+            isActive: market.isActive !== undefined ? market.isActive : true
+        });
         setIsModalOpen(true);
     };
 
@@ -279,7 +350,9 @@ export const MarketManager: React.FC = () => {
                     name: formData.name,
                     location: formData.location,
                     description: formData.description,
-                    color: formData.color
+                    color: formData.color,
+                    type: formData.type || 'market',
+                    isActive: formData.isActive !== undefined ? formData.isActive : true
                 } as Market);
             }
             setIsModalOpen(false);
@@ -346,7 +419,7 @@ export const MarketManager: React.FC = () => {
                                         {markets.length} แห่ง
                                     </span>
                                 </h2>
-                                <p className="text-xs text-stone-400 mt-0.5">Markets • เพิ่ม แก้ไข ลบช่องทางขาย</p>
+                                <p className="text-xs text-stone-400 mt-0.5">Markets • เพิ่ม แก้ไข สถานะ และประเภทช่องทางขาย</p>
                             </div>
                         </div>
 
@@ -373,20 +446,67 @@ export const MarketManager: React.FC = () => {
                         </div>
                     </div>
 
+                    {/* Filter Tabs */}
+                    <div className="flex flex-wrap items-center gap-2 mt-4 pt-4 border-t border-stone-100">
+                        <button
+                            onClick={() => setFilterTab('all')}
+                            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                                filterTab === 'all'
+                                    ? 'bg-stone-800 text-white shadow-sm'
+                                    : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
+                            }`}
+                        >
+                            ทั้งหมด ({marketCounts.all})
+                        </button>
+                        <button
+                            onClick={() => setFilterTab('market')}
+                            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+                                filterTab === 'market'
+                                    ? 'bg-emerald-600 text-white shadow-sm'
+                                    : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+                            }`}
+                        >
+                            <span>🏪 ตลาดนัด</span>
+                            <span className="bg-emerald-200/50 px-1.5 py-0.2 rounded-full text-[10px]">{marketCounts.market}</span>
+                        </button>
+                        <button
+                            onClick={() => setFilterTab('consignment')}
+                            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+                                filterTab === 'consignment'
+                                    ? 'bg-purple-600 text-white shadow-sm'
+                                    : 'bg-purple-50 text-purple-700 hover:bg-purple-100'
+                            }`}
+                        >
+                            <span>🏬 ฝากขาย / ส่งสาขา</span>
+                            <span className="bg-purple-200/50 px-1.5 py-0.2 rounded-full text-[10px]">{marketCounts.consignment}</span>
+                        </button>
+                        <button
+                            onClick={() => setFilterTab('inactive')}
+                            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+                                filterTab === 'inactive'
+                                    ? 'bg-amber-600 text-white shadow-sm'
+                                    : 'bg-amber-50 text-amber-700 hover:bg-amber-100'
+                            }`}
+                        >
+                            <span>🚫 ปิดใช้งาน</span>
+                            <span className="bg-amber-200/50 px-1.5 py-0.2 rounded-full text-[10px]">{marketCounts.inactive}</span>
+                        </button>
+                    </div>
+
                     {/* Summary Stats Bar */}
                     {markets.length > 0 && (
-                        <div className="flex flex-wrap gap-4 mt-4 pt-4 border-t border-stone-100">
-                            <div className="flex items-center gap-2 bg-violet-50 px-4 py-2 rounded-xl">
-                                <BarChart3 size={16} className="text-violet-500" />
-                                <span className="text-xs text-violet-600 font-medium">รายได้ทุกตลาดรวม</span>
-                                <span className="text-sm font-bold text-violet-800">
+                        <div className="flex flex-wrap gap-4 mt-3">
+                            <div className="flex items-center gap-2 bg-violet-50 px-3.5 py-1.5 rounded-xl">
+                                <BarChart3 size={14} className="text-violet-500" />
+                                <span className="text-xs text-violet-600 font-medium">รายได้รวม</span>
+                                <span className="text-xs font-bold text-violet-800">
                                     ฿{totalRevenue.toLocaleString('th-TH', { minimumFractionDigits: 0 })}
                                 </span>
                             </div>
-                            <div className="flex items-center gap-2 bg-emerald-50 px-4 py-2 rounded-xl">
-                                <TrendingUp size={16} className="text-emerald-500" />
-                                <span className="text-xs text-emerald-600 font-medium">ค่าเฉลี่ยต่อตลาด</span>
-                                <span className="text-sm font-bold text-emerald-800">
+                            <div className="flex items-center gap-2 bg-emerald-50 px-3.5 py-1.5 rounded-xl">
+                                <TrendingUp size={14} className="text-emerald-500" />
+                                <span className="text-xs text-emerald-600 font-medium">เฉลี่ย/ตลาด</span>
+                                <span className="text-xs font-bold text-emerald-800">
                                     ฿{markets.length > 0 ? (totalRevenue / markets.length).toLocaleString('th-TH', { minimumFractionDigits: 0 }) : 0}
                                 </span>
                             </div>
@@ -407,6 +527,7 @@ export const MarketManager: React.FC = () => {
                                 marketSchedules={marketSchedules}
                                 onEdit={handleOpenEdit}
                                 onDelete={handleDeleteClick}
+                                onToggleActive={handleToggleActive}
                                 onToggleDay={handleToggleDay}
                             />
                         ))}
@@ -472,6 +593,64 @@ export const MarketManager: React.FC = () => {
                         </div>
                     </div>
 
+                    {/* ประเภทช่องทางขาย (Market Type) */}
+                    <div>
+                        <label className="block text-xs font-bold text-stone-500 uppercase tracking-wide mb-1.5 flex items-center gap-2">
+                            <Store size={14} />
+                            ประเภทช่องทางขาย <span className="text-red-500">*</span>
+                        </label>
+                        <div className="grid grid-cols-2 gap-3">
+                            <button
+                                type="button"
+                                onClick={() => setFormData({ ...formData, type: 'market' })}
+                                className={`p-3 rounded-xl border-2 flex items-center gap-2.5 transition-all text-left ${
+                                    (formData.type || 'market') === 'market'
+                                        ? 'border-emerald-500 bg-emerald-50 text-emerald-800 font-bold shadow-sm'
+                                        : 'border-stone-200 bg-white text-stone-600 hover:bg-stone-50'
+                                }`}
+                            >
+                                <span className="text-xl">🏪</span>
+                                <div>
+                                    <p className="text-sm">ตลาดนัด</p>
+                                    <p className="text-[10px] opacity-75 font-normal">แสดงใน POS & AI สต็อก</p>
+                                </div>
+                            </button>
+
+                            <button
+                                type="button"
+                                onClick={() => setFormData({ ...formData, type: 'consignment' })}
+                                className={`p-3 rounded-xl border-2 flex items-center gap-2.5 transition-all text-left ${
+                                    formData.type === 'consignment'
+                                        ? 'border-purple-500 bg-purple-50 text-purple-800 font-bold shadow-sm'
+                                        : 'border-stone-200 bg-white text-stone-600 hover:bg-stone-50'
+                                }`}
+                            >
+                                <span className="text-xl">🏬</span>
+                                <div>
+                                    <p className="text-sm">ฝากขาย / ส่งสาขา</p>
+                                    <p className="text-[10px] opacity-75 font-normal">แสดงในบิลฝากขายเท่านั้น</p>
+                                </div>
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* สถานะเปิด/ปิดใช้งานตลาด */}
+                    <div className="bg-stone-50 p-3.5 rounded-xl border border-stone-200 flex items-center justify-between">
+                        <div>
+                            <p className="text-sm font-bold text-stone-800">สถานะเปิดใช้งานตลาดนี้</p>
+                            <p className="text-xs text-stone-500">หากปิดไว้ AI จะไม่ดึงตลาดนี้มาทำนาย และซ่อนจาก POS</p>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={() => setFormData({ ...formData, isActive: !(formData.isActive !== false) })}
+                            className={`w-12 h-6 rounded-full p-1 transition-colors flex items-center ${
+                                formData.isActive !== false ? 'bg-green-500 justify-end' : 'bg-stone-300 justify-start'
+                            }`}
+                        >
+                            <span className="w-4 h-4 rounded-full bg-white shadow-md"></span>
+                        </button>
+                    </div>
+
                     <div>
                         <label className="block text-xs font-bold text-stone-500 uppercase tracking-wide mb-1.5 flex items-center gap-2">
                             <Store size={14} />
@@ -479,7 +658,7 @@ export const MarketManager: React.FC = () => {
                         </label>
                         <input
                             required
-                            value={formData.name}
+                            value={formData.name || ''}
                             onChange={e => setFormData({ ...formData, name: e.target.value })}
                             className="w-full p-3 border border-stone-200 rounded-xl focus:ring-2 focus:ring-violet-500 focus:border-violet-500 outline-none text-stone-800 font-medium text-base md:text-sm"
                             placeholder="เช่น ตลาดนัดรถไฟ, ตลาดเช้า..."
@@ -491,7 +670,7 @@ export const MarketManager: React.FC = () => {
                             สถานที่ตั้ง
                         </label>
                         <input
-                            value={formData.location}
+                            value={formData.location || ''}
                             onChange={e => setFormData({ ...formData, location: e.target.value })}
                             className="w-full p-3 border border-stone-200 rounded-xl focus:ring-2 focus:ring-violet-500 focus:border-violet-500 outline-none text-stone-800 font-medium text-base md:text-sm"
                             placeholder="เช่น หลังห้างโลตัส, ถนนเจริญกรุง..."
@@ -500,7 +679,7 @@ export const MarketManager: React.FC = () => {
                     <div>
                         <label className="block text-xs font-bold text-stone-500 uppercase tracking-wide mb-1.5">รายละเอียดเพิ่มเติม</label>
                         <textarea
-                            value={formData.description}
+                            value={formData.description || ''}
                             onChange={e => setFormData({ ...formData, description: e.target.value })}
                             className="w-full p-3 border border-stone-200 rounded-xl focus:ring-2 focus:ring-violet-500 focus:border-violet-500 outline-none text-stone-800 text-base md:text-sm"
                             placeholder="เช่น ขายดีช่วงเย็น, เปิดเฉพาะวันเสาร์-อาทิตย์..."

@@ -580,9 +580,11 @@ export const DailySalesForm: React.FC = () => {
                                 className="bg-transparent border-none text-stone-700 font-medium focus:ring-0 cursor-pointer"
                             >
                                 <option value="">-- เลือกตลาด --</option>
-                                {markets.map(m => (
-                                    <option key={m.id} value={m.id}>{m.name}</option>
-                                ))}
+                                 {markets
+                                    .filter(m => m.isActive !== false && (m.type === 'market' || !m.type))
+                                    .map(m => (
+                                        <option key={m.id} value={m.id}>{m.name}</option>
+                                    ))}
                             </select>
                         </div>
                         <div className="bg-white/80 backdrop-blur-sm rounded-xl p-3 flex items-center gap-2 border border-amber-100 shadow-sm">
