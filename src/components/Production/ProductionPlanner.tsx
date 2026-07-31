@@ -475,6 +475,16 @@ export const ProductionPlanner: React.FC = () => {
                         </div>
                     </div>
 
+                    {/* Skipped Market Notification Banner */}
+                    {selectedMarket && marketTripLogs.some(l => l.date === selectedDate && l.marketId === selectedMarket && l.status === 'skipped') && (
+                        <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-center justify-between gap-3 text-red-800 shadow-sm">
+                            <div className="flex items-center gap-2 text-sm font-semibold">
+                                <AlertTriangle size={18} className="text-red-600 flex-shrink-0" />
+                                <span>🔴 ตั้งค่า <strong>"ไม่ได้ไปตลาดนี้"</strong> ในวันที่เลือก (AI คำนวณตัวเลขทำนายอ้างอิงให้ดูได้ปกติ แต่จะไม่บันทึกแผนลงระบบให้อัตโนมัติ)</span>
+                            </div>
+                        </div>
+                    )}
+
                     {/* Auto-Pilot Notification Banner */}
                     {autoPilot && autoSavedDates[`${selectedDate}_${selectedMarket}`] && (
                         <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 px-4 flex items-center justify-between text-emerald-800 text-sm font-medium animate-in fade-in duration-300">
