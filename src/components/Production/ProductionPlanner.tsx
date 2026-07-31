@@ -240,18 +240,11 @@ export const ProductionPlanner: React.FC = () => {
     }, [calculateForecasts]);
 
     // AI Auto-Pilot: Auto-save predictions if target date does not have a saved forecast yet
-    // 🛡️ Strict Rule: AI จะไม่มีวันบันทึกซ้ำถ้าวันนั้น/ตลาดนั้นเคยถูกบันทึกแล้ว หรือถูกกด "ไม่ได้ไปตลาด (skipped)"
+    // 🛡️ Always Forecast & Save: AI จะทำการทำนายและบันทึกแผนให้อัตโนมัติทุกวันตามตารางเสมอ
     useEffect(() => {
         if (!autoPilot || !selectedMarket || selectedMarket === 'all' || results.length === 0 || isCalculating || isSaving) return;
 
         const dateKey = `${selectedDate}_${selectedMarket}`;
-
-        // 🛑 Check if user marked this market trip as "skipped"
-        const tripLog = marketTripLogs.find(l => l.date === selectedDate && l.marketId === selectedMarket);
-        if (tripLog?.status === 'skipped') {
-            // User explicitly marked this market trip as skipped -> DO NOT AUTO-SAVE
-            return;
-        }
 
         // 🛑 Check if forecast already exists for this date and market (saved by user or prior AI run)
         const hasExistingForecast = productionForecasts.some(
@@ -289,7 +282,7 @@ export const ProductionPlanner: React.FC = () => {
                 });
             }
         }
-    }, [selectedDate, selectedMarket, results, isCalculating, isSaving, productionForecasts, autoSavedDates, autoPilot, selectedWeather, saveForecast, marketTripLogs, saveMarketTripLog]);
+    }, [selectedDate, selectedMarket, results, isCalculating, isSaving, productionForecasts, autoSavedDates, autoPilot, selectedWeather, saveForecast, saveMarketTripLog]);
 
     const handleSavePlan = async () => {
         setIsSaving(true);
@@ -475,15 +468,7 @@ export const ProductionPlanner: React.FC = () => {
                         </div>
                     </div>
 
-                    {/* Skipped Market Notification Banner */}
-                    {selectedMarket && marketTripLogs.some(l => l.date === selectedDate && l.marketId === selectedMarket && l.status === 'skipped') && (
-                        <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-center justify-between gap-3 text-red-800 shadow-sm">
-                            <div className="flex items-center gap-2 text-sm font-semibold">
-                                <AlertTriangle size={18} className="text-red-600 flex-shrink-0" />
-                                <span>🔴 ตั้งค่า <strong>"ไม่ได้ไปตลาดนี้"</strong> ในวันที่เลือก (AI คำนวณตัวเลขทำนายอ้างอิงให้ดูได้ปกติ แต่จะไม่บันทึกแผนลงระบบให้อัตโนมัติ)</span>
-                            </div>
-                        </div>
-                    )}
+
 
                     {/* Auto-Pilot Notification Banner */}
                     {autoPilot && autoSavedDates[`${selectedDate}_${selectedMarket}`] && (
