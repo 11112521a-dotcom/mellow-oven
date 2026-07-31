@@ -433,6 +433,7 @@ export const useStore = create<AppState>()(
                 });
                 get().generateAlerts();
                 get().fetchConsignmentOrders();
+                get().fetchMarketTripLogs();
                 get().recalculateJarBalances();
             },
 

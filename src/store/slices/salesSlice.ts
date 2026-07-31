@@ -265,5 +265,86 @@ export const createSalesSlice: StateCreator<AppState, [], [], SalesSlice> = (set
             marketSchedules: state.marketSchedules.filter(s => s.id !== id)
         }));
         await supabase.from('market_schedules').delete().eq('id', id);
+    },
+
+    marketTripLogs: [],
+    fetchMarketTripLogs: async () => {
+        try {
+            const { data, error } = await supabase.from('market_trip_logs').select('*');
+            if (!error && data) {
+                const mappedLogs = data.map(row => ({
+                    id: row.id,
+                    date: row.date,
+                    marketId: row.market_id,
+                    marketName: row.market_name,
+                    status: row.status,
+                    isAutoSaved: row.is_auto_saved,
+                    notes: row.notes,
+                    createdAt: row.created_at
+                }));
+                set({ marketTripLogs: mappedLogs });
+                try {
+                    localStorage.setItem('mellow_oven_market_trip_logs', JSON.stringify(mappedLogs));
+                } catch (e) {}
+            } else {
+                const stored = localStorage.getItem('mellow_oven_market_trip_logs');
+                if (stored) {
+                    set({ marketTripLogs: JSON.parse(stored) });
+                }
+            }
+        } catch (err) {
+            const stored = localStorage.getItem('mellow_oven_market_trip_logs');
+            if (stored) {
+                set({ marketTripLogs: JSON.parse(stored) });
+            }
+        }
+    },
+    saveMarketTripLog: async (log) => {
+        const id = log.id || crypto.randomUUID();
+        const createdAt = log.createdAt || new Date().toISOString();
+        const newLog: import('../../../types').MarketTripLog = {
+            id,
+            date: log.date,
+            marketId: log.marketId,
+            marketName: log.marketName || '',
+            status: log.status || 'visited',
+            isAutoSaved: log.isAutoSaved !== undefined ? log.isAutoSaved : false,
+            notes: log.notes,
+            createdAt
+        };
+
+        set(state => {
+            const updated = [
+                ...state.marketTripLogs.filter(l => !(l.date === log.date && l.marketId === log.marketId)),
+                newLog
+            ];
+            try {
+                localStorage.setItem('mellow_oven_market_trip_logs', JSON.stringify(updated));
+            } catch (e) {}
+            return { marketTripLogs: updated };
+        });
+
+        try {
+            const dbPayload = {
+                id,
+                date: log.date,
+                market_id: log.marketId,
+                market_name: log.marketName || '',
+                status: log.status || 'visited',
+                is_auto_saved: log.isAutoSaved !== undefined ? log.isAutoSaved : false,
+                notes: log.notes,
+                created_at: createdAt
+            };
+            await supabase.from('market_trip_logs').upsert(dbPayload, { onConflict: 'date,market_id' });
+        } catch (e) {}
+    },
+    toggleMarketTripStatus: async (date, marketId, status, marketName) => {
+        await get().saveMarketTripLog({
+            date,
+            marketId,
+            marketName: marketName || '',
+            status,
+            isAutoSaved: false
+        });
     }
 });

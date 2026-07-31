@@ -25,6 +25,7 @@ import { Save, Loader2, Calendar, CloudSun, Store, AlertTriangle, TrendingUp, Pa
 import { analyzeAccuracy } from '@/src/lib/forecasting/accuracyAnalytics';
 import { AccuracyDashboard } from './AccuracyDashboard';
 import { MarketScheduler } from './MarketScheduler';
+import { AutoMarketTripLogger } from './AutoMarketTripLogger';
 
 interface ForecastResult {
     productId: string;
@@ -34,8 +35,8 @@ interface ForecastResult {
 }
 
 export const ProductionPlanner: React.FC = () => {
-    const { products, markets, marketSchedules, saveForecast, productSales, dailyReports, productionForecasts, dailyInventory } = useStore();
-    const [activeTab, setActiveTab] = useState<'plan' | 'accuracy' | 'schedule'>('plan');
+    const { products, markets, marketSchedules, saveForecast, productSales, dailyReports, productionForecasts, dailyInventory, marketTripLogs, saveMarketTripLog } = useStore();
+    const [activeTab, setActiveTab] = useState<'plan' | 'trips' | 'accuracy' | 'schedule'>('plan');
 
     // State for Production Planner
     const [selectedDate, setSelectedDate] = useState(() => {
@@ -239,11 +240,18 @@ export const ProductionPlanner: React.FC = () => {
     }, [calculateForecasts]);
 
     // AI Auto-Pilot: Auto-save predictions if target date does not have a saved forecast yet
-    // 🛡️ Strict Rule: AI จะไม่มีวันบันทึกซ้ำถ้าวันนั้น/ตลาดนั้นเคยถูกบันทึกแล้ว (ไม่ว่าผู้ใช้บันทึกเอง หรือ AI เคยบันทึกแล้ว)
+    // 🛡️ Strict Rule: AI จะไม่มีวันบันทึกซ้ำถ้าวันนั้น/ตลาดนั้นเคยถูกบันทึกแล้ว หรือถูกกด "ไม่ได้ไปตลาด (skipped)"
     useEffect(() => {
         if (!autoPilot || !selectedMarket || selectedMarket === 'all' || results.length === 0 || isCalculating || isSaving) return;
 
         const dateKey = `${selectedDate}_${selectedMarket}`;
+
+        // 🛑 Check if user marked this market trip as "skipped"
+        const tripLog = marketTripLogs.find(l => l.date === selectedDate && l.marketId === selectedMarket);
+        if (tripLog?.status === 'skipped') {
+            // User explicitly marked this market trip as skipped -> DO NOT AUTO-SAVE
+            return;
+        }
 
         // 🛑 Check if forecast already exists for this date and market (saved by user or prior AI run)
         const hasExistingForecast = productionForecasts.some(
@@ -267,13 +275,21 @@ export const ProductionPlanner: React.FC = () => {
                 Promise.all(promises).then(() => {
                     setAutoSavedDates(prev => ({ ...prev, [dateKey]: true }));
                     setIsSaving(false);
+                    // Also record auto trip log
+                    saveMarketTripLog({
+                        date: selectedDate,
+                        marketId: selectedMarket,
+                        marketName: getMarketName(selectedMarket),
+                        status: 'auto_logged',
+                        isAutoSaved: true
+                    });
                 }).catch(err => {
                     console.error('Auto-pilot save failed:', err);
                     setIsSaving(false);
                 });
             }
         }
-    }, [selectedDate, selectedMarket, results, isCalculating, isSaving, productionForecasts, autoSavedDates, autoPilot, selectedWeather, saveForecast]);
+    }, [selectedDate, selectedMarket, results, isCalculating, isSaving, productionForecasts, autoSavedDates, autoPilot, selectedWeather, saveForecast, marketTripLogs, saveMarketTripLog]);
 
     const handleSavePlan = async () => {
         setIsSaving(true);
@@ -342,6 +358,13 @@ export const ProductionPlanner: React.FC = () => {
                     </button>
 
                     <button
+                        onClick={() => setActiveTab('trips')}
+                        className={`px-4 py-2 rounded-md text-sm font-semibold transition-all whitespace-nowrap ${activeTab === 'trips' ? 'bg-white text-cafe-800 shadow-sm' : 'text-cafe-500 hover:text-cafe-800'}`}
+                    >
+                        🚗 บันทึกออกตลาด
+                    </button>
+
+                    <button
                         onClick={() => setActiveTab('accuracy')}
                         className={`px-4 py-2 rounded-md text-sm font-semibold transition-all whitespace-nowrap ${activeTab === 'accuracy' ? 'bg-white text-cafe-800 shadow-sm' : 'text-cafe-500 hover:text-cafe-800'}`}
                     >
@@ -356,6 +379,10 @@ export const ProductionPlanner: React.FC = () => {
                     </button>
                 </div>
             </div>
+
+            {activeTab === 'trips' && (
+                <AutoMarketTripLogger />
+            )}
 
             {activeTab === 'schedule' && (
                 <MarketScheduler />

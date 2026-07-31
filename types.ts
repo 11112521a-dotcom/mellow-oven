@@ -221,6 +221,17 @@ export interface MarketSchedule {
   createdAt: string;
 }
 
+export interface MarketTripLog {
+  id: string;
+  date: string; // YYYY-MM-DD
+  marketId: string;
+  marketName: string;
+  status: 'visited' | 'skipped' | 'auto_logged'; // ไปตลาด / ยกเลิกออกตลาด / AI บันทึกให้อัตโนมัติ
+  isAutoSaved: boolean;
+  notes?: string;
+  createdAt: string;
+}
+
 // The Complex Daily Report Structure (aggregated)
 export interface DailyReport {
   id?: string; // Add ID for easier reference

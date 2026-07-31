@@ -196,6 +196,12 @@ export interface SalesSlice {
     updateMarketSchedule: (id: string, updates: Partial<import('../../types').MarketSchedule>) => Promise<void>;
     removeMarketSchedule: (id: string) => Promise<void>;
     fetchMarketSchedules: () => Promise<void>;
+
+    // Market Trip Logs (Auto Market Trip & Skip Option)
+    marketTripLogs: import('../../types').MarketTripLog[];
+    fetchMarketTripLogs: () => Promise<void>;
+    saveMarketTripLog: (log: Partial<import('../../types').MarketTripLog> & { date: string; marketId: string }) => Promise<void>;
+    toggleMarketTripStatus: (date: string, marketId: string, status: 'visited' | 'skipped' | 'auto_logged', marketName?: string) => Promise<void>;
 }
 
 export interface PromotionSlice {
