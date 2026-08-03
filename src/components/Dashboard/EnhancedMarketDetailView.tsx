@@ -8,13 +8,14 @@
 // - #19: All constants named
 // ============================================================
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
     X, TrendingUp, TrendingDown, Package, Calendar, Award, AlertTriangle,
     BarChart3, Download, Lightbulb, Star,
     ShoppingCart, Clock, DollarSign, Layers,
-    ChevronLeft, Store
+    ChevronLeft, Store, Trash2, Loader2
 } from 'lucide-react';
+import { useStore } from '@/src/store';
 import { formatCurrency } from '@/src/lib/utils';
 import {
     EnhancedMarketData,
@@ -63,6 +64,18 @@ export const EnhancedMarketDetailView: React.FC<EnhancedMarketDetailViewProps> =
     isModal = true,
     inventory = [] // Default empty
 }) => {
+    const { deleteProductSalesByDate } = useStore();
+
+    // Handle delete sales log for a date
+    const handleDeleteDate = async (date: string) => {
+        try {
+            await deleteProductSalesByDate(date, marketId);
+        } catch (err) {
+            console.error('Failed to delete sales log for date:', err);
+            alert('เกิดข้อผิดพลาดในการลบข้อมูลประวัติการขาย');
+        }
+    };
+
     // Calculate enhanced data
     const data = useMemo(() =>
         calculateEnhancedMarketData(sales, marketId, marketName, fromDate, toDate, totalRevenue, inventory),
@@ -378,7 +391,7 @@ export const EnhancedMarketDetailView: React.FC<EnhancedMarketDetailViewProps> =
 
                     <div className="space-y-4">
                         {data.dailyBreakdown.map((day) => (
-                            <DailyCard key={day.date} day={day} />
+                            <DailyCard key={day.date} day={day} onDeleteDate={handleDeleteDate} />
                         ))}
                     </div>
                 </section>
@@ -538,13 +551,25 @@ const ProductRow: React.FC<{ product: ProductAnalysis }> = ({ product }) => {
 // NEW: Daily Card with Per-Product Details
 // ============================================================
 
-const DailyCard: React.FC<{ day: DailyBreakdown }> = ({ day }) => {
+const DailyCard: React.FC<{ day: DailyBreakdown; onDeleteDate?: (date: string) => void }> = ({ day, onDeleteDate }) => {
+    const [isDeleting, setIsDeleting] = useState(false);
     const borderColor = day.isBestDay ? 'border-emerald-300 bg-emerald-50/30' :
         day.isWorstDay ? 'border-rose-300 bg-rose-50/30' :
             'border-stone-200';
 
+    const handleDelete = async () => {
+        const confirmMsg = `คุณต้องการลบข้อมูลประวัติการขายประจำวันที่ ${format(new Date(day.date), 'd MMMM yyyy', { locale: th })} ใช่หรือไม่? (ข้อมูลยอดขายของวันนี้จะถูกลบออกจากระบบทั้งยวง)`;
+        if (window.confirm(confirmMsg)) {
+            setIsDeleting(true);
+            if (onDeleteDate) {
+                await onDeleteDate(day.date);
+            }
+            setIsDeleting(false);
+        }
+    };
+
     return (
-        <div className={`rounded-2xl border-2 ${borderColor} overflow-hidden`}>
+        <div className={`rounded-2xl border-2 ${borderColor} overflow-hidden ${isDeleting ? 'opacity-40 pointer-events-none' : ''}`}>
             {/* Day Header */}
             <div className={`px-4 py-3 flex items-center justify-between ${day.isBestDay ? 'bg-emerald-100' : day.isWorstDay ? 'bg-rose-100' : 'bg-stone-100'}`}>
                 <div className="flex items-center gap-3">
@@ -564,9 +589,22 @@ const DailyCard: React.FC<{ day: DailyBreakdown }> = ({ day }) => {
                         </p>
                     </div>
                 </div>
-                <div className="text-right">
-                    <p className="text-lg font-bold text-stone-800">{formatCurrency(day.revenue)}</p>
-                    <p className="text-sm text-emerald-600 font-medium">กำไร {formatCurrency(day.profit)}</p>
+                <div className="flex items-center gap-3">
+                    <div className="text-right">
+                        <p className="text-lg font-bold text-stone-800">{formatCurrency(day.revenue)}</p>
+                        <p className="text-sm text-emerald-600 font-medium">กำไร {formatCurrency(day.profit)}</p>
+                    </div>
+                    {onDeleteDate && (
+                        <button
+                            type="button"
+                            onClick={handleDelete}
+                            disabled={isDeleting}
+                            className="p-2 rounded-xl text-stone-400 hover:text-rose-600 hover:bg-rose-50 border border-stone-200/60 hover:border-rose-200 transition-all active:scale-95 ml-1"
+                            title="ลบข้อมูลประวัติการขายของวันนี้"
+                        >
+                            {isDeleting ? <Loader2 size={18} className="animate-spin text-rose-500" /> : <Trash2 size={18} />}
+                        </button>
+                    )}
                 </div>
             </div>
 

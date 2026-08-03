@@ -140,6 +140,72 @@ export const createSalesSlice: StateCreator<AppState, [], [], SalesSlice> = (set
         await supabase.from('product_sales').update(dbUpdates).eq('id', id);
     },
 
+    deleteProductSalesByDate: async (date, marketId) => {
+        try {
+            // Delete from product_sales table in Supabase
+            let query = supabase.from('product_sales').delete().eq('sale_date', date);
+            if (marketId && marketId !== 'all') {
+                query = query.eq('market_id', marketId);
+            }
+            const { error: salesErr } = await query;
+            if (salesErr) {
+                console.error('[deleteProductSalesByDate] Supabase product_sales delete error:', salesErr);
+            }
+
+            // Also delete corresponding daily_inventory rows for that date & market
+            let invQuery = supabase.from('daily_inventory').delete().eq('business_date', date);
+            if (marketId && marketId !== 'all') {
+                invQuery = invQuery.eq('market_id', marketId);
+            }
+            await invQuery;
+
+            // Also delete corresponding daily_reports rows for that date & market
+            let reportQuery = supabase.from('daily_reports').delete().eq('date', date);
+            if (marketId && marketId !== 'all') {
+                reportQuery = reportQuery.eq('market_id', marketId);
+            }
+            await reportQuery;
+
+            // Update Zustand local state
+            set(state => ({
+                productSales: state.productSales.filter(s => {
+                    if (s.saleDate !== date) return true;
+                    if (marketId && marketId !== 'all' && s.marketId !== marketId) return true;
+                    return false;
+                }),
+                dailyInventory: state.dailyInventory.filter(inv => {
+                    if (inv.businessDate !== date) return true;
+                    if (marketId && marketId !== 'all' && inv.marketId !== marketId) return true;
+                    return false;
+                }),
+                dailyReports: state.dailyReports.filter(rep => {
+                    if (rep.date !== date) return true;
+                    if (marketId && marketId !== 'all' && rep.marketId !== marketId) return true;
+                    return false;
+                })
+            }));
+        } catch (err) {
+            console.error('[deleteProductSalesByDate] Error:', err);
+            throw err;
+        }
+    },
+
+    deleteProductSalesById: async (id) => {
+        try {
+            const { error } = await supabase.from('product_sales').delete().eq('id', id);
+            if (error) {
+                console.error('[deleteProductSalesById] Supabase delete error:', error);
+            }
+
+            set(state => ({
+                productSales: state.productSales.filter(log => log.id !== id)
+            }));
+        } catch (err) {
+            console.error('[deleteProductSalesById] Error:', err);
+            throw err;
+        }
+    },
+
     addMarket: async (market) => {
         const newMarket = {
             ...market,

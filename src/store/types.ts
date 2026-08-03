@@ -186,6 +186,8 @@ export interface SalesSlice {
     getProductSalesByDateRange: (fromDate: string, toDate: string) => ProductSaleLog[];
     getProductSalesByProduct: (productId: string) => ProductSaleLog[];
     updateProductSaleLog: (id: string, updates: Partial<ProductSaleLog>) => Promise<void>;
+    deleteProductSalesByDate: (date: string, marketId?: string) => Promise<void>;
+    deleteProductSalesById: (id: string) => Promise<void>;
 
     addMarket: (market: Market) => void;
     updateMarket: (id: string, updates: Partial<Market>) => void;
