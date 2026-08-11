@@ -126,9 +126,9 @@ const generateReceiptCanvasImage = (order: ConsignmentOrder): string => {
     ctx.textAlign = 'left';
     ctx.fillText('สินค้า', leftMargin, currentY);
     ctx.fillText('จำนวน', qtyX, currentY);
-    // English 'Total' is safe for right align
-    ctx.textAlign = 'right';
-    ctx.fillText('Total(฿)', rightMargin, currentY);
+    // Use left align with manual X position for 'รวม(฿)' to avoid WebKit right-align bug with ฿ symbol
+    ctx.textAlign = 'left';
+    ctx.fillText('รวม(฿)', 315, currentY);
     currentY += 10;
 
     // Solid Line
