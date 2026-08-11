@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Store, Calendar, Tag, Package, CheckCircle, Clock, AlertCircle, Trash2, Printer, ChevronRight, Info } from 'lucide-react';
+import { X, Store, Calendar, Tag, Package, CheckCircle, Clock, AlertCircle, Trash2, Printer, ChevronRight, Info, Receipt } from 'lucide-react';
 import { ConsignmentOrder, ConsignmentOrderStatus } from '../../../types';
 import { useStore } from '../../store';
+import { ConsignmentThermalReceipt } from './ConsignmentThermalReceipt';
 
 interface ConsignmentDetailsModalProps {
     order: ConsignmentOrder;
@@ -30,7 +31,8 @@ function TruckIcon() {
 
 export const ConsignmentDetailsModal: React.FC<ConsignmentDetailsModalProps> = ({ order, onClose, onSettleClick }) => {
     const { deleteConsignmentOrder } = useStore();
-    
+    const [showThermalSlip, setShowThermalSlip] = useState(false);
+
     const handleDelete = async () => {
         let confirmMsg = `ต้องการลบและยกเลิกบิล ${order.orderNumber} หรือไม่?`;
         if (order.status === 'shipped') {
@@ -51,7 +53,7 @@ export const ConsignmentDetailsModal: React.FC<ConsignmentDetailsModalProps> = (
     };
 
     const handlePrint = () => {
-        window.print();
+        setShowThermalSlip(true);
     };
 
     const sellThroughPercent = order.totalQuantitySent > 0 
@@ -293,6 +295,14 @@ export const ConsignmentDetailsModal: React.FC<ConsignmentDetailsModalProps> = (
                     </div>
                 </motion.div>
             </div>
+
+            {/* Thermal Receipt Print Modal (57mm) */}
+            {showThermalSlip && (
+                <ConsignmentThermalReceipt
+                    order={order}
+                    onClose={() => setShowThermalSlip(false)}
+                />
+            )}
         </AnimatePresence>
     );
 };

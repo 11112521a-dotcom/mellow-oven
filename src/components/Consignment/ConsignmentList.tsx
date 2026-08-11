@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useStore } from '../../store';
-import { Store, Plus, Search, Check, Package, MapPin, Phone, Truck, Clock, AlertCircle, BarChart3, ChevronRight } from 'lucide-react';
+import { Store, Plus, Search, Check, Package, MapPin, Phone, Truck, Clock, AlertCircle, BarChart3, ChevronRight, Printer } from 'lucide-react';
 import { ConsignmentOrderStatus, ConsignmentOrder } from '../../../types';
 import { CreateConsignmentModal } from './CreateConsignmentModal';
 import { ConsignmentSettleModal } from './ConsignmentSettleModal';
@@ -8,6 +8,7 @@ import { ExternalShopsManagerModal } from './ExternalShopsManagerModal';
 import { ConsignmentDashboard } from './ConsignmentDashboard';
 import { ConsignmentPendingStock } from './ConsignmentPendingStock';
 import { ConsignmentDetailsModal } from './ConsignmentDetailsModal';
+import { ConsignmentThermalReceipt } from './ConsignmentThermalReceipt';
 
 const statusConfig: Record<ConsignmentOrderStatus, { label: string; color: string; icon: React.ReactNode }> = {
     pending: { label: 'รอส่ง', color: 'bg-yellow-50 text-yellow-700 border-yellow-100', icon: <Clock className="w-3.5 h-3.5" /> },
@@ -27,6 +28,7 @@ export const ConsignmentList: React.FC = () => {
     const [createModalInitialData, setCreateModalInitialData] = useState<{ shopId: string; items: any[] } | null>(null);
     const [settleOrder, setSettleOrder] = useState<ConsignmentOrder | null>(null);
     const [selectedOrder, setSelectedOrder] = useState<ConsignmentOrder | null>(null);
+    const [printReceiptOrder, setPrintReceiptOrder] = useState<ConsignmentOrder | null>(null);
 
     useEffect(() => {
         fetchConsignmentOrders();
@@ -195,14 +197,6 @@ export const ConsignmentList: React.FC = () => {
                                         {order.status === 'settled' && (
                                             <div className="p-3 bg-stone-50 rounded-2xl border border-stone-100 mt-3 space-y-1.5">
                                                 <div className="flex justify-between text-xs font-medium">
-                                                    <span className="text-stone-400">ยอดขายจริง</span>
-                                                    <span className="font-bold text-emerald-600">฿{order.totalRevenue.toLocaleString()}</span>
-                                                </div>
-                                                <div className="flex justify-between text-xs font-medium">
-                                                    <span className="text-stone-400">ขายได้</span>
-                                                    <span className="font-bold text-stone-700">{order.totalQuantitySold} ชิ้น</span>
-                                                </div>
-                                                <div className="flex justify-between text-xs font-medium">
                                                     <span className="text-stone-400">คืน / เสีย / แจก</span>
                                                     <span className="font-bold text-stone-500">
                                                         {order.totalQuantityReturned} / {order.totalQuantityWaste} / {order.totalQuantityGiveaway} ชิ้น
@@ -220,6 +214,16 @@ export const ConsignmentList: React.FC = () => {
                                             รายละเอียด
                                             <ChevronRight size={14} />
                                         </button>
+
+                                        <button
+                                            onClick={() => setPrintReceiptOrder(order)}
+                                            className="py-2 px-2.5 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-xl text-xs font-bold transition-all min-h-[38px] flex items-center justify-center gap-1 border border-stone-200"
+                                            title="พิมพ์สลิปส่งของ 57mm"
+                                        >
+                                            <Printer className="w-3.5 h-3.5 text-emerald-600" />
+                                            <span>สลิป</span>
+                                        </button>
+
                                         {order.status === 'pending' && (
                                             <button
                                                 onClick={() => updateConsignmentOrderStatus(order.id, 'shipped')}
@@ -273,6 +277,13 @@ export const ConsignmentList: React.FC = () => {
                         setSelectedOrder(null);
                         setSettleOrder(ord);
                     }}
+                />
+            )}
+
+            {printReceiptOrder && (
+                <ConsignmentThermalReceipt
+                    order={printReceiptOrder}
+                    onClose={() => setPrintReceiptOrder(null)}
                 />
             )}
         </div>
