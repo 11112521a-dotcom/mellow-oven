@@ -182,7 +182,7 @@ export const ConsignmentThermalReceipt: React.FC<ConsignmentThermalReceiptProps>
                         </div>
 
                         {/* Signatures */}
-                        <div className="pt-4 pb-2 space-y-4 text-[10px]">
+                        <div className="pt-3 pb-2 space-y-4 text-[10px]">
                             <div className="flex justify-between items-end pt-4">
                                 <div className="text-center w-[45%]">
                                     <div className="border-b border-stone-400 mb-1"></div>
@@ -193,6 +193,16 @@ export const ConsignmentThermalReceipt: React.FC<ConsignmentThermalReceiptProps>
                                     <p>ผู้รับฝากขาย</p>
                                 </div>
                             </div>
+                        </div>
+
+                        {/* Verification QR Code */}
+                        <div className="pt-2 pb-1 text-center flex flex-col items-center justify-center">
+                            <img
+                                src={`https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=MO-VERIFY:${order.orderNumber}:${order.shopId}`}
+                                alt="QR Verification"
+                                className="w-16 h-16 border border-stone-300 p-0.5 bg-white rounded my-1"
+                            />
+                            <p className="text-[8px] font-bold text-stone-600">สแกนตรวจสอบสถานะบิล & ยอดค้าง</p>
                         </div>
 
                         {/* Footer Message */}
