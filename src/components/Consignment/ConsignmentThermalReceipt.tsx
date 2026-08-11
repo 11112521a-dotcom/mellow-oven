@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { ConsignmentOrder } from '../../../types';
-import { Printer, Download, X, Loader2 } from 'lucide-react';
+import { Printer, Share2, X, Loader2 } from 'lucide-react';
 import domtoimage from 'dom-to-image-more';
 import QRCode from 'qrcode';
 
@@ -52,27 +52,52 @@ export const ConsignmentThermalReceipt: React.FC<ConsignmentThermalReceiptProps>
         window.print();
     };
 
-    // Save as Image for Bluetooth Apps like Fun Print
+    // Share/Save as Image — uses Native Share Sheet on mobile (iOS & Android)
     const [isDownloading, setIsDownloading] = useState(false);
 
-    const handleDownloadImage = async () => {
+    const handleShareImage = async () => {
         if (!receiptRef.current || isDownloading) return;
         setIsDownloading(true);
         try {
-            // Wait a tick to ensure QR image is painted
-            await new Promise(r => setTimeout(r, 200));
+            // Wait for QR Code to paint
+            await new Promise(r => setTimeout(r, 300));
+
             const dataUrl = await domtoimage.toPng(receiptRef.current, {
                 quality: 1,
-                scale: 3,   // High DPI for 300DPI thermal printers
+                scale: 3,
                 bgcolor: '#ffffff',
             });
-            const link = document.createElement('a');
-            link.download = `Slip_${order.orderNumber}_${order.shopName}.png`;
-            link.href = dataUrl;
-            link.click();
-        } catch (err) {
-            console.error('Failed to generate receipt image:', err);
-            alert('เกิดข้อผิดพลาด กรุณาลองอีกครั้ง');
+
+            // Convert data URL → Blob → File
+            const res = await fetch(dataUrl);
+            const blob = await res.blob();
+            const fileName = `Slip_${order.orderNumber}_${order.shopName}.png`;
+            const file = new File([blob], fileName, { type: 'image/png' });
+
+            // Try Native Share Sheet (iOS 15+ & Android Chrome) → opens Fun Print directly
+            if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                await navigator.share({
+                    files: [file],
+                    title: `สลิปฝากขาย ${order.shopName}`,
+                    text: `ใบส่งสินค้า ${order.orderNumber}`,
+                });
+            } else {
+                // Desktop fallback: download file directly
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = fileName;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                setTimeout(() => URL.revokeObjectURL(url), 1000);
+            }
+        } catch (err: unknown) {
+            // User cancelled share = not a real error
+            if (err instanceof Error && err.name !== 'AbortError') {
+                console.error('Failed to share receipt:', err);
+                alert('เกิดข้อผิดพลาด กรุณาลองอีกครั้ง');
+            }
         } finally {
             setIsDownloading(false);
         }
@@ -105,14 +130,14 @@ export const ConsignmentThermalReceipt: React.FC<ConsignmentThermalReceiptProps>
                         <span>สั่งพิมพ์ (Browser/Printer)</span>
                     </button>
                     <button
-                        onClick={handleDownloadImage}
+                        onClick={handleShareImage}
                         disabled={isDownloading || !qrDataUrl}
                         className="flex-1 py-2.5 px-3 bg-stone-800 hover:bg-stone-900 disabled:bg-stone-400 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm transition-all active:scale-95"
-                        title="สำหรับเซฟรูปเพื่อส่งพิมพ์ในแอป Fun Print"
+                        title="แชร์รูปไปยังแอป Fun Print หรือบันทึกลงเครื่อง"
                     >
                         {isDownloading
                             ? <><Loader2 size={15} className="animate-spin" /><span>กำลังสร้างรูป...</span></>
-                            : <><Download size={15} /><span>เซฟรูป (แอป Fun Print)</span></>}
+                            : <><Share2 size={15} /><span>แชร์/บันทึกรูป (Fun Print)</span></>}
                     </button>
                 </div>
 
