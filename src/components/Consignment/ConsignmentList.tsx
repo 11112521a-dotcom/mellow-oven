@@ -17,8 +17,15 @@ const statusConfig: Record<ConsignmentOrderStatus, { label: string; color: strin
     cancelled: { label: 'ยกเลิก', color: 'bg-rose-50 text-rose-700 border-rose-100', icon: <AlertCircle className="w-3.5 h-3.5" /> }
 };
 
+const formatDateSafe = (dateVal: any) => {
+    if (!dateVal) return '-';
+    const d = new Date(dateVal);
+    if (isNaN(d.getTime())) return '-';
+    return d.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' });
+};
+
 export const ConsignmentList: React.FC = () => {
-    const { consignmentOrders, isLoadingConsignments, fetchConsignmentOrders, updateConsignmentOrderStatus, externalShops } = useStore();
+    const { consignmentOrders, isLoadingConsignments, fetchConsignmentOrders, fetchExternalShops, updateConsignmentOrderStatus, externalShops } = useStore();
     const [searchTerm, setSearchTerm] = useState('');
     const [statusFilter, setStatusFilter] = useState<ConsignmentOrderStatus | 'all'>('all');
     const [shopFilter, setShopFilter] = useState<string>('all');
@@ -32,6 +39,7 @@ export const ConsignmentList: React.FC = () => {
 
     useEffect(() => {
         fetchConsignmentOrders();
+        fetchExternalShops();
     }, []);
 
     const handleOpenNextDayBill = (shopId: string, items: any[]) => {
@@ -182,12 +190,12 @@ export const ConsignmentList: React.FC = () => {
                                     <div className="space-y-2.5 mb-5 flex-1">
                                         <div className="flex items-center gap-2 text-xs text-stone-500 font-medium">
                                             <Clock className="w-4 h-4 text-stone-400" />
-                                            <span>วันที่ส่ง: {new Date(order.deliveryDate).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                                            <span>วันที่ส่ง: {formatDateSafe(order.deliveryDate)}</span>
                                         </div>
                                         {order.settleDate && (
                                             <div className="flex items-center gap-2 text-xs text-stone-500 font-medium">
                                                 <Check className="w-4 h-4 text-emerald-500" />
-                                                <span>เคลียร์ยอด: {new Date(order.settleDate).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                                                <span>เคลียร์ยอด: {formatDateSafe(order.settleDate)}</span>
                                             </div>
                                         )}
                                         <div className="flex items-center gap-2 text-xs text-stone-500 font-medium">

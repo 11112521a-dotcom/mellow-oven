@@ -1,7 +1,7 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { ConsignmentOrder } from '../../../types';
-import { Printer, Download, X } from 'lucide-react';
-import html2canvas from 'html2canvas';
+import { Printer, Download, X, Loader2 } from 'lucide-react';
+import domtoimage from 'dom-to-image-more';
 import QRCode from 'qrcode';
 
 interface ConsignmentThermalReceiptProps {
@@ -52,24 +52,29 @@ export const ConsignmentThermalReceipt: React.FC<ConsignmentThermalReceiptProps>
         window.print();
     };
 
-    // Save as Image for Bluetooth Apps like Fun Print (no external images = no CORS)
+    // Save as Image for Bluetooth Apps like Fun Print
+    const [isDownloading, setIsDownloading] = useState(false);
+
     const handleDownloadImage = async () => {
-        if (!receiptRef.current) return;
+        if (!receiptRef.current || isDownloading) return;
+        setIsDownloading(true);
         try {
-            const canvas = await html2canvas(receiptRef.current, {
-                scale: 3, // High DPI for 300DPI printers
-                backgroundColor: '#ffffff',
-                useCORS: false,   // No external URLs, all images are inline data URIs
-                allowTaint: false,
-                logging: false,
+            // Wait a tick to ensure QR image is painted
+            await new Promise(r => setTimeout(r, 200));
+            const dataUrl = await domtoimage.toPng(receiptRef.current, {
+                quality: 1,
+                scale: 3,   // High DPI for 300DPI thermal printers
+                bgcolor: '#ffffff',
             });
             const link = document.createElement('a');
             link.download = `Slip_${order.orderNumber}_${order.shopName}.png`;
-            link.href = canvas.toDataURL('image/png');
+            link.href = dataUrl;
             link.click();
         } catch (err) {
             console.error('Failed to generate receipt image:', err);
-            alert('เกิดข้อผิดพลาดในการสร้างรูปภาพสลิป กรุณาลองใหม่');
+            alert('เกิดข้อผิดพลาด กรุณาลองอีกครั้ง');
+        } finally {
+            setIsDownloading(false);
         }
     };
 
@@ -101,11 +106,13 @@ export const ConsignmentThermalReceipt: React.FC<ConsignmentThermalReceiptProps>
                     </button>
                     <button
                         onClick={handleDownloadImage}
-                        className="flex-1 py-2.5 px-3 bg-stone-800 hover:bg-stone-900 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm transition-all active:scale-95"
+                        disabled={isDownloading || !qrDataUrl}
+                        className="flex-1 py-2.5 px-3 bg-stone-800 hover:bg-stone-900 disabled:bg-stone-400 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm transition-all active:scale-95"
                         title="สำหรับเซฟรูปเพื่อส่งพิมพ์ในแอป Fun Print"
                     >
-                        <Download size={15} />
-                        <span>เซฟรูป (แอป Fun Print)</span>
+                        {isDownloading
+                            ? <><Loader2 size={15} className="animate-spin" /><span>กำลังสร้างรูป...</span></>
+                            : <><Download size={15} /><span>เซฟรูป (แอป Fun Print)</span></>}
                     </button>
                 </div>
 

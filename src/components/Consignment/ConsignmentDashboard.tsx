@@ -33,14 +33,14 @@ export const ConsignmentDashboard: React.FC = () => {
         });
 
         settledOrders.forEach(o => {
-            totalSentSettled += o.totalQuantitySent;
-            totalSold += o.totalQuantitySold;
-            totalWaste += o.totalQuantityWaste;
-            totalReturned += o.totalQuantityReturned;
-            totalGiveaway += o.totalQuantityGiveaway;
-            totalRevenue += o.totalRevenue;
-            totalCost += o.totalCost;
-            totalProfit += o.totalProfit;
+            totalSentSettled += o.totalQuantitySent || 0;
+            totalSold += o.totalQuantitySold || 0;
+            totalWaste += o.totalQuantityWaste || 0;
+            totalReturned += o.totalQuantityReturned || 0;
+            totalGiveaway += o.totalQuantityGiveaway || 0;
+            totalRevenue += o.totalRevenue || 0;
+            totalCost += o.totalCost || 0;
+            totalProfit += o.totalProfit || 0;
         });
 
         const sellThroughRate = totalSentSettled > 0 ? (totalSold / totalSentSettled) * 100 : 0;
@@ -70,13 +70,14 @@ export const ConsignmentDashboard: React.FC = () => {
         const branchMap: Record<string, { name: string; revenue: number; profit: number; soldQty: number; sentQty: number }> = {};
 
         settledOrders.forEach(o => {
-            if (!branchMap[o.shopId]) {
-                branchMap[o.shopId] = { name: o.shopName, revenue: 0, profit: 0, soldQty: 0, sentQty: 0 };
+            const key = o.shopId || o.shopName || 'unknown';
+            if (!branchMap[key]) {
+                branchMap[key] = { name: o.shopName || 'ไม่ระบุชื่อร้าน', revenue: 0, profit: 0, soldQty: 0, sentQty: 0 };
             }
-            branchMap[o.shopId].revenue += o.totalRevenue;
-            branchMap[o.shopId].profit += o.totalProfit;
-            branchMap[o.shopId].soldQty += o.totalQuantitySold;
-            branchMap[o.shopId].sentQty += o.totalQuantitySent;
+            branchMap[key].revenue += o.totalRevenue || 0;
+            branchMap[key].profit += o.totalProfit || 0;
+            branchMap[key].soldQty += o.totalQuantitySold || 0;
+            branchMap[key].sentQty += o.totalQuantitySent || 0;
         });
 
         return Object.values(branchMap).sort((a, b) => b.revenue - a.revenue);
@@ -90,12 +91,18 @@ export const ConsignmentDashboard: React.FC = () => {
         const sorted = [...settledOrders].sort((a, b) => (a.settleDate || '').localeCompare(b.settleDate || ''));
 
         sorted.forEach(o => {
-            const dateStr = o.settleDate ? new Date(o.settleDate).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' }) : 'N/A';
+            let dateStr = 'N/A';
+            if (o.settleDate) {
+                const parsedDate = new Date(o.settleDate);
+                if (!isNaN(parsedDate.getTime())) {
+                    dateStr = parsedDate.toLocaleDateString('th-TH', { day: 'numeric', month: 'short' });
+                }
+            }
             if (!trendMap[dateStr]) {
                 trendMap[dateStr] = { date: dateStr, revenue: 0, profit: 0 };
             }
-            trendMap[dateStr].revenue += o.totalRevenue;
-            trendMap[dateStr].profit += o.totalProfit;
+            trendMap[dateStr].revenue += o.totalRevenue || 0;
+            trendMap[dateStr].profit += o.totalProfit || 0;
         });
 
         return Object.values(trendMap);
@@ -106,13 +113,13 @@ export const ConsignmentDashboard: React.FC = () => {
         const productMap: Record<string, { name: string; soldQty: number; revenue: number }> = {};
 
         settledOrders.forEach(o => {
-            o.items.forEach(item => {
-                const label = item.variantName ? `${item.productName} (${item.variantName})` : item.productName;
+            (o.items || []).forEach(item => {
+                const label = item.variantName ? `${item.productName} (${item.variantName})` : item.productName || 'สินค้า';
                 if (!productMap[label]) {
                     productMap[label] = { name: label, soldQty: 0, revenue: 0 };
                 }
-                productMap[label].soldQty += item.quantitySold;
-                productMap[label].revenue += item.lineTotal;
+                productMap[label].soldQty += item.quantitySold || 0;
+                productMap[label].revenue += item.lineTotal || 0;
             });
         });
 
