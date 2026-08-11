@@ -1,30 +1,203 @@
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { ConsignmentOrder } from '../../../types';
-import { Printer, Share2, X, Loader2 } from 'lucide-react';
-import domtoimage from 'dom-to-image-more';
-import QRCode from 'qrcode';
+import { Printer, Share2, X, Download, Image as ImageIcon } from 'lucide-react';
 
 interface ConsignmentThermalReceiptProps {
     order: ConsignmentOrder;
     onClose: () => void;
 }
 
+// Pure 2D Canvas Receipt Generator — 100% reliable on iOS, Android, and Desktop
+const generateReceiptCanvasImage = (order: ConsignmentOrder): string => {
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return '';
+
+    const deliveryDateObj = new Date(order.deliveryDate);
+    const collectionDueDateObj = new Date(deliveryDateObj.getTime() + 14 * 24 * 60 * 60 * 1000);
+    const formattedDeliveryDate = deliveryDateObj.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' });
+    const formattedDueDate = collectionDueDateObj.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' });
+    const formattedSettleDate = order.settleDate
+        ? new Date(order.settleDate).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' })
+        : null;
+
+    const totalSentAmount = order.items.reduce((sum, item) => sum + (item.quantitySent * item.unitPrice), 0);
+
+    const width = 576; // High DPI 57mm thermal printer canvas width (300 DPI)
+    const baseHeight = 440 + (order.contactName ? 36 : 0) + (order.status === 'settled' ? 36 : 0);
+    const itemHeight = order.items.length * 48;
+    const height = baseHeight + itemHeight;
+
+    canvas.width = width;
+    canvas.height = height;
+
+    // Fill White Background
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, width, height);
+
+    ctx.fillStyle = '#1c1917';
+    ctx.textAlign = 'center';
+
+    // Store Header
+    ctx.font = 'bold 36px monospace, sans-serif';
+    ctx.fillText('Mellow Oven', width / 2, 55);
+
+    ctx.font = 'bold 24px monospace, sans-serif';
+    ctx.fillText('ใบส่งสินค้าฝากขาย / ส่งสาขา', width / 2, 95);
+
+    ctx.font = '20px monospace';
+    ctx.fillStyle = '#44403c';
+    ctx.fillText(`เลขที่: ${order.orderNumber}`, width / 2, 128);
+
+    // Dashed Divider Line
+    ctx.strokeStyle = '#a8a29e';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.setLineDash([8, 8]);
+    ctx.moveTo(20, 148);
+    ctx.lineTo(width - 20, 148);
+    ctx.stroke();
+
+    // Meta Details
+    ctx.textAlign = 'left';
+    ctx.font = 'bold 22px monospace, sans-serif';
+    ctx.fillStyle = '#1c1917';
+    let y = 185;
+
+    ctx.fillText(`ร้านฝากขาย:`, 24, y);
+    ctx.textAlign = 'right';
+    ctx.fillText(order.shopName, width - 24, y);
+    y += 36;
+
+    ctx.textAlign = 'left';
+    ctx.font = '20px monospace, sans-serif';
+    ctx.fillText(`วันที่ลงของ:`, 24, y);
+    ctx.textAlign = 'right';
+    ctx.fillText(formattedDeliveryDate, width - 24, y);
+    y += 36;
+
+    ctx.textAlign = 'left';
+    ctx.font = 'bold 20px monospace, sans-serif';
+    ctx.fillText(`ดิวเก็บเงิน (14วัน):`, 24, y);
+    ctx.textAlign = 'right';
+    ctx.fillText(formattedDueDate, width - 24, y);
+    y += 36;
+
+    if (order.status === 'settled' && formattedSettleDate) {
+        ctx.textAlign = 'left';
+        ctx.font = 'bold 20px monospace, sans-serif';
+        ctx.fillStyle = '#047857';
+        ctx.fillText(`วันที่เคลียร์ยอด:`, 24, y);
+        ctx.textAlign = 'right';
+        ctx.fillText(formattedSettleDate, width - 24, y);
+        ctx.fillStyle = '#1c1917';
+        y += 36;
+    }
+
+    if (order.contactName) {
+        ctx.textAlign = 'left';
+        ctx.font = '18px monospace, sans-serif';
+        ctx.fillStyle = '#57534e';
+        ctx.fillText(`ผู้รับ/โทร: ${order.contactName} (${order.contactPhone || '-'})`, 24, y);
+        ctx.fillStyle = '#1c1917';
+        y += 32;
+    }
+
+    // Dashed Divider
+    ctx.beginPath();
+    ctx.setLineDash([8, 8]);
+    ctx.moveTo(20, y);
+    ctx.lineTo(width - 20, y);
+    ctx.stroke();
+    y += 30;
+
+    // Table Header
+    ctx.font = 'bold 20px monospace, sans-serif';
+    ctx.fillStyle = '#1c1917';
+    ctx.textAlign = 'left';
+    ctx.fillText('สินค้า', 24, y);
+    ctx.textAlign = 'center';
+    ctx.fillText('จำนวน', width * 0.65, y);
+    ctx.textAlign = 'right';
+    ctx.fillText('รวม(฿)', width - 24, y);
+    y += 16;
+
+    // Solid Line
+    ctx.setLineDash([]);
+    ctx.beginPath();
+    ctx.moveTo(20, y);
+    ctx.lineTo(width - 20, y);
+    ctx.stroke();
+    y += 36;
+
+    // Items List
+    order.items.forEach((item) => {
+        ctx.textAlign = 'left';
+        ctx.font = 'bold 21px monospace, sans-serif';
+        const nameText = item.variantName ? `${item.productName} (${item.variantName})` : item.productName;
+        ctx.fillText(nameText, 24, y);
+
+        ctx.textAlign = 'center';
+        ctx.font = 'bold 21px monospace, sans-serif';
+        ctx.fillText(`x${item.quantitySent}`, width * 0.65, y);
+
+        ctx.textAlign = 'right';
+        ctx.font = 'bold 21px monospace, sans-serif';
+        ctx.fillText((item.quantitySent * item.unitPrice).toLocaleString(), width - 24, y);
+        y += 44;
+    });
+
+    // Dashed Divider
+    ctx.beginPath();
+    ctx.setLineDash([8, 8]);
+    ctx.moveTo(20, y);
+    ctx.lineTo(width - 20, y);
+    ctx.stroke();
+    y += 34;
+
+    // Summary Totals
+    ctx.font = 'bold 22px monospace, sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText('รวมจำนวนลงของ:', 24, y);
+    ctx.textAlign = 'right';
+    ctx.fillText(`${order.totalQuantitySent} ชิ้น`, width - 24, y);
+    y += 38;
+
+    ctx.font = 'bold 26px monospace, sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText('มูลค่าสินค้าลงของ:', 24, y);
+    ctx.textAlign = 'right';
+    ctx.fillText(`฿${totalSentAmount.toLocaleString()}`, width - 24, y);
+    y += 50;
+
+    // Signatures Line
+    ctx.setLineDash([]);
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(40, y + 40); ctx.lineTo(240, y + 40);
+    ctx.moveTo(width - 240, y + 40); ctx.lineTo(width - 40, y + 40);
+    ctx.stroke();
+
+    ctx.font = '19px monospace, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#44403c';
+    ctx.fillText('ผู้ส่งสินค้า', 140, y + 68);
+    ctx.fillText('ผู้รับฝากขาย', width - 140, y + 68);
+    y += 105;
+
+    // Footer Message
+    ctx.font = '18px monospace, sans-serif';
+    ctx.fillStyle = '#78716c';
+    ctx.fillText('*** ขอบคุณที่ร่วมธุรกิจกับ Mellow Oven ***', width / 2, y);
+
+    return canvas.toDataURL('image/png');
+};
+
 export const ConsignmentThermalReceipt: React.FC<ConsignmentThermalReceiptProps> = ({ order, onClose }) => {
     const receiptRef = useRef<HTMLDivElement>(null);
-    const [qrDataUrl, setQrDataUrl] = useState<string>('');
+    const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null);
 
-    // Generate QR Code locally (no CORS issues with html2canvas)
-    useEffect(() => {
-        const qrData = `MO-VERIFY:${order.orderNumber}:${order.shopId}`;
-        QRCode.toDataURL(qrData, {
-            width: 200,
-            margin: 1,
-            color: { dark: '#1c1917', light: '#ffffff' },
-            errorCorrectionLevel: 'M',
-        }).then((url) => setQrDataUrl(url)).catch(console.error);
-    }, [order.orderNumber, order.shopId]);
-
-    // Calculate collection date (deliveryDate + 14 days default if settleDate missing)
+    // Calculate dates
     const deliveryDateObj = new Date(order.deliveryDate);
     const collectionDueDateObj = new Date(deliveryDateObj.getTime() + 14 * 24 * 60 * 60 * 1000);
 
@@ -44,68 +217,55 @@ export const ConsignmentThermalReceipt: React.FC<ConsignmentThermalReceiptProps>
         ? new Date(order.settleDate).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' })
         : null;
 
-    // Total calculated amount sent
     const totalSentAmount = order.items.reduce((sum, item) => sum + (item.quantitySent * item.unitPrice), 0);
 
-    // Handle Print via Window Print (Scoped CSS for Thermal Printer)
+    // Print via Browser
     const handlePrint = () => {
         window.print();
     };
 
-    // Share/Save as Image — uses Native Share Sheet on mobile (iOS & Android)
-    const [isDownloading, setIsDownloading] = useState(false);
+    // Generate & Show Receipt Image Modal for Mobile (100% reliable)
+    const handleGenerateImage = async () => {
+        const imageUrl = generateReceiptCanvasImage(order);
+        if (!imageUrl) {
+            alert('ไม่สามารถสร้างรูปภาพได้');
+            return;
+        }
 
-    const handleShareImage = async () => {
-        if (!receiptRef.current || isDownloading) return;
-        setIsDownloading(true);
+        setPreviewImageUrl(imageUrl);
+
+        // Try Native Share if supported
         try {
-            // Wait for QR Code to paint
-            await new Promise(r => setTimeout(r, 300));
-
-            const dataUrl = await domtoimage.toPng(receiptRef.current, {
-                quality: 1,
-                scale: 3,
-                bgcolor: '#ffffff',
-            });
-
-            // Convert data URL → Blob → File
-            const res = await fetch(dataUrl);
+            const res = await fetch(imageUrl);
             const blob = await res.blob();
             const fileName = `Slip_${order.orderNumber}_${order.shopName}.png`;
             const file = new File([blob], fileName, { type: 'image/png' });
 
-            // Try Native Share Sheet (iOS 15+ & Android Chrome) → opens Fun Print directly
             if (navigator.canShare && navigator.canShare({ files: [file] })) {
                 await navigator.share({
                     files: [file],
                     title: `สลิปฝากขาย ${order.shopName}`,
-                    text: `ใบส่งสินค้า ${order.orderNumber}`,
                 });
-            } else {
-                // Desktop fallback: download file directly
-                const url = URL.createObjectURL(blob);
-                const link = document.createElement('a');
-                link.href = url;
-                link.download = fileName;
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
-                setTimeout(() => URL.revokeObjectURL(url), 1000);
             }
-        } catch (err: unknown) {
-            // User cancelled share = not a real error
-            if (err instanceof Error && err.name !== 'AbortError') {
-                console.error('Failed to share receipt:', err);
-                alert('เกิดข้อผิดพลาด กรุณาลองอีกครั้ง');
-            }
-        } finally {
-            setIsDownloading(false);
+        } catch {
+            // Ignore cancel / share errors, image preview modal remains open for long-press save
         }
+    };
+
+    // Manual Direct Download for Image Modal
+    const handleDownloadDirect = () => {
+        if (!previewImageUrl) return;
+        const link = document.createElement('a');
+        link.download = `Slip_${order.orderNumber}_${order.shopName}.png`;
+        link.href = previewImageUrl;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
     };
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-900/70 backdrop-blur-sm print:p-0 print:bg-white print:static print:inset-auto">
-            {/* Control Bar (Hidden on Print) */}
+            {/* Control Bar */}
             <div className="bg-white rounded-3xl shadow-2xl overflow-hidden max-w-sm w-full border border-stone-200 print:shadow-none print:border-none print:w-full print:max-w-none">
                 <div className="bg-stone-900 text-white p-4 flex items-center justify-between print:hidden">
                     <div className="flex items-center gap-2">
@@ -120,7 +280,7 @@ export const ConsignmentThermalReceipt: React.FC<ConsignmentThermalReceiptProps>
                     </button>
                 </div>
 
-                {/* Print Control Action Buttons (Hidden on Print) */}
+                {/* Print Control Action Buttons */}
                 <div className="p-3 bg-stone-100 border-b border-stone-200 flex gap-2 print:hidden">
                     <button
                         onClick={handlePrint}
@@ -130,18 +290,16 @@ export const ConsignmentThermalReceipt: React.FC<ConsignmentThermalReceiptProps>
                         <span>สั่งพิมพ์ (Browser/Printer)</span>
                     </button>
                     <button
-                        onClick={handleShareImage}
-                        disabled={isDownloading || !qrDataUrl}
-                        className="flex-1 py-2.5 px-3 bg-stone-800 hover:bg-stone-900 disabled:bg-stone-400 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm transition-all active:scale-95"
-                        title="แชร์รูปไปยังแอป Fun Print หรือบันทึกลงเครื่อง"
+                        onClick={handleGenerateImage}
+                        className="flex-1 py-2.5 px-3 bg-stone-800 hover:bg-stone-900 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm transition-all active:scale-95"
+                        title="สำหรับเซฟรูปเพื่อส่งพิมพ์ในแอป Fun Print"
                     >
-                        {isDownloading
-                            ? <><Loader2 size={15} className="animate-spin" /><span>กำลังสร้างรูป...</span></>
-                            : <><Share2 size={15} /><span>แชร์/บันทึกรูป (Fun Print)</span></>}
+                        <Share2 size={15} />
+                        <span>แชร์/บันทึกรูป (Fun Print)</span>
                     </button>
                 </div>
 
-                {/* THERMAL RECEIPT CONTAINER (Width 57mm / ~280px representation) */}
+                {/* THERMAL RECEIPT CONTAINER */}
                 <div className="p-4 bg-stone-200 flex justify-center print:p-0 print:bg-white overflow-y-auto max-h-[70vh] print:max-h-none">
                     <div
                         ref={receiptRef}
@@ -229,7 +387,7 @@ export const ConsignmentThermalReceipt: React.FC<ConsignmentThermalReceiptProps>
                         </div>
 
                         {/* Signatures */}
-                        <div className="pt-3 pb-2 space-y-4 text-[10px]">
+                        <div className="pt-4 pb-2 space-y-4 text-[10px]">
                             <div className="flex justify-between items-end pt-4">
                                 <div className="text-center w-[45%]">
                                     <div className="border-b border-stone-400 mb-1"></div>
@@ -242,29 +400,59 @@ export const ConsignmentThermalReceipt: React.FC<ConsignmentThermalReceiptProps>
                             </div>
                         </div>
 
-                        {/* Verification QR Code — generated locally, no CORS */}
-                        <div className="pt-2 pb-1 text-center flex flex-col items-center justify-center">
-                            {qrDataUrl ? (
-                                <img
-                                    src={qrDataUrl}
-                                    alt="QR Verification"
-                                    className="w-16 h-16 border border-stone-300 p-0.5 bg-white rounded my-1"
-                                />
-                            ) : (
-                                <div className="w-16 h-16 border border-stone-200 rounded my-1 flex items-center justify-center text-[8px] text-stone-400">
-                                    QR...
-                                </div>
-                            )}
-                            <p className="text-[8px] font-bold text-stone-600">สแกนตรวจสอบสถานะบิล & ยอดค้าง</p>
-                        </div>
-
                         {/* Footer Message */}
-                        <div className="text-center pt-2 text-[9px] text-stone-500">
+                        <div className="text-center pt-3 text-[9px] text-stone-500">
                             <p>*** ขอบคุณที่ร่วมธุรกิจกับ Mellow Oven ***</p>
                         </div>
                     </div>
                 </div>
             </div>
+
+            {/* PREVIEW IMAGE MODAL FOR MOBILE LONG-PRESS SAVE */}
+            {previewImageUrl && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+                    <div className="bg-stone-900 rounded-3xl p-4 max-w-sm w-full border border-stone-700 space-y-3 text-center text-white">
+                        <div className="flex justify-between items-center border-b border-stone-800 pb-2">
+                            <div className="flex items-center gap-2 text-emerald-400 font-bold text-sm">
+                                <ImageIcon size={18} />
+                                <span>รูปสลิปพร้อมบันทึก (Fun Print)</span>
+                            </div>
+                            <button
+                                onClick={() => setPreviewImageUrl(null)}
+                                className="p-1 hover:bg-stone-800 rounded-lg text-stone-400 hover:text-white"
+                            >
+                                <X size={20} />
+                            </button>
+                        </div>
+
+                        {/* Instruction Badge */}
+                        <div className="bg-amber-500/20 border border-amber-500/40 text-amber-300 p-2.5 rounded-xl text-xs font-semibold space-y-1">
+                            <p>📱 <b>คำแนะนำสำหรับมือถือ:</b></p>
+                            <p>กดค้างที่รูปภาพด้านล่างแล้วเลือก <b>"บันทึกรูปภาพ" (Save Image)</b> เพื่อนำไปเปิดในแอป Fun Print ได้เลยครับ!</p>
+                        </div>
+
+                        {/* Rendered Canvas PNG Image */}
+                        <div className="bg-stone-800 p-2 rounded-2xl max-h-[55vh] overflow-y-auto flex justify-center">
+                            <img
+                                src={previewImageUrl}
+                                alt="Thermal Receipt Slip"
+                                className="w-[280px] bg-white rounded shadow-lg select-all"
+                            />
+                        </div>
+
+                        {/* Download Fallback Button */}
+                        <div className="flex gap-2 pt-1">
+                            <button
+                                onClick={handleDownloadDirect}
+                                className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 shadow-lg active:scale-95"
+                            >
+                                <Download size={16} />
+                                <span>ดาวน์โหลดรูปภาพ</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
