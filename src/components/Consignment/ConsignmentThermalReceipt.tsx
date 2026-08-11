@@ -1,5 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { ConsignmentOrder } from '../../../types';
+import { useStore } from '../../store';
 import { Printer, Share2, X, Download, Image as ImageIcon } from 'lucide-react';
 
 interface ConsignmentThermalReceiptProps {
@@ -7,195 +8,250 @@ interface ConsignmentThermalReceiptProps {
     onClose: () => void;
 }
 
-// Pure 2D Canvas Receipt Generator — 100% reliable on iOS, Android, and Desktop
-const generateReceiptCanvasImage = (order: ConsignmentOrder): string => {
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return '';
+// Pure 2D Canvas Receipt Generator — High DPI, 100% reliable with Logo Header
+const generateReceiptCanvasImageAsync = (order: ConsignmentOrder, logoSrc?: string): Promise<string> => {
+    return new Promise((resolve) => {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+            resolve('');
+            return;
+        }
 
-    const deliveryDateObj = new Date(order.deliveryDate);
-    const collectionDueDateObj = new Date(deliveryDateObj.getTime() + 14 * 24 * 60 * 60 * 1000);
-    const formattedDeliveryDate = deliveryDateObj.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' });
-    const formattedDueDate = collectionDueDateObj.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' });
-    const formattedSettleDate = order.settleDate
-        ? new Date(order.settleDate).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' })
-        : null;
+        const deliveryDateObj = new Date(order.deliveryDate);
+        const collectionDueDateObj = new Date(deliveryDateObj.getTime() + 14 * 24 * 60 * 60 * 1000);
+        const formattedDeliveryDate = deliveryDateObj.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' });
+        const formattedDueDate = collectionDueDateObj.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' });
+        const formattedSettleDate = order.settleDate
+            ? new Date(order.settleDate).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' })
+            : null;
 
-    const totalSentAmount = order.items.reduce((sum, item) => sum + (item.quantitySent * item.unitPrice), 0);
+        const totalSentAmount = order.items.reduce((sum, item) => sum + (item.quantitySent * item.unitPrice), 0);
 
-    const width = 576; // High DPI 57mm thermal printer canvas width (300 DPI)
-    const baseHeight = 440 + (order.contactName ? 36 : 0) + (order.status === 'settled' ? 36 : 0);
-    const itemHeight = order.items.length * 48;
-    const height = baseHeight + itemHeight;
+        const width = 576; // 300 DPI high-res thermal print width (57mm / 58mm)
+        const logoHeight = 80;
+        const baseHeight = 470 + logoHeight + (order.contactName ? 36 : 0) + (order.status === 'settled' ? 36 : 0);
+        const itemHeight = order.items.length * 52;
+        const height = baseHeight + itemHeight;
 
-    canvas.width = width;
-    canvas.height = height;
+        canvas.width = width;
+        canvas.height = height;
 
-    // Fill White Background
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, 0, width, height);
+        const drawContent = (imgEl?: HTMLImageElement) => {
+            // Fill White Background
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, width, height);
 
-    ctx.fillStyle = '#1c1917';
-    ctx.textAlign = 'center';
+            let currentY = 30;
 
-    // Store Header
-    ctx.font = 'bold 36px monospace, sans-serif';
-    ctx.fillText('Mellow Oven', width / 2, 55);
+            // Draw Logo Image at top center if available
+            if (imgEl && imgEl.complete && imgEl.naturalWidth > 0) {
+                const imgWidth = 72;
+                const imgHeight = (imgEl.naturalHeight / imgEl.naturalWidth) * imgWidth || 72;
+                ctx.drawImage(imgEl, (width - imgWidth) / 2, currentY, imgWidth, Math.min(imgHeight, 80));
+                currentY += Math.min(imgHeight, 80) + 15;
+            } else {
+                currentY += 15;
+            }
 
-    ctx.font = 'bold 24px monospace, sans-serif';
-    ctx.fillText('ใบส่งสินค้าฝากขาย / ส่งสาขา', width / 2, 95);
+            ctx.fillStyle = '#1c1917';
+            ctx.textAlign = 'center';
 
-    ctx.font = '20px monospace';
-    ctx.fillStyle = '#44403c';
-    ctx.fillText(`เลขที่: ${order.orderNumber}`, width / 2, 128);
+            // Official Store Header
+            ctx.font = 'bold 36px monospace, sans-serif';
+            ctx.fillText('Mellow Oven', width / 2, currentY);
+            currentY += 38;
 
-    // Dashed Divider Line
-    ctx.strokeStyle = '#a8a29e';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.setLineDash([8, 8]);
-    ctx.moveTo(20, 148);
-    ctx.lineTo(width - 20, 148);
-    ctx.stroke();
+            ctx.font = 'bold 22px monospace, sans-serif';
+            ctx.fillText('ใบส่งมอบสินค้าฝากขาย / ส่งสาขา', width / 2, currentY);
+            currentY += 30;
 
-    // Meta Details
-    ctx.textAlign = 'left';
-    ctx.font = 'bold 22px monospace, sans-serif';
-    ctx.fillStyle = '#1c1917';
-    let y = 185;
+            ctx.font = '19px monospace';
+            ctx.fillStyle = '#44403c';
+            ctx.fillText(`เลขที่เอกสาร: ${order.orderNumber}`, width / 2, currentY);
+            currentY += 24;
 
-    ctx.fillText(`ร้านฝากขาย:`, 24, y);
-    ctx.textAlign = 'right';
-    ctx.fillText(order.shopName, width - 24, y);
-    y += 36;
+            // Dashed Divider Line
+            ctx.strokeStyle = '#a8a29e';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.setLineDash([8, 8]);
+            ctx.moveTo(20, currentY);
+            ctx.lineTo(width - 20, currentY);
+            ctx.stroke();
+            currentY += 35;
 
-    ctx.textAlign = 'left';
-    ctx.font = '20px monospace, sans-serif';
-    ctx.fillText(`วันที่ลงของ:`, 24, y);
-    ctx.textAlign = 'right';
-    ctx.fillText(formattedDeliveryDate, width - 24, y);
-    y += 36;
+            // Official Meta Details Section
+            ctx.textAlign = 'left';
+            ctx.font = 'bold 22px monospace, sans-serif';
+            ctx.fillStyle = '#1c1917';
 
-    ctx.textAlign = 'left';
-    ctx.font = 'bold 20px monospace, sans-serif';
-    ctx.fillText(`ดิวเก็บเงิน (14วัน):`, 24, y);
-    ctx.textAlign = 'right';
-    ctx.fillText(formattedDueDate, width - 24, y);
-    y += 36;
+            ctx.fillText(`ร้านค้าฝากขาย:`, 24, currentY);
+            ctx.textAlign = 'right';
+            ctx.fillText(order.shopName, width - 24, currentY);
+            currentY += 36;
 
-    if (order.status === 'settled' && formattedSettleDate) {
-        ctx.textAlign = 'left';
-        ctx.font = 'bold 20px monospace, sans-serif';
-        ctx.fillStyle = '#047857';
-        ctx.fillText(`วันที่เคลียร์ยอด:`, 24, y);
-        ctx.textAlign = 'right';
-        ctx.fillText(formattedSettleDate, width - 24, y);
-        ctx.fillStyle = '#1c1917';
-        y += 36;
-    }
+            ctx.textAlign = 'left';
+            ctx.font = '20px monospace, sans-serif';
+            ctx.fillText(`วันที่ส่งมอบ:`, 24, currentY);
+            ctx.textAlign = 'right';
+            ctx.fillText(formattedDeliveryDate, width - 24, currentY);
+            currentY += 36;
 
-    if (order.contactName) {
-        ctx.textAlign = 'left';
-        ctx.font = '18px monospace, sans-serif';
-        ctx.fillStyle = '#57534e';
-        ctx.fillText(`ผู้รับ/โทร: ${order.contactName} (${order.contactPhone || '-'})`, 24, y);
-        ctx.fillStyle = '#1c1917';
-        y += 32;
-    }
+            ctx.textAlign = 'left';
+            ctx.font = 'bold 20px monospace, sans-serif';
+            ctx.fillText(`ดิวเก็บเงิน (14 วัน):`, 24, currentY);
+            ctx.textAlign = 'right';
+            ctx.fillText(formattedDueDate, width - 24, currentY);
+            currentY += 36;
 
-    // Dashed Divider
-    ctx.beginPath();
-    ctx.setLineDash([8, 8]);
-    ctx.moveTo(20, y);
-    ctx.lineTo(width - 20, y);
-    ctx.stroke();
-    y += 30;
+            if (order.status === 'settled' && formattedSettleDate) {
+                ctx.textAlign = 'left';
+                ctx.font = 'bold 20px monospace, sans-serif';
+                ctx.fillStyle = '#047857';
+                ctx.fillText(`วันที่เคลียร์ยอด:`, 24, currentY);
+                ctx.textAlign = 'right';
+                ctx.fillText(formattedSettleDate, width - 24, currentY);
+                ctx.fillStyle = '#1c1917';
+                currentY += 36;
+            }
 
-    // Table Header
-    ctx.font = 'bold 20px monospace, sans-serif';
-    ctx.fillStyle = '#1c1917';
-    ctx.textAlign = 'left';
-    ctx.fillText('สินค้า', 24, y);
-    ctx.textAlign = 'center';
-    ctx.fillText('จำนวน', width * 0.65, y);
-    ctx.textAlign = 'right';
-    ctx.fillText('รวม(฿)', width - 24, y);
-    y += 16;
+            if (order.contactName) {
+                ctx.textAlign = 'left';
+                ctx.font = '18px monospace, sans-serif';
+                ctx.fillStyle = '#57534e';
+                ctx.fillText(`ผู้รับ/โทร: ${order.contactName} (${order.contactPhone || '-'})`, 24, currentY);
+                ctx.fillStyle = '#1c1917';
+                currentY += 32;
+            }
 
-    // Solid Line
-    ctx.setLineDash([]);
-    ctx.beginPath();
-    ctx.moveTo(20, y);
-    ctx.lineTo(width - 20, y);
-    ctx.stroke();
-    y += 36;
+            // Dashed Divider
+            ctx.beginPath();
+            ctx.setLineDash([8, 8]);
+            ctx.moveTo(20, currentY);
+            ctx.lineTo(width - 20, currentY);
+            ctx.stroke();
+            currentY += 30;
 
-    // Items List
-    order.items.forEach((item) => {
-        ctx.textAlign = 'left';
-        ctx.font = 'bold 21px monospace, sans-serif';
-        const nameText = item.variantName ? `${item.productName} (${item.variantName})` : item.productName;
-        ctx.fillText(nameText, 24, y);
+            // Items Table Header
+            ctx.font = 'bold 20px monospace, sans-serif';
+            ctx.fillStyle = '#1c1917';
+            ctx.textAlign = 'left';
+            ctx.fillText('รายการสินค้า', 24, currentY);
+            ctx.textAlign = 'center';
+            ctx.fillText('จำนวน', width * 0.65, currentY);
+            ctx.textAlign = 'right';
+            ctx.fillText('มูลค่า(฿)', width - 24, currentY);
+            currentY += 16;
 
-        ctx.textAlign = 'center';
-        ctx.font = 'bold 21px monospace, sans-serif';
-        ctx.fillText(`x${item.quantitySent}`, width * 0.65, y);
+            // Solid Table Header Border Line
+            ctx.setLineDash([]);
+            ctx.beginPath();
+            ctx.moveTo(20, currentY);
+            ctx.lineTo(width - 20, currentY);
+            ctx.stroke();
+            currentY += 36;
 
-        ctx.textAlign = 'right';
-        ctx.font = 'bold 21px monospace, sans-serif';
-        ctx.fillText((item.quantitySent * item.unitPrice).toLocaleString(), width - 24, y);
-        y += 44;
+            // Item Rows
+            order.items.forEach((item) => {
+                ctx.textAlign = 'left';
+                ctx.font = 'bold 21px monospace, sans-serif';
+                const nameText = item.variantName ? `${item.productName} (${item.variantName})` : item.productName;
+                ctx.fillText(nameText, 24, currentY);
+
+                ctx.textAlign = 'center';
+                ctx.font = 'bold 21px monospace, sans-serif';
+                ctx.fillText(`x${item.quantitySent}`, width * 0.65, currentY);
+
+                ctx.textAlign = 'right';
+                ctx.font = 'bold 21px monospace, sans-serif';
+                ctx.fillText((item.quantitySent * item.unitPrice).toLocaleString(), width - 24, currentY);
+                currentY += 24;
+
+                // Subtitle price per unit
+                ctx.textAlign = 'left';
+                ctx.font = '16px monospace, sans-serif';
+                ctx.fillStyle = '#78716c';
+                ctx.fillText(`  @฿${item.unitPrice}`, 24, currentY);
+                ctx.fillStyle = '#1c1917';
+                currentY += 28;
+            });
+
+            // Dashed Divider
+            ctx.beginPath();
+            ctx.setLineDash([8, 8]);
+            ctx.moveTo(20, currentY);
+            ctx.lineTo(width - 20, currentY);
+            ctx.stroke();
+            currentY += 34;
+
+            // Summary Totals
+            ctx.font = 'bold 22px monospace, sans-serif';
+            ctx.textAlign = 'left';
+            ctx.fillText('รวมจำนวนลงของทั้งหมด:', 24, currentY);
+            ctx.textAlign = 'right';
+            ctx.fillText(`${order.totalQuantitySent} ชิ้น`, width - 24, currentY);
+            currentY += 38;
+
+            ctx.font = 'bold 26px monospace, sans-serif';
+            ctx.textAlign = 'left';
+            ctx.fillText('รวมมูลค่าสินค้าลงของ:', 24, currentY);
+            ctx.textAlign = 'right';
+            ctx.fillText(`฿${totalSentAmount.toLocaleString()}`, width - 24, currentY);
+            currentY += 50;
+
+            // Official Signature Box
+            ctx.setLineDash([]);
+            ctx.lineWidth = 1.5;
+
+            // Left Signature Line (Sender)
+            ctx.beginPath();
+            ctx.moveTo(35, currentY + 35);
+            ctx.lineTo(245, currentY + 35);
+            ctx.stroke();
+
+            // Right Signature Line (Recipient)
+            ctx.beginPath();
+            ctx.moveTo(width - 245, currentY + 35);
+            ctx.lineTo(width - 35, currentY + 35);
+            ctx.stroke();
+
+            ctx.font = 'bold 18px monospace, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillStyle = '#1c1917';
+            ctx.fillText('ลงชื่อผู้ส่งมอบสินค้า', 140, currentY + 62);
+            ctx.fillText('ลงชื่อผู้รับฝากขาย', width - 140, currentY + 62);
+
+            ctx.font = '16px monospace, sans-serif';
+            ctx.fillStyle = '#78716c';
+            ctx.fillText('( Mellow Oven )', 140, currentY + 86);
+            ctx.fillText('( ผู้ตรวจรับสินค้า )', width - 140, currentY + 86);
+            currentY += 125;
+
+            // Official Footer Note
+            ctx.font = '17px monospace, sans-serif';
+            ctx.fillStyle = '#57534e';
+            ctx.fillText('*** เอกสารสำคัญ กรุณาเก็บไว้เพื่อใช้อ้างอิงการเคลียร์ยอด ***', width / 2, currentY);
+
+            resolve(canvas.toDataURL('image/png'));
+        };
+
+        const targetLogo = logoSrc || '/pwa-192x192.png';
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = () => drawContent(img);
+        img.onerror = () => drawContent(undefined);
+        img.src = targetLogo;
     });
-
-    // Dashed Divider
-    ctx.beginPath();
-    ctx.setLineDash([8, 8]);
-    ctx.moveTo(20, y);
-    ctx.lineTo(width - 20, y);
-    ctx.stroke();
-    y += 34;
-
-    // Summary Totals
-    ctx.font = 'bold 22px monospace, sans-serif';
-    ctx.textAlign = 'left';
-    ctx.fillText('รวมจำนวนลงของ:', 24, y);
-    ctx.textAlign = 'right';
-    ctx.fillText(`${order.totalQuantitySent} ชิ้น`, width - 24, y);
-    y += 38;
-
-    ctx.font = 'bold 26px monospace, sans-serif';
-    ctx.textAlign = 'left';
-    ctx.fillText('มูลค่าสินค้าลงของ:', 24, y);
-    ctx.textAlign = 'right';
-    ctx.fillText(`฿${totalSentAmount.toLocaleString()}`, width - 24, y);
-    y += 50;
-
-    // Signatures Line
-    ctx.setLineDash([]);
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.moveTo(40, y + 40); ctx.lineTo(240, y + 40);
-    ctx.moveTo(width - 240, y + 40); ctx.lineTo(width - 40, y + 40);
-    ctx.stroke();
-
-    ctx.font = '19px monospace, sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillStyle = '#44403c';
-    ctx.fillText('ผู้ส่งสินค้า', 140, y + 68);
-    ctx.fillText('ผู้รับฝากขาย', width - 140, y + 68);
-    y += 105;
-
-    // Footer Message
-    ctx.font = '18px monospace, sans-serif';
-    ctx.fillStyle = '#78716c';
-    ctx.fillText('*** ขอบคุณที่ร่วมธุรกิจกับ Mellow Oven ***', width / 2, y);
-
-    return canvas.toDataURL('image/png');
 };
 
 export const ConsignmentThermalReceipt: React.FC<ConsignmentThermalReceiptProps> = ({ order, onClose }) => {
+    const { shopInfo } = useStore();
     const receiptRef = useRef<HTMLDivElement>(null);
     const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null);
+    const [isGenerating, setIsGenerating] = useState(false);
+
+    const logoUrl = shopInfo?.logoUrl || '/pwa-192x192.png';
 
     // Calculate dates
     const deliveryDateObj = new Date(order.deliveryDate);
@@ -226,29 +282,35 @@ export const ConsignmentThermalReceipt: React.FC<ConsignmentThermalReceiptProps>
 
     // Generate & Show Receipt Image Modal for Mobile (100% reliable)
     const handleGenerateImage = async () => {
-        const imageUrl = generateReceiptCanvasImage(order);
-        if (!imageUrl) {
-            alert('ไม่สามารถสร้างรูปภาพได้');
-            return;
-        }
-
-        setPreviewImageUrl(imageUrl);
-
-        // Try Native Share if supported
+        if (isGenerating) return;
+        setIsGenerating(true);
         try {
-            const res = await fetch(imageUrl);
-            const blob = await res.blob();
-            const fileName = `Slip_${order.orderNumber}_${order.shopName}.png`;
-            const file = new File([blob], fileName, { type: 'image/png' });
-
-            if (navigator.canShare && navigator.canShare({ files: [file] })) {
-                await navigator.share({
-                    files: [file],
-                    title: `สลิปฝากขาย ${order.shopName}`,
-                });
+            const imageUrl = await generateReceiptCanvasImageAsync(order, logoUrl);
+            if (!imageUrl) {
+                alert('ไม่สามารถสร้างรูปภาพได้');
+                return;
             }
-        } catch {
-            // Ignore cancel / share errors, image preview modal remains open for long-press save
+
+            setPreviewImageUrl(imageUrl);
+
+            // Try Native Share if supported
+            try {
+                const res = await fetch(imageUrl);
+                const blob = await res.blob();
+                const fileName = `Slip_${order.orderNumber}_${order.shopName}.png`;
+                const file = new File([blob], fileName, { type: 'image/png' });
+
+                if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                    await navigator.share({
+                        files: [file],
+                        title: `สลิปฝากขาย ${order.shopName}`,
+                    });
+                }
+            } catch {
+                // Ignore cancel / share errors, image preview modal remains open for long-press save
+            }
+        } finally {
+            setIsGenerating(false);
         }
     };
 
@@ -270,7 +332,7 @@ export const ConsignmentThermalReceipt: React.FC<ConsignmentThermalReceiptProps>
                 <div className="bg-stone-900 text-white p-4 flex items-center justify-between print:hidden">
                     <div className="flex items-center gap-2">
                         <Printer size={18} className="text-emerald-400" />
-                        <span className="font-bold text-sm">สลิปใบส่งของฝากขาย (57mm)</span>
+                        <span className="font-bold text-sm">ใบส่งมอบสินค้าฝากขาย (57mm)</span>
                     </div>
                     <button
                         onClick={onClose}
@@ -291,11 +353,12 @@ export const ConsignmentThermalReceipt: React.FC<ConsignmentThermalReceiptProps>
                     </button>
                     <button
                         onClick={handleGenerateImage}
-                        className="flex-1 py-2.5 px-3 bg-stone-800 hover:bg-stone-900 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm transition-all active:scale-95"
+                        disabled={isGenerating}
+                        className="flex-1 py-2.5 px-3 bg-stone-800 hover:bg-stone-900 disabled:bg-stone-400 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm transition-all active:scale-95"
                         title="สำหรับเซฟรูปเพื่อส่งพิมพ์ในแอป Fun Print"
                     >
                         <Share2 size={15} />
-                        <span>แชร์/บันทึกรูป (Fun Print)</span>
+                        <span>{isGenerating ? 'กำลังสร้างรูป...' : 'แชร์/บันทึกรูป (Fun Print)'}</span>
                     </button>
                 </div>
 
@@ -307,18 +370,28 @@ export const ConsignmentThermalReceipt: React.FC<ConsignmentThermalReceiptProps>
                         className="w-[280px] bg-white p-4 font-mono text-stone-900 text-xs shadow-md rounded-lg print:shadow-none print:rounded-none print:w-[57mm] print:p-1 print:m-0"
                         style={{ fontFamily: "'Courier New', Courier, monospace" }}
                     >
-                        {/* Store Header */}
+                        {/* Store Header with Logo */}
                         <div className="text-center space-y-1 pb-3 border-b border-dashed border-stone-400">
-                            <h2 className="font-bold text-base tracking-tight">Mellow Oven</h2>
-                            <p className="text-[11px] font-bold">ใบส่งสินค้าฝากขาย / ส่งสาขา</p>
-                            <p className="text-[10px] text-stone-600">เลขที่: {order.orderNumber}</p>
+                            {logoUrl && (
+                                <img
+                                    src={logoUrl}
+                                    alt="Mellow Oven Logo"
+                                    className="w-14 h-14 mx-auto mb-1.5 object-contain rounded-full border border-stone-200 p-0.5 bg-white shadow-sm"
+                                    onError={(e) => {
+                                        (e.target as HTMLImageElement).style.display = 'none';
+                                    }}
+                                />
+                            )}
+                            <h2 className="font-bold text-base tracking-tight uppercase">Mellow Oven</h2>
+                            <p className="text-[11px] font-bold text-stone-800">ใบส่งมอบสินค้าฝากขาย / ส่งสาขา</p>
+                            <p className="text-[10px] text-stone-600 font-mono">เลขที่: {order.orderNumber}</p>
                         </div>
 
                         {/* Order & Shop Meta */}
                         <div className="py-2 space-y-1 text-[11px] border-b border-dashed border-stone-400">
                             <div className="flex justify-between">
                                 <span className="font-bold">ร้านฝากขาย:</span>
-                                <span className="font-bold text-right">{order.shopName}</span>
+                                <span className="font-bold text-right text-stone-900">{order.shopName}</span>
                             </div>
                             <div className="flex justify-between">
                                 <span>วันที่ลงของ:</span>
@@ -386,23 +459,25 @@ export const ConsignmentThermalReceipt: React.FC<ConsignmentThermalReceiptProps>
                             </div>
                         </div>
 
-                        {/* Signatures */}
+                        {/* Official Signatures Section */}
                         <div className="pt-4 pb-2 space-y-4 text-[10px]">
                             <div className="flex justify-between items-end pt-4">
                                 <div className="text-center w-[45%]">
                                     <div className="border-b border-stone-400 mb-1"></div>
-                                    <p>ผู้ส่งสินค้า</p>
+                                    <p className="font-bold">ลงชื่อผู้ส่งมอบสินค้า</p>
+                                    <p className="text-[8px] text-stone-500">( Mellow Oven )</p>
                                 </div>
                                 <div className="text-center w-[45%]">
                                     <div className="border-b border-stone-400 mb-1"></div>
-                                    <p>ผู้รับฝากขาย</p>
+                                    <p className="font-bold">ลงชื่อผู้รับฝากขาย</p>
+                                    <p className="text-[8px] text-stone-500">( ผู้ตรวจรับสินค้า )</p>
                                 </div>
                             </div>
                         </div>
 
-                        {/* Footer Message */}
+                        {/* Official Footer Message */}
                         <div className="text-center pt-3 text-[9px] text-stone-500">
-                            <p>*** ขอบคุณที่ร่วมธุรกิจกับ Mellow Oven ***</p>
+                            <p>*** เอกสารสำคัญ กรุณาเก็บไว้เพื่อใช้อ้างอิงการเคลียร์ยอด ***</p>
                         </div>
                     </div>
                 </div>
@@ -415,7 +490,7 @@ export const ConsignmentThermalReceipt: React.FC<ConsignmentThermalReceiptProps>
                         <div className="flex justify-between items-center border-b border-stone-800 pb-2">
                             <div className="flex items-center gap-2 text-emerald-400 font-bold text-sm">
                                 <ImageIcon size={18} />
-                                <span>รูปสลิปพร้อมบันทึก (Fun Print)</span>
+                                <span>รูปสลิปทางการ (Fun Print)</span>
                             </div>
                             <button
                                 onClick={() => setPreviewImageUrl(null)}
@@ -427,7 +502,7 @@ export const ConsignmentThermalReceipt: React.FC<ConsignmentThermalReceiptProps>
 
                         {/* Instruction Badge */}
                         <div className="bg-amber-500/20 border border-amber-500/40 text-amber-300 p-2.5 rounded-xl text-xs font-semibold space-y-1">
-                            <p>📱 <b>คำแนะนำสำหรับมือถือ:</b></p>
+                            <p>📱 <b>สลิปฉบับทางการ (พร้อมโลโก้):</b></p>
                             <p>กดค้างที่รูปภาพด้านล่างแล้วเลือก <b>"บันทึกรูปภาพ" (Save Image)</b> เพื่อนำไปเปิดในแอป Fun Print ได้เลยครับ!</p>
                         </div>
 
