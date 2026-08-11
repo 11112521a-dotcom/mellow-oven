@@ -7,7 +7,7 @@ interface ConsignmentThermalReceiptProps {
     onClose: () => void;
 }
 
-// 100% Synchronous 384px Native Thermal Canvas Renderer (Exact 1:1 width for 57mm C15 PRO / Fun Print)
+// 100% Synchronous Native Thermal Canvas Renderer (High-res 2x scaling for mobile full capture)
 const generateReceiptCanvasImage = (order: ConsignmentOrder): string => {
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
@@ -23,38 +23,52 @@ const generateReceiptCanvasImage = (order: ConsignmentOrder): string => {
 
     const totalSentAmount = order.items.reduce((sum, item) => sum + (item.quantitySent * item.unitPrice), 0);
 
-    const width = 384; // Standard 1:1 dot resolution for 57mm thermal printers
-    const leftMargin = 16;
-    const rightMargin = 368; // 16px right margin (384 - 16)
+    // Logical dimensions (384px is standard for 57mm thermal)
+    const logicalWidth = 384; 
+    const leftMargin = 20; 
+    const rightMargin = 364; 
+    const center = logicalWidth / 2;
+    const qtyX = 240; // X position for quantity column
 
     const baseHeight = 360 + (order.contactName ? 26 : 0) + (order.status === 'settled' ? 26 : 0);
     const itemHeight = order.items.length * 38;
-    const height = baseHeight + itemHeight;
+    const logicalHeight = baseHeight + itemHeight;
 
-    canvas.width = width;
-    canvas.height = height;
+    // Scale up for mobile high-DPI displays
+    const scale = 2; 
+    canvas.width = logicalWidth * scale;
+    canvas.height = logicalHeight * scale;
+    
+    ctx.scale(scale, scale);
 
     // Fill White Background
     ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, 0, width, height);
+    ctx.fillRect(0, 0, logicalWidth, logicalHeight);
 
     let currentY = 24;
 
     ctx.fillStyle = '#000000';
-    ctx.textAlign = 'center';
+    // Use monospace font family to ensure predictable text widths on all devices
+    const fontFamily = '"Courier New", Courier, monospace, sans-serif';
 
-    // Store Header
-    ctx.font = 'bold 22px sans-serif';
-    ctx.fillText('Mellow Oven', width / 2, currentY);
+    // Store Header (English is safe for center align)
+    ctx.textAlign = 'center';
+    ctx.font = `bold 22px ${fontFamily}`;
+    ctx.fillText('Mellow Oven', center, currentY);
     currentY += 26;
 
-    ctx.font = 'bold 14px sans-serif';
-    ctx.fillText('ใบส่งสินค้าฝากขาย / ส่งสาขา', width / 2, currentY);
+    // iOS Safari has a bug where textAlign 'center' or 'right' miscalculates Thai text bounding boxes.
+    // So we manually measure and center Thai text, or strictly use left-align.
+    ctx.textAlign = 'left';
+    ctx.font = `bold 14px ${fontFamily}`;
+    const title = 'ใบส่งสินค้าฝากขาย / ส่งสาขา';
+    ctx.fillText(title, center - (ctx.measureText(title).width / 2), currentY);
     currentY += 20;
 
-    ctx.font = '12px sans-serif';
+    ctx.font = `12px ${fontFamily}`;
     ctx.fillStyle = '#444444';
-    ctx.fillText(`เลขที่: ${order.orderNumber}`, width / 2, currentY);
+    const orderNo = `เลขที่: ${order.orderNumber}`;
+    ctx.fillText(orderNo, center - (ctx.measureText(orderNo).width / 2), currentY);
     currentY += 16;
 
     // Dashed Divider
@@ -67,44 +81,32 @@ const generateReceiptCanvasImage = (order: ConsignmentOrder): string => {
     ctx.stroke();
     currentY += 22;
 
-    // Meta Details
+    // Meta Details (Strictly Left Aligned to prevent right-clip bug)
     ctx.fillStyle = '#000000';
-
     ctx.textAlign = 'left';
-    ctx.font = 'bold 13px sans-serif';
-    ctx.fillText('ร้านฝากขาย:', leftMargin, currentY);
-    ctx.textAlign = 'right';
-    ctx.fillText(order.shopName, rightMargin, currentY);
+    
+    ctx.font = `bold 13px ${fontFamily}`;
+    ctx.fillText(`ร้านฝากขาย: ${order.shopName}`, leftMargin, currentY);
     currentY += 22;
 
-    ctx.textAlign = 'left';
-    ctx.font = '12px sans-serif';
-    ctx.fillText('วันที่ลงของ:', leftMargin, currentY);
-    ctx.textAlign = 'right';
-    ctx.fillText(formattedDeliveryDate, rightMargin, currentY);
+    ctx.font = `12px ${fontFamily}`;
+    ctx.fillText(`วันที่ลงของ: ${formattedDeliveryDate}`, leftMargin, currentY);
     currentY += 22;
 
-    ctx.textAlign = 'left';
-    ctx.font = 'bold 12px sans-serif';
-    ctx.fillText('ดิวเก็บเงิน (14วัน):', leftMargin, currentY);
-    ctx.textAlign = 'right';
-    ctx.fillText(formattedDueDate, rightMargin, currentY);
+    ctx.font = `bold 12px ${fontFamily}`;
+    ctx.fillText(`ดิวเก็บเงิน (14วัน): ${formattedDueDate}`, leftMargin, currentY);
     currentY += 22;
 
     if (order.status === 'settled' && formattedSettleDate) {
-        ctx.textAlign = 'left';
-        ctx.font = 'bold 12px sans-serif';
+        ctx.font = `bold 12px ${fontFamily}`;
         ctx.fillStyle = '#047857';
-        ctx.fillText('วันที่เคลียร์ยอด:', leftMargin, currentY);
-        ctx.textAlign = 'right';
-        ctx.fillText(formattedSettleDate, rightMargin, currentY);
+        ctx.fillText(`วันที่เคลียร์ยอด: ${formattedSettleDate}`, leftMargin, currentY);
         ctx.fillStyle = '#000000';
         currentY += 22;
     }
 
     if (order.contactName) {
-        ctx.textAlign = 'left';
-        ctx.font = '11px sans-serif';
+        ctx.font = `11px ${fontFamily}`;
         ctx.fillStyle = '#555555';
         ctx.fillText(`ผู้รับ/โทร: ${order.contactName} (${order.contactPhone || '-'})`, leftMargin, currentY);
         ctx.fillStyle = '#000000';
@@ -120,13 +122,13 @@ const generateReceiptCanvasImage = (order: ConsignmentOrder): string => {
     currentY += 20;
 
     // Items Header
-    ctx.font = 'bold 12px sans-serif';
+    ctx.font = `bold 12px ${fontFamily}`;
     ctx.textAlign = 'left';
     ctx.fillText('สินค้า', leftMargin, currentY);
-    ctx.textAlign = 'center';
-    ctx.fillText('จำนวน', 255, currentY);
+    ctx.fillText('จำนวน', qtyX, currentY);
+    // English 'Total' is safe for right align
     ctx.textAlign = 'right';
-    ctx.fillText('รวม (฿)', rightMargin, currentY);
+    ctx.fillText('Total(฿)', rightMargin, currentY);
     currentY += 10;
 
     // Solid Line
@@ -140,21 +142,26 @@ const generateReceiptCanvasImage = (order: ConsignmentOrder): string => {
     // Items List
     order.items.forEach((item) => {
         ctx.textAlign = 'left';
-        ctx.font = 'bold 13px sans-serif';
+        ctx.font = `bold 13px ${fontFamily}`;
         const nameText = item.variantName ? `${item.productName} (${item.variantName})` : item.productName;
-        ctx.fillText(nameText, leftMargin, currentY);
+        
+        // Truncate long names slightly to prevent overlapping with qty
+        const maxLength = 22;
+        const displayName = nameText.length > maxLength ? nameText.substring(0, maxLength) + '...' : nameText;
+        
+        ctx.fillText(displayName, leftMargin, currentY);
 
-        ctx.textAlign = 'center';
-        ctx.font = 'bold 13px sans-serif';
-        ctx.fillText(`x${item.quantitySent}`, 255, currentY);
+        ctx.font = `bold 13px ${fontFamily}`;
+        ctx.fillText(`x${item.quantitySent}`, qtyX, currentY);
 
+        // Numbers are safe for right align
         ctx.textAlign = 'right';
-        ctx.font = 'bold 13px sans-serif';
+        ctx.font = `bold 13px ${fontFamily}`;
         ctx.fillText((item.quantitySent * item.unitPrice).toLocaleString(), rightMargin, currentY);
         currentY += 16;
 
         ctx.textAlign = 'left';
-        ctx.font = '10px sans-serif';
+        ctx.font = `10px ${fontFamily}`;
         ctx.fillStyle = '#666666';
         ctx.fillText(`  @฿${item.unitPrice}`, leftMargin, currentY);
         ctx.fillStyle = '#000000';
@@ -170,39 +177,37 @@ const generateReceiptCanvasImage = (order: ConsignmentOrder): string => {
     currentY += 20;
 
     // Summary Totals
-    ctx.font = 'bold 13px sans-serif';
     ctx.textAlign = 'left';
-    ctx.fillText('รวมจำนวนลงของ:', leftMargin, currentY);
-    ctx.textAlign = 'right';
-    ctx.fillText(`${order.totalQuantitySent} ชิ้น`, rightMargin, currentY);
+    ctx.font = `bold 13px ${fontFamily}`;
+    ctx.fillText(`รวมจำนวนลงของ: ${order.totalQuantitySent} ชิ้น`, leftMargin, currentY);
     currentY += 22;
 
-    ctx.font = 'bold 15px sans-serif';
-    ctx.textAlign = 'left';
-    ctx.fillText('มูลค่าสินค้าลงของ:', leftMargin, currentY);
-    ctx.textAlign = 'right';
-    ctx.fillText(`฿${totalSentAmount.toLocaleString()}`, rightMargin, currentY);
+    ctx.font = `bold 15px ${fontFamily}`;
+    ctx.fillText(`มูลค่าสินค้าลงของ: ฿${totalSentAmount.toLocaleString()}`, leftMargin, currentY);
     currentY += 30;
 
     // Signatures Line
     ctx.setLineDash([]);
     ctx.lineWidth = 1;
     ctx.beginPath();
-    ctx.moveTo(25, currentY + 24); ctx.lineTo(160, currentY + 24);
-    ctx.moveTo(224, currentY + 24); ctx.lineTo(359, currentY + 24);
+    ctx.moveTo(35, currentY + 24); ctx.lineTo(155, currentY + 24);
+    ctx.moveTo(229, currentY + 24); ctx.lineTo(349, currentY + 24);
     ctx.stroke();
 
-    ctx.font = '11px sans-serif';
-    ctx.textAlign = 'center';
+    ctx.font = `11px ${fontFamily}`;
     ctx.fillStyle = '#333333';
-    ctx.fillText('ผู้ส่งสินค้า', 92, currentY + 40);
-    ctx.fillText('ผู้รับฝากขาย', 291, currentY + 40);
+    // Manually center signature text to avoid Thai right/center bugs
+    const sig1 = 'ผู้ส่งสินค้า';
+    const sig2 = 'ผู้รับฝากขาย';
+    ctx.fillText(sig1, 95 - (ctx.measureText(sig1).width / 2), currentY + 40);
+    ctx.fillText(sig2, 289 - (ctx.measureText(sig2).width / 2), currentY + 40);
     currentY += 65;
 
     // Footer Message
-    ctx.font = '11px sans-serif';
+    ctx.font = `11px ${fontFamily}`;
     ctx.fillStyle = '#666666';
-    ctx.fillText('*** ขอบคุณที่ร่วมธุรกิจกับ Mellow Oven ***', width / 2, currentY);
+    const footer = '*** ขอบคุณที่ร่วมธุรกิจกับ Mellow Oven ***';
+    ctx.fillText(footer, center - (ctx.measureText(footer).width / 2), currentY);
 
     return canvas.toDataURL('image/png');
 };
