@@ -8,7 +8,7 @@ interface ConsignmentThermalReceiptProps {
     onClose: () => void;
 }
 
-// Pure 2D Canvas Receipt Generator — High DPI, 100% reliable with Logo Header
+// Pure 2D Canvas Receipt Generator — High DPI, Safe Margins, No Clipping
 const generateReceiptCanvasImageAsync = (order: ConsignmentOrder, logoSrc?: string): Promise<string> => {
     return new Promise((resolve) => {
         const canvas = document.createElement('canvas');
@@ -29,9 +29,12 @@ const generateReceiptCanvasImageAsync = (order: ConsignmentOrder, logoSrc?: stri
         const totalSentAmount = order.items.reduce((sum, item) => sum + (item.quantitySent * item.unitPrice), 0);
 
         const width = 576; // 300 DPI high-res thermal print width (57mm / 58mm)
-        const logoHeight = 80;
-        const baseHeight = 470 + logoHeight + (order.contactName ? 36 : 0) + (order.status === 'settled' ? 36 : 0);
-        const itemHeight = order.items.length * 52;
+        const leftMargin = 40;
+        const rightMargin = width - 40; // 536px (leaving 40px safe margin on right)
+
+        const logoHeight = 70;
+        const baseHeight = 440 + logoHeight + (order.contactName ? 32 : 0) + (order.status === 'settled' ? 32 : 0);
+        const itemHeight = order.items.length * 44;
         const height = baseHeight + itemHeight;
 
         canvas.width = width;
@@ -42,194 +45,194 @@ const generateReceiptCanvasImageAsync = (order: ConsignmentOrder, logoSrc?: stri
             ctx.fillStyle = '#ffffff';
             ctx.fillRect(0, 0, width, height);
 
-            let currentY = 30;
+            let currentY = 28;
 
             // Draw Logo Image at top center if available
             if (imgEl && imgEl.complete && imgEl.naturalWidth > 0) {
-                const imgWidth = 72;
-                const imgHeight = (imgEl.naturalHeight / imgEl.naturalWidth) * imgWidth || 72;
-                ctx.drawImage(imgEl, (width - imgWidth) / 2, currentY, imgWidth, Math.min(imgHeight, 80));
-                currentY += Math.min(imgHeight, 80) + 15;
+                const imgWidth = 64;
+                const imgHeight = (imgEl.naturalHeight / imgEl.naturalWidth) * imgWidth || 64;
+                ctx.drawImage(imgEl, (width - imgWidth) / 2, currentY, imgWidth, Math.min(imgHeight, 70));
+                currentY += Math.min(imgHeight, 70) + 12;
             } else {
-                currentY += 15;
+                currentY += 12;
             }
 
             ctx.fillStyle = '#1c1917';
             ctx.textAlign = 'center';
 
-            // Official Store Header
-            ctx.font = 'bold 36px monospace, sans-serif';
+            // Store Header (sans-serif for crisp Thai text)
+            ctx.font = 'bold 30px sans-serif, system-ui';
             ctx.fillText('Mellow Oven', width / 2, currentY);
-            currentY += 38;
+            currentY += 34;
 
-            ctx.font = 'bold 22px monospace, sans-serif';
+            ctx.font = 'bold 18px sans-serif, system-ui';
             ctx.fillText('ใบส่งมอบสินค้าฝากขาย / ส่งสาขา', width / 2, currentY);
-            currentY += 30;
+            currentY += 26;
 
-            ctx.font = '19px monospace';
+            ctx.font = '15px sans-serif, system-ui';
             ctx.fillStyle = '#44403c';
             ctx.fillText(`เลขที่เอกสาร: ${order.orderNumber}`, width / 2, currentY);
-            currentY += 24;
+            currentY += 20;
 
             // Dashed Divider Line
             ctx.strokeStyle = '#a8a29e';
-            ctx.lineWidth = 2;
+            ctx.lineWidth = 1.5;
             ctx.beginPath();
-            ctx.setLineDash([8, 8]);
-            ctx.moveTo(20, currentY);
-            ctx.lineTo(width - 20, currentY);
+            ctx.setLineDash([6, 6]);
+            ctx.moveTo(leftMargin, currentY);
+            ctx.lineTo(rightMargin, currentY);
             ctx.stroke();
-            currentY += 35;
+            currentY += 30;
 
-            // Official Meta Details Section
+            // Meta Details Section
             ctx.textAlign = 'left';
-            ctx.font = 'bold 22px monospace, sans-serif';
+            ctx.font = 'bold 17px sans-serif, system-ui';
             ctx.fillStyle = '#1c1917';
 
-            ctx.fillText(`ร้านค้าฝากขาย:`, 24, currentY);
+            ctx.fillText(`ร้านค้าฝากขาย:`, leftMargin, currentY);
             ctx.textAlign = 'right';
-            ctx.fillText(order.shopName, width - 24, currentY);
-            currentY += 36;
+            ctx.fillText(order.shopName, rightMargin, currentY);
+            currentY += 30;
 
             ctx.textAlign = 'left';
-            ctx.font = '20px monospace, sans-serif';
-            ctx.fillText(`วันที่ส่งมอบ:`, 24, currentY);
+            ctx.font = '16px sans-serif, system-ui';
+            ctx.fillText(`วันที่ส่งมอบ:`, leftMargin, currentY);
             ctx.textAlign = 'right';
-            ctx.fillText(formattedDeliveryDate, width - 24, currentY);
-            currentY += 36;
+            ctx.fillText(formattedDeliveryDate, rightMargin, currentY);
+            currentY += 30;
 
             ctx.textAlign = 'left';
-            ctx.font = 'bold 20px monospace, sans-serif';
-            ctx.fillText(`ดิวเก็บเงิน (14 วัน):`, 24, currentY);
+            ctx.font = 'bold 16px sans-serif, system-ui';
+            ctx.fillText(`ดิวเก็บเงิน (14 วัน):`, leftMargin, currentY);
             ctx.textAlign = 'right';
-            ctx.fillText(formattedDueDate, width - 24, currentY);
-            currentY += 36;
+            ctx.fillText(formattedDueDate, rightMargin, currentY);
+            currentY += 30;
 
             if (order.status === 'settled' && formattedSettleDate) {
                 ctx.textAlign = 'left';
-                ctx.font = 'bold 20px monospace, sans-serif';
+                ctx.font = 'bold 16px sans-serif, system-ui';
                 ctx.fillStyle = '#047857';
-                ctx.fillText(`วันที่เคลียร์ยอด:`, 24, currentY);
+                ctx.fillText(`วันที่เคลียร์ยอด:`, leftMargin, currentY);
                 ctx.textAlign = 'right';
-                ctx.fillText(formattedSettleDate, width - 24, currentY);
+                ctx.fillText(formattedSettleDate, rightMargin, currentY);
                 ctx.fillStyle = '#1c1917';
-                currentY += 36;
+                currentY += 30;
             }
 
             if (order.contactName) {
                 ctx.textAlign = 'left';
-                ctx.font = '18px monospace, sans-serif';
+                ctx.font = '15px sans-serif, system-ui';
                 ctx.fillStyle = '#57534e';
-                ctx.fillText(`ผู้รับ/โทร: ${order.contactName} (${order.contactPhone || '-'})`, 24, currentY);
+                ctx.fillText(`ผู้รับ/โทร: ${order.contactName} (${order.contactPhone || '-'})`, leftMargin, currentY);
                 ctx.fillStyle = '#1c1917';
-                currentY += 32;
+                currentY += 28;
             }
 
             // Dashed Divider
             ctx.beginPath();
-            ctx.setLineDash([8, 8]);
-            ctx.moveTo(20, currentY);
-            ctx.lineTo(width - 20, currentY);
+            ctx.setLineDash([6, 6]);
+            ctx.moveTo(leftMargin, currentY);
+            ctx.lineTo(rightMargin, currentY);
             ctx.stroke();
-            currentY += 30;
+            currentY += 26;
 
             // Items Table Header
-            ctx.font = 'bold 20px monospace, sans-serif';
+            ctx.font = 'bold 16px sans-serif, system-ui';
             ctx.fillStyle = '#1c1917';
             ctx.textAlign = 'left';
-            ctx.fillText('รายการสินค้า', 24, currentY);
+            ctx.fillText('รายการสินค้า', leftMargin, currentY);
             ctx.textAlign = 'center';
             ctx.fillText('จำนวน', width * 0.65, currentY);
             ctx.textAlign = 'right';
-            ctx.fillText('มูลค่า(฿)', width - 24, currentY);
-            currentY += 16;
+            ctx.fillText('มูลค่า(฿)', rightMargin, currentY);
+            currentY += 14;
 
-            // Solid Table Header Border Line
+            // Solid Border Line
             ctx.setLineDash([]);
             ctx.beginPath();
-            ctx.moveTo(20, currentY);
-            ctx.lineTo(width - 20, currentY);
+            ctx.moveTo(leftMargin, currentY);
+            ctx.lineTo(rightMargin, currentY);
             ctx.stroke();
-            currentY += 36;
+            currentY += 28;
 
             // Item Rows
             order.items.forEach((item) => {
                 ctx.textAlign = 'left';
-                ctx.font = 'bold 21px monospace, sans-serif';
+                ctx.font = 'bold 17px sans-serif, system-ui';
                 const nameText = item.variantName ? `${item.productName} (${item.variantName})` : item.productName;
-                ctx.fillText(nameText, 24, currentY);
+                ctx.fillText(nameText, leftMargin, currentY);
 
                 ctx.textAlign = 'center';
-                ctx.font = 'bold 21px monospace, sans-serif';
+                ctx.font = 'bold 17px sans-serif, system-ui';
                 ctx.fillText(`x${item.quantitySent}`, width * 0.65, currentY);
 
                 ctx.textAlign = 'right';
-                ctx.font = 'bold 21px monospace, sans-serif';
-                ctx.fillText((item.quantitySent * item.unitPrice).toLocaleString(), width - 24, currentY);
-                currentY += 24;
+                ctx.font = 'bold 17px sans-serif, system-ui';
+                ctx.fillText((item.quantitySent * item.unitPrice).toLocaleString(), rightMargin, currentY);
+                currentY += 22;
 
-                // Subtitle price per unit
+                // Price per unit subtitle
                 ctx.textAlign = 'left';
-                ctx.font = '16px monospace, sans-serif';
+                ctx.font = '14px sans-serif, system-ui';
                 ctx.fillStyle = '#78716c';
-                ctx.fillText(`  @฿${item.unitPrice}`, 24, currentY);
+                ctx.fillText(`  @฿${item.unitPrice}`, leftMargin, currentY);
                 ctx.fillStyle = '#1c1917';
-                currentY += 28;
+                currentY += 22;
             });
 
             // Dashed Divider
             ctx.beginPath();
-            ctx.setLineDash([8, 8]);
-            ctx.moveTo(20, currentY);
-            ctx.lineTo(width - 20, currentY);
+            ctx.setLineDash([6, 6]);
+            ctx.moveTo(leftMargin, currentY);
+            ctx.lineTo(rightMargin, currentY);
             ctx.stroke();
-            currentY += 34;
+            currentY += 28;
 
             // Summary Totals
-            ctx.font = 'bold 22px monospace, sans-serif';
+            ctx.font = 'bold 17px sans-serif, system-ui';
             ctx.textAlign = 'left';
-            ctx.fillText('รวมจำนวนลงของทั้งหมด:', 24, currentY);
+            ctx.fillText('รวมจำนวนลงของทั้งหมด:', leftMargin, currentY);
             ctx.textAlign = 'right';
-            ctx.fillText(`${order.totalQuantitySent} ชิ้น`, width - 24, currentY);
-            currentY += 38;
+            ctx.fillText(`${order.totalQuantitySent} ชิ้น`, rightMargin, currentY);
+            currentY += 32;
 
-            ctx.font = 'bold 26px monospace, sans-serif';
+            ctx.font = 'bold 20px sans-serif, system-ui';
             ctx.textAlign = 'left';
-            ctx.fillText('รวมมูลค่าสินค้าลงของ:', 24, currentY);
+            ctx.fillText('รวมมูลค่าสินค้าลงของ:', leftMargin, currentY);
             ctx.textAlign = 'right';
-            ctx.fillText(`฿${totalSentAmount.toLocaleString()}`, width - 24, currentY);
-            currentY += 50;
+            ctx.fillText(`฿${totalSentAmount.toLocaleString()}`, rightMargin, currentY);
+            currentY += 44;
 
-            // Official Signature Box
+            // Signatures Section
             ctx.setLineDash([]);
             ctx.lineWidth = 1.5;
 
             // Left Signature Line (Sender)
             ctx.beginPath();
-            ctx.moveTo(35, currentY + 35);
-            ctx.lineTo(245, currentY + 35);
+            ctx.moveTo(50, currentY + 30);
+            ctx.lineTo(230, currentY + 30);
             ctx.stroke();
 
             // Right Signature Line (Recipient)
             ctx.beginPath();
-            ctx.moveTo(width - 245, currentY + 35);
-            ctx.lineTo(width - 35, currentY + 35);
+            ctx.moveTo(width - 230, currentY + 30);
+            ctx.lineTo(width - 50, currentY + 30);
             ctx.stroke();
 
-            ctx.font = 'bold 18px monospace, sans-serif';
+            ctx.font = 'bold 15px sans-serif, system-ui';
             ctx.textAlign = 'center';
             ctx.fillStyle = '#1c1917';
-            ctx.fillText('ลงชื่อผู้ส่งมอบสินค้า', 140, currentY + 62);
-            ctx.fillText('ลงชื่อผู้รับฝากขาย', width - 140, currentY + 62);
+            ctx.fillText('ลงชื่อผู้ส่งมอบสินค้า', 140, currentY + 52);
+            ctx.fillText('ลงชื่อผู้รับฝากขาย', width - 140, currentY + 52);
 
-            ctx.font = '16px monospace, sans-serif';
+            ctx.font = '13px sans-serif, system-ui';
             ctx.fillStyle = '#78716c';
-            ctx.fillText('( Mellow Oven )', 140, currentY + 86);
-            ctx.fillText('( ผู้ตรวจรับสินค้า )', width - 140, currentY + 86);
-            currentY += 125;
+            ctx.fillText('( Mellow Oven )', 140, currentY + 72);
+            ctx.fillText('( ผู้ตรวจรับสินค้า )', width - 140, currentY + 72);
+            currentY += 105;
 
-            // Official Footer Note
-            ctx.font = '17px monospace, sans-serif';
+            // Footer Note
+            ctx.font = '14px sans-serif, system-ui';
             ctx.fillStyle = '#57534e';
             ctx.fillText('*** เอกสารสำคัญ กรุณาเก็บไว้เพื่อใช้อ้างอิงการเคลียร์ยอด ***', width / 2, currentY);
 
@@ -362,21 +365,20 @@ export const ConsignmentThermalReceipt: React.FC<ConsignmentThermalReceiptProps>
                     </button>
                 </div>
 
-                {/* THERMAL RECEIPT CONTAINER */}
+                {/* THERMAL RECEIPT CONTAINER (Width 57mm / ~300px representation) */}
                 <div className="p-4 bg-stone-200 flex justify-center print:p-0 print:bg-white overflow-y-auto max-h-[70vh] print:max-h-none">
                     <div
                         ref={receiptRef}
                         id="printable-thermal-receipt"
-                        className="w-[280px] bg-white p-4 font-mono text-stone-900 text-xs shadow-md rounded-lg print:shadow-none print:rounded-none print:w-[57mm] print:p-1 print:m-0"
-                        style={{ fontFamily: "'Courier New', Courier, monospace" }}
+                        className="w-[300px] bg-white p-3.5 font-sans text-stone-900 text-xs shadow-md rounded-lg print:shadow-none print:rounded-none print:w-[57mm] print:p-1 print:m-0"
                     >
                         {/* Store Header with Logo */}
-                        <div className="text-center space-y-1 pb-3 border-b border-dashed border-stone-400">
+                        <div className="text-center space-y-1 pb-2.5 border-b border-dashed border-stone-400">
                             {logoUrl && (
                                 <img
                                     src={logoUrl}
                                     alt="Mellow Oven Logo"
-                                    className="w-14 h-14 mx-auto mb-1.5 object-contain rounded-full border border-stone-200 p-0.5 bg-white shadow-sm"
+                                    className="w-12 h-12 mx-auto mb-1 object-contain rounded-full border border-stone-200 p-0.5 bg-white shadow-sm"
                                     onError={(e) => {
                                         (e.target as HTMLImageElement).style.display = 'none';
                                     }}
@@ -389,28 +391,28 @@ export const ConsignmentThermalReceipt: React.FC<ConsignmentThermalReceiptProps>
 
                         {/* Order & Shop Meta */}
                         <div className="py-2 space-y-1 text-[11px] border-b border-dashed border-stone-400">
-                            <div className="flex justify-between">
-                                <span className="font-bold">ร้านฝากขาย:</span>
-                                <span className="font-bold text-right text-stone-900">{order.shopName}</span>
+                            <div className="flex justify-between items-start gap-2">
+                                <span className="font-bold shrink-0">ร้านฝากขาย:</span>
+                                <span className="font-bold text-right text-stone-900 break-words">{order.shopName}</span>
                             </div>
-                            <div className="flex justify-between">
+                            <div className="flex justify-between items-center">
                                 <span>วันที่ลงของ:</span>
                                 <span>{formattedDeliveryDate}</span>
                             </div>
-                            <div className="flex justify-between font-bold text-stone-800">
+                            <div className="flex justify-between items-center font-bold text-stone-800">
                                 <span>ดิวเก็บเงิน (14วัน):</span>
                                 <span>{formattedDueDate}</span>
                             </div>
                             {order.status === 'settled' && formattedSettleDate && (
-                                <div className="flex justify-between text-emerald-700 font-bold">
+                                <div className="flex justify-between items-center text-emerald-700 font-bold">
                                     <span>วันที่เคลียร์ยอด:</span>
                                     <span>{formattedSettleDate}</span>
                                 </div>
                             )}
                             {order.contactName && (
-                                <div className="flex justify-between text-[10px] text-stone-600">
-                                    <span>ผู้รับ/โทร:</span>
-                                    <span>{order.contactName} ({order.contactPhone || '-'})</span>
+                                <div className="flex justify-between items-start gap-2 text-[10px] text-stone-600">
+                                    <span className="shrink-0">ผู้รับ/โทร:</span>
+                                    <span className="text-right">{order.contactName} ({order.contactPhone || '-'})</span>
                                 </div>
                             )}
                         </div>
@@ -449,19 +451,19 @@ export const ConsignmentThermalReceipt: React.FC<ConsignmentThermalReceiptProps>
 
                         {/* Summary Total */}
                         <div className="py-2 space-y-1 text-[11px] border-b border-dashed border-stone-400 font-bold">
-                            <div className="flex justify-between">
+                            <div className="flex justify-between items-center">
                                 <span>รวมจำนวนลงของ:</span>
                                 <span>{order.totalQuantitySent} ชิ้น</span>
                             </div>
-                            <div className="flex justify-between text-sm pt-1">
+                            <div className="flex justify-between items-center text-sm pt-0.5">
                                 <span>มูลค่าสินค้าลงของ:</span>
                                 <span>฿{totalSentAmount.toLocaleString()}</span>
                             </div>
                         </div>
 
                         {/* Official Signatures Section */}
-                        <div className="pt-4 pb-2 space-y-4 text-[10px]">
-                            <div className="flex justify-between items-end pt-4">
+                        <div className="pt-3 pb-2 space-y-3 text-[10px]">
+                            <div className="flex justify-between items-end pt-3">
                                 <div className="text-center w-[45%]">
                                     <div className="border-b border-stone-400 mb-1"></div>
                                     <p className="font-bold">ลงชื่อผู้ส่งมอบสินค้า</p>
@@ -476,7 +478,7 @@ export const ConsignmentThermalReceipt: React.FC<ConsignmentThermalReceiptProps>
                         </div>
 
                         {/* Official Footer Message */}
-                        <div className="text-center pt-3 text-[9px] text-stone-500">
+                        <div className="text-center pt-2 text-[9px] text-stone-500">
                             <p>*** เอกสารสำคัญ กรุณาเก็บไว้เพื่อใช้อ้างอิงการเคลียร์ยอด ***</p>
                         </div>
                     </div>
