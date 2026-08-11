@@ -1,7 +1,8 @@
-import React, { useRef } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import { ConsignmentOrder } from '../../../types';
 import { Printer, Download, X } from 'lucide-react';
 import html2canvas from 'html2canvas';
+import QRCode from 'qrcode';
 
 interface ConsignmentThermalReceiptProps {
     order: ConsignmentOrder;
@@ -10,6 +11,18 @@ interface ConsignmentThermalReceiptProps {
 
 export const ConsignmentThermalReceipt: React.FC<ConsignmentThermalReceiptProps> = ({ order, onClose }) => {
     const receiptRef = useRef<HTMLDivElement>(null);
+    const [qrDataUrl, setQrDataUrl] = useState<string>('');
+
+    // Generate QR Code locally (no CORS issues with html2canvas)
+    useEffect(() => {
+        const qrData = `MO-VERIFY:${order.orderNumber}:${order.shopId}`;
+        QRCode.toDataURL(qrData, {
+            width: 200,
+            margin: 1,
+            color: { dark: '#1c1917', light: '#ffffff' },
+            errorCorrectionLevel: 'M',
+        }).then((url) => setQrDataUrl(url)).catch(console.error);
+    }, [order.orderNumber, order.shopId]);
 
     // Calculate collection date (deliveryDate + 14 days default if settleDate missing)
     const deliveryDateObj = new Date(order.deliveryDate);
@@ -39,14 +52,16 @@ export const ConsignmentThermalReceipt: React.FC<ConsignmentThermalReceiptProps>
         window.print();
     };
 
-    // Save as Image for Bluetooth Apps like Fun Print
+    // Save as Image for Bluetooth Apps like Fun Print (no external images = no CORS)
     const handleDownloadImage = async () => {
         if (!receiptRef.current) return;
         try {
             const canvas = await html2canvas(receiptRef.current, {
                 scale: 3, // High DPI for 300DPI printers
                 backgroundColor: '#ffffff',
-                useCORS: true
+                useCORS: false,   // No external URLs, all images are inline data URIs
+                allowTaint: false,
+                logging: false,
             });
             const link = document.createElement('a');
             link.download = `Slip_${order.orderNumber}_${order.shopName}.png`;
@@ -54,7 +69,7 @@ export const ConsignmentThermalReceipt: React.FC<ConsignmentThermalReceiptProps>
             link.click();
         } catch (err) {
             console.error('Failed to generate receipt image:', err);
-            alert('เกิดข้อผิดพลาดในการสร้างรูปภาพสลิป');
+            alert('เกิดข้อผิดพลาดในการสร้างรูปภาพสลิป กรุณาลองใหม่');
         }
     };
 
@@ -95,7 +110,7 @@ export const ConsignmentThermalReceipt: React.FC<ConsignmentThermalReceiptProps>
                 </div>
 
                 {/* THERMAL RECEIPT CONTAINER (Width 57mm / ~280px representation) */}
-                <div className="p-4 bg-stone-200 flex justify-center print:p-0 print:bg-white">
+                <div className="p-4 bg-stone-200 flex justify-center print:p-0 print:bg-white overflow-y-auto max-h-[70vh] print:max-h-none">
                     <div
                         ref={receiptRef}
                         id="printable-thermal-receipt"
@@ -195,13 +210,19 @@ export const ConsignmentThermalReceipt: React.FC<ConsignmentThermalReceiptProps>
                             </div>
                         </div>
 
-                        {/* Verification QR Code */}
+                        {/* Verification QR Code — generated locally, no CORS */}
                         <div className="pt-2 pb-1 text-center flex flex-col items-center justify-center">
-                            <img
-                                src={`https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=MO-VERIFY:${order.orderNumber}:${order.shopId}`}
-                                alt="QR Verification"
-                                className="w-16 h-16 border border-stone-300 p-0.5 bg-white rounded my-1"
-                            />
+                            {qrDataUrl ? (
+                                <img
+                                    src={qrDataUrl}
+                                    alt="QR Verification"
+                                    className="w-16 h-16 border border-stone-300 p-0.5 bg-white rounded my-1"
+                                />
+                            ) : (
+                                <div className="w-16 h-16 border border-stone-200 rounded my-1 flex items-center justify-center text-[8px] text-stone-400">
+                                    QR...
+                                </div>
+                            )}
                             <p className="text-[8px] font-bold text-stone-600">สแกนตรวจสอบสถานะบิล & ยอดค้าง</p>
                         </div>
 
