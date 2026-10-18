@@ -1,11 +1,10 @@
 import React, { useState } from 'react';
 import { useStore } from '@/src/store';
-import { ChefHat, Lock, Mail, Loader2, AlertCircle } from 'lucide-react';
+import { ChefHat, UserCheck, Loader2, AlertCircle, Sparkles } from 'lucide-react';
 
 export const Login: React.FC = () => {
-    const { signIn } = useStore();
+    const signIn = useStore(state => state.signIn);
     const [email, setEmail] = useState('');
-    const [password, setPassword] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
@@ -14,17 +13,15 @@ export const Login: React.FC = () => {
         setIsLoading(true);
         setError(null);
 
-        // Allow login with Username (auto-append domain)
-        let loginEmail = email;
-        if (!email.includes('@')) {
-            loginEmail = `${email}@mellowoven.com`;
-        }
-
         try {
-            await signIn(loginEmail, password);
-        } catch (err: any) {
-            console.error(err);
-            setError('ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง');
+            await signIn(email.trim());
+        } catch (err: unknown) {
+            console.error('[Login] Sign-in error:', err);
+            if (err instanceof Error) {
+                setError(err.message);
+            } else {
+                setError('เกิดข้อผิดพลาดในการเข้าสู่ระบบ กรุณาลองใหม่อีกครั้ง');
+            }
         } finally {
             setIsLoading(false);
         }
@@ -51,58 +48,55 @@ export const Login: React.FC = () => {
 
                 {/* Form */}
                 <div className="p-8">
-                    <h2 className="text-xl font-bold text-cafe-900 mb-6 text-center">เข้าสู่ระบบ</h2>
+                    <div className="text-center mb-6">
+                        <h2 className="text-xl font-bold text-cafe-900">เข้าสู่ระบบ</h2>
+                        <div className="inline-flex items-center gap-1.5 mt-2 px-3 py-1 bg-amber-50 border border-amber-200/60 rounded-full text-xs font-medium text-amber-800">
+                            <Sparkles size={13} className="text-amber-600 animate-pulse" />
+                            <span>* ระบบล็อกอินแบบไร้รหัสผ่าน (Passwordless Access)</span>
+                        </div>
+                    </div>
 
                     {error && (
                         <div className="mb-6 bg-red-50 border border-red-100 text-red-600 px-4 py-3 rounded-xl flex items-start gap-3 text-sm">
                             <AlertCircle size={18} className="mt-0.5 flex-shrink-0" />
-                            <p>{error}</p>
+                            <p className="leading-snug">{error}</p>
                         </div>
                     )}
 
                     <form onSubmit={handleSubmit} className="space-y-4">
-                        <div className="space-y-1">
-                            <label className="text-sm font-medium text-cafe-700 ml-1">ชื่อผู้ใช้ หรือ อีเมล (Username/Email)</label>
+                        <div className="space-y-1.5">
+                            <label className="text-sm font-medium text-cafe-700 ml-1">
+                                ชื่อผู้ใช้ หรือ อีเมล (Username / Email)
+                            </label>
                             <div className="relative">
-                                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-cafe-400" size={18} />
+                                <UserCheck className="absolute left-4 top-1/2 -translate-y-1/2 text-cafe-400" size={18} />
                                 <input
                                     type="text"
                                     required
+                                    autoFocus
                                     value={email}
                                     onChange={(e) => setEmail(e.target.value)}
-                                    className="w-full pl-12 pr-4 py-3 bg-cafe-50 border border-cafe-200 rounded-xl focus:ring-2 focus:ring-cafe-500 focus:border-transparent outline-none transition-all"
-                                    placeholder="เช่น Pond40744"
+                                    className="w-full pl-12 pr-4 py-3 bg-cafe-50 border border-cafe-200 rounded-xl focus:ring-2 focus:ring-cafe-500 focus:border-transparent outline-none transition-all placeholder:text-cafe-300 text-cafe-900 font-medium"
+                                    placeholder="เช่น pond40744 หรือ owner"
                                 />
                             </div>
-                        </div>
-
-                        <div className="space-y-1">
-                            <label className="text-sm font-medium text-cafe-700 ml-1">รหัสผ่าน</label>
-                            <div className="relative">
-                                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-cafe-400" size={18} />
-                                <input
-                                    type="password"
-                                    required
-                                    value={password}
-                                    onChange={(e) => setPassword(e.target.value)}
-                                    className="w-full pl-12 pr-4 py-3 bg-cafe-50 border border-cafe-200 rounded-xl focus:ring-2 focus:ring-cafe-500 focus:border-transparent outline-none transition-all"
-                                    placeholder="••••••••"
-                                />
-                            </div>
+                            <p className="text-xs text-cafe-400 ml-1">
+                                รองรับชื่อผู้ใช้ที่ได้รับอนุญาต หรืออีเมลองค์กร @mellowoven.com
+                            </p>
                         </div>
 
                         <button
                             type="submit"
                             disabled={isLoading}
-                            className="w-full bg-cafe-900 text-white py-3.5 rounded-xl font-bold shadow-lg shadow-cafe-200 hover:bg-cafe-800 active:scale-[0.98] transition-all disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2 mt-2"
+                            className="w-full bg-cafe-900 text-white py-3.5 rounded-xl font-bold shadow-lg shadow-cafe-200 hover:bg-cafe-800 active:scale-[0.98] transition-all disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2 mt-4 cursor-pointer"
                         >
                             {isLoading ? (
                                 <>
                                     <Loader2 size={20} className="animate-spin" />
-                                    กำลังเข้าสู่ระบบ...
+                                    กำลังตรวจสอบสิทธิ์...
                                 </>
                             ) : (
-                                'เข้าสู่ระบบ'
+                                'เข้าสู่ระบบร้าน'
                             )}
                         </button>
                     </form>

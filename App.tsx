@@ -45,7 +45,12 @@ const App: React.FC = () => {
     return saved || 'sales';
   });
 
-  const { fetchData, subscribeToRealtime, unsubscribeFromRealtime, checkSession, session, userRole } = useStore();
+  const fetchData = useStore(s => s.fetchData);
+  const subscribeToRealtime = useStore(s => s.subscribeToRealtime);
+  const unsubscribeFromRealtime = useStore(s => s.unsubscribeFromRealtime);
+  const checkSession = useStore(s => s.checkSession);
+  const session = useStore(s => s.session);
+  const userRole = useStore(s => s.userRole);
   const [isInitializing, setIsInitializing] = useState(true);
 
   // Save to localStorage whenever tab changes
@@ -56,44 +61,49 @@ const App: React.FC = () => {
   // Initial Data Load & Session Check
   useEffect(() => {
     const init = async () => {
-      // FIX: One-time cache purge to clear stale product data (v2.0 cache reset)
-      const CACHE_VERSION = 'v3.0-thai-jars';
-      const lastVersion = localStorage.getItem('cache-version');
-      if (lastVersion !== CACHE_VERSION) {
-        console.log('[App] Purging stale cache (Zombie Data Fix)');
-        localStorage.removeItem('mellow-oven-storage');
-        localStorage.setItem('cache-version', CACHE_VERSION);
-      }
-
-      // 🧹 Auto-cleanup: Delete transactions older than 6 months (runs once per day)
-      const lastCleanup = localStorage.getItem('lastDbCleanup');
-      const today = new Date().toISOString().split('T')[0];
-      if (lastCleanup !== today) {
-        try {
-          const sixMonthsAgo = new Date();
-          sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
-          const cutoffDate = sixMonthsAgo.toISOString().split('T')[0];
-
-          // Import supabase dynamically to avoid circular deps
-          const { supabase } = await import('./src/lib/supabase');
-          const { error, count } = await supabase
-            .from('transactions')
-            .delete()
-            .lt('date', cutoffDate);
-
-          if (!error) {
-            console.log(`[App] 🧹 Cleaned up transactions older than ${cutoffDate}`);
-            localStorage.setItem('lastDbCleanup', today);
-          }
-        } catch (e) {
-          console.warn('[App] Database cleanup skipped:', e);
+      try {
+        // FIX: One-time cache purge to clear stale product data (v2.0 cache reset)
+        const CACHE_VERSION = 'v3.0-thai-jars';
+        const lastVersion = localStorage.getItem('cache-version');
+        if (lastVersion !== CACHE_VERSION) {
+          console.log('[App] Purging stale cache (Zombie Data Fix)');
+          localStorage.removeItem('mellow-oven-storage');
+          localStorage.setItem('cache-version', CACHE_VERSION);
         }
-      }
 
-      await checkSession();
-      await fetchData();
-      subscribeToRealtime();
-      setIsInitializing(false);
+        // 🧹 Auto-cleanup: Delete transactions older than 6 months (runs once per day)
+        const lastCleanup = localStorage.getItem('lastDbCleanup');
+        const today = new Date().toISOString().split('T')[0];
+        if (lastCleanup !== today) {
+          try {
+            const sixMonthsAgo = new Date();
+            sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+            const cutoffDate = sixMonthsAgo.toISOString().split('T')[0];
+
+            // Import supabase dynamically to avoid circular deps
+            const { supabase } = await import('./src/lib/supabase');
+            const { error, count } = await supabase
+              .from('transactions')
+              .delete()
+              .lt('date', cutoffDate);
+
+            if (!error) {
+              console.log(`[App] 🧹 Cleaned up transactions older than ${cutoffDate}`);
+              localStorage.setItem('lastDbCleanup', today);
+            }
+          } catch (e) {
+            console.warn('[App] Database cleanup skipped:', e);
+          }
+        }
+
+        await checkSession();
+        await fetchData();
+        subscribeToRealtime();
+      } catch (err) {
+        console.error('[App] Init failed or Supabase connection issue:', err);
+      } finally {
+        setIsInitializing(false);
+      }
     };
     init();
     return () => unsubscribeFromRealtime();
@@ -101,7 +111,7 @@ const App: React.FC = () => {
 
   // 🎬 Dismiss splash screen after init (Netflix-style fade-out)
   // Also cache the shop logo URL for instant display on next visit
-  const { shopInfo } = useStore();
+  const shopInfo = useStore(s => s.shopInfo);
 
   useEffect(() => {
     if (!isInitializing) {
@@ -123,9 +133,13 @@ const App: React.FC = () => {
     return null; // HTML splash is already showing
   }
 
-  if (!session) {
-    return <Login />;
-  }
+  // TEMPORARY BYPASS: ข้ามหน้า Login ชั่วคราวเพื่อให้เข้าใช้งานได้ทันที
+  // if (!session) {
+  //   return <Login />;
+  // }
+
+  const effectiveUserRole = userRole || 'owner';
+
   const renderContent = () => {
     return (
       <Suspense fallback={<PageLoader />}>
@@ -133,14 +147,14 @@ const App: React.FC = () => {
           switch (activeTab) {
             case 'dashboard': return <Dashboard onNavigate={setActiveTab} />;
             case 'financials':
-              return userRole === 'owner' ? <Financials /> : <div className="p-8 text-center text-cafe-500">Access Denied</div>;
+              return effectiveUserRole === 'owner' ? <Financials /> : <div className="p-8 text-center text-cafe-500">Access Denied</div>;
             case 'sales': return <Sales />;
             case 'salesreport': return <SalesReport />;
             case 'menustock': return <MenuStock />;
             case 'inventory': return <Inventory onNavigate={setActiveTab} />;
             case 'consignment': return <ConsignmentPage />;
             case 'production':
-              return userRole === 'owner' ? <Production /> : <div className="p-8 text-center text-cafe-500">Access Denied</div>;
+              return effectiveUserRole === 'owner' ? <Production /> : <div className="p-8 text-center text-cafe-500">Access Denied</div>;
             case 'promotion': return <PromotionPage />;
             case 'settings': return <Settings />;
             default: return <Sales />;

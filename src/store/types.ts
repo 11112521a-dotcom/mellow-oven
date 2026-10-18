@@ -17,7 +17,7 @@ export interface AuthSlice {
     user: User | null;
     session: Session | null;
     userRole: 'owner' | 'staff' | null;
-    signIn: (email: string, password: string) => Promise<void>;
+    signIn: (email: string, password?: string) => Promise<void>;
     signOut: () => Promise<void>;
     checkSession: () => Promise<void>;
 }
