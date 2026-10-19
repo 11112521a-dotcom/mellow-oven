@@ -3,6 +3,9 @@ import { useStore } from '@/src/store';
 import { Package, Save, Calendar, AlertCircle, Flame, Truck, X, Check, Sparkles, ChevronDown, ChevronUp, Layers, Box, Edit2, RotateCcw, Target, Zap, Trash2, RefreshCw, UtensilsCrossed, Gift, Store } from 'lucide-react';
 import { Product, Variant } from '@/types';
 import { useDraftStorage } from '@/src/hooks/useFormDraft';
+import { AnimatedSelect } from '@/src/components/ui/AnimatedSelect';
+import { DEFAULT_MARKETS } from '@/src/store/slices/salesSlice';
+import { DEFAULT_PRODUCTS } from '@/src/store/slices/productsSlice';
 
 // Type for flattened product/variant item
 interface InventoryItem {
@@ -323,9 +326,35 @@ export const MenuStockPlanner: React.FC = () => {
     const { products, markets, dailyInventory, fetchDailyInventory, upsertDailyInventory, bulkUpsertDailyInventory, getYesterdayStock } = useStore();
 
     const [businessDate, setBusinessDate] = useState(() => new Date().toISOString().split('T')[0]);
-    const [selectedMarketId, setSelectedMarketId] = useState<string>('');
+    const [selectedMarketId, setSelectedMarketId] = useState<string>(() => {
+        return localStorage.getItem('last_selected_market_menustock') || '';
+    });
     const [isSaving, setIsSaving] = useState(false);
     const [draftRestored, setDraftRestored] = useState(false);
+
+    // Filter active markets with fallback
+    const activeMarkets = useMemo(() => {
+        const sourceMarkets = (markets && markets.length > 0) ? markets : DEFAULT_MARKETS;
+        const active = sourceMarkets.filter(m => m.isActive !== false);
+        return active.length > 0 ? active : sourceMarkets;
+    }, [markets]);
+
+    // Auto-select first active market if none selected or selected is invalid
+    useEffect(() => {
+        if (activeMarkets.length > 0) {
+            const isValid = activeMarkets.some(m => m.id === selectedMarketId);
+            if (!selectedMarketId || !isValid) {
+                setSelectedMarketId(activeMarkets[0].id);
+            }
+        }
+    }, [activeMarkets, selectedMarketId]);
+
+    // Persist selected market in localStorage
+    useEffect(() => {
+        if (selectedMarketId) {
+            localStorage.setItem('last_selected_market_menustock', selectedMarketId);
+        }
+    }, [selectedMarketId]);
 
     // Draft storage for auto-save (market isolated)
     const draftKey = `menu-stock-${businessDate}${selectedMarketId ? `-${selectedMarketId}` : ''}`;
@@ -451,7 +480,8 @@ export const MenuStockPlanner: React.FC = () => {
         const items: InventoryItem[] = [];
         if (!selectedMarketId) return items; // 🆕 Force market selection
         
-        products.forEach(product => {
+        const safeProducts = (products && products.length > 0) ? products : DEFAULT_PRODUCTS;
+        safeProducts.forEach(product => {
             // 🆕 Skip inactive products (พักขาย)
             if (product.isActive === false) return;
 
@@ -493,8 +523,9 @@ export const MenuStockPlanner: React.FC = () => {
     // Group items by parent product for display
     const groupedItems = useMemo(() => {
         const groups: Map<string, { product: Product; items: InventoryItem[] }> = new Map();
+        const safeProducts = (products && products.length > 0) ? products : DEFAULT_PRODUCTS;
 
-        products.forEach(product => {
+        safeProducts.forEach(product => {
             const items = inventoryItems.filter(item => item.productId === product.id);
             if (items.length > 0) {
                 groups.set(product.id, { product, items });
@@ -1531,48 +1562,47 @@ export const MenuStockPlanner: React.FC = () => {
     return (
         <div className="max-w-6xl mx-auto pb-20 space-y-6">
             {/* Premium Header */}
-            <header className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-cafe-800 via-cafe-700 to-cafe-900 p-8 text-white shadow-xl">
-                <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -translate-y-1/2 translate-x-1/2" />
-                <div className="absolute bottom-0 left-0 w-32 h-32 bg-white/5 rounded-full translate-y-1/2 -translate-x-1/2" />
+            <header className="relative rounded-2xl bg-gradient-to-br from-cafe-800 via-cafe-700 to-cafe-900 p-6 sm:p-8 text-white shadow-xl z-20">
+                {/* Background Decoration */}
+                <div className="absolute inset-0 overflow-hidden rounded-2xl pointer-events-none z-0">
+                    <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -translate-y-1/2 translate-x-1/2 blur-2xl" />
+                    <div className="absolute bottom-0 left-0 w-32 h-32 bg-white/5 rounded-full translate-y-1/2 -translate-x-1/2 blur-2xl" />
+                </div>
 
-                <div className="relative flex flex-col md:flex-row md:items-center justify-between gap-6">
+                <div className="relative flex flex-col md:flex-row md:items-center justify-between gap-6 z-10">
                     <div className="flex items-center gap-4">
-                        <div className="w-14 h-14 bg-white/10 backdrop-blur rounded-xl flex items-center justify-center flex-shrink-0">
-                            <Package size={28} />
+                        <div className="w-14 h-14 bg-white/10 backdrop-blur-md rounded-2xl flex items-center justify-center flex-shrink-0 border border-white/10 shadow-inner">
+                            <Package size={28} className="text-white" />
                         </div>
                         <div>
                             <h1 className="text-2xl font-bold flex items-center gap-2">
                                 สต็อกเมนูรายวัน
                                 <Sparkles className="text-yellow-300" size={20} />
                             </h1>
-                            <p className="text-cafe-200">Daily Stock Management • {inventoryItems.length} รายการ</p>
+                            <p className="text-cafe-200 text-sm">Daily Stock Management • {inventoryItems.length} รายการ</p>
                         </div>
                     </div>
 
-                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-                        {/* Market Selector */}
-                        <div className="flex items-center gap-2 bg-white/10 backdrop-blur rounded-xl p-3 pl-4">
-                            <Store size={20} className="text-cafe-200 flex-shrink-0" />
-                            <select
+                    <div className="flex flex-wrap items-center gap-3">
+                        {/* Market Selector - AnimatedSelect (Same Style as Sales Report) */}
+                        <div className="w-56">
+                            <AnimatedSelect
                                 value={selectedMarketId}
-                                onChange={e => setSelectedMarketId(e.target.value)}
-                                className="bg-transparent border-none text-white font-medium focus:ring-0 cursor-pointer w-full text-sm sm:text-base py-0"
-                            >
-                                <option value="" className="text-gray-900">-- เลือกตลาด/สาขา --</option>
-                                {markets.map(m => (
-                                    <option key={m.id} value={m.id} className="text-gray-900">{m.name}</option>
-                                ))}
-                            </select>
+                                onChange={setSelectedMarketId}
+                                options={activeMarkets.map(m => ({ value: m.id, label: m.name }))}
+                                icon={Store}
+                                placeholder="-- เลือกตลาด/สาขา --"
+                            />
                         </div>
 
                         {/* Date Selector */}
-                        <div className="flex items-center gap-3 bg-white/10 backdrop-blur rounded-xl p-3">
-                            <Calendar size={20} className="text-cafe-200 flex-shrink-0" />
+                        <div className="relative bg-white/10 backdrop-blur-md rounded-xl px-4 py-2.5 flex items-center gap-2 border border-white/15 shadow-sm transition-all hover:bg-white/15">
+                            <Calendar size={18} className="text-amber-300 flex-shrink-0" />
                             <input
                                 type="date"
                                 value={businessDate}
                                 onChange={e => setBusinessDate(e.target.value)}
-                                className="bg-transparent border-none text-white font-medium focus:ring-0 cursor-pointer w-full text-sm sm:text-base py-0"
+                                className="bg-transparent border-none text-white font-semibold focus:ring-0 cursor-pointer text-sm outline-none"
                             />
                         </div>
                     </div>

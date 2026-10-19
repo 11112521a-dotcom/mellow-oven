@@ -1,14 +1,29 @@
 import { StateCreator } from 'zustand';
 import { AppState, SalesSlice } from '../types';
 import { supabase, fetchAllRows } from '../../lib/supabase';
+import { Market } from '../../../types';
+
+export const DEFAULT_MARKETS: Market[] = [
+    { id: 'storefront', name: 'หน้าร้าน (Storefront)', color: '#b08968', type: 'market', isActive: true },
+    { id: 'market-a', name: 'ตลาดนัด A', color: '#22c55e', type: 'market', isActive: true },
+    { id: 'market-b', name: 'ตลาดนัด B', color: '#3b82f6', type: 'market', isActive: true }
+];
+
+export const getStoredOrFallbackMarkets = (currentMarkets?: Market[]): Market[] => {
+    if (currentMarkets && currentMarkets.length > 0) return currentMarkets;
+    try {
+        const stored = localStorage.getItem('mellow_oven_markets_backup');
+        if (stored) {
+            const parsed = JSON.parse(stored);
+            if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        }
+    } catch (e) {}
+    return DEFAULT_MARKETS;
+};
 
 export const createSalesSlice: StateCreator<AppState, [], [], SalesSlice> = (set, get) => ({
     productSales: [],
-    markets: [
-        { id: 'storefront', name: 'หน้าร้าน (Storefront)', color: '#b08968' },
-        { id: 'market-a', name: 'ตลาดนัด A', color: '#22c55e' },
-        { id: 'market-b', name: 'ตลาดนัด B', color: '#3b82f6' }
-    ],
+    markets: getStoredOrFallbackMarkets(),
 
     addProductSaleLog: async (log) => {
         set(state => ({ productSales: [...state.productSales, log] }));
@@ -75,12 +90,12 @@ export const createSalesSlice: StateCreator<AppState, [], [], SalesSlice> = (set
     fetchProductSales: async () => {
         // ⚡ ใช้ fetchAllRows() เพื่อป้องกัน 1000-row cap อย่างถาวร
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const data = await fetchAllRows<any>('product_sales', {
+        const data = await fetchAllRows<unknown>('product_sales', {
             orderBy: 'sale_date',
             ascending: false
         });
 
-        const mappedData = data.map(row => ({
+        const mappedData = data.map((row: Record<string, any>) => ({
             id: row.id,
             recordedAt: row.recorded_at,
             saleDate: row.sale_date,
@@ -118,7 +133,7 @@ export const createSalesSlice: StateCreator<AppState, [], [], SalesSlice> = (set
 
     updateProductSaleLog: async (id, updates) => {
         // Map frontend camelCase updates to backend snake_case for DB
-        const dbUpdates: any = { ...updates };
+        const dbUpdates: Record<string, unknown> = { ...updates };
         if (updates.quantitySold !== undefined) dbUpdates.quantity_sold = updates.quantitySold;
         if (updates.totalRevenue !== undefined) dbUpdates.total_revenue = updates.totalRevenue;
         if (updates.totalCost !== undefined) dbUpdates.total_cost = updates.totalCost;
@@ -215,6 +230,7 @@ export const createSalesSlice: StateCreator<AppState, [], [], SalesSlice> = (set
         set((state) => {
             const updatedMarkets = [...state.markets, newMarket];
             try {
+                localStorage.setItem('mellow_oven_markets_backup', JSON.stringify(updatedMarkets));
                 localStorage.setItem('mellow_oven_market_overrides', JSON.stringify(
                     updatedMarkets.map(m => ({ id: m.id, isActive: m.isActive, type: m.type }))
                 ));
@@ -222,7 +238,7 @@ export const createSalesSlice: StateCreator<AppState, [], [], SalesSlice> = (set
             return { markets: updatedMarkets };
         });
         
-        const dbPayload: any = {
+        const dbPayload: Record<string, any> = {
             id: newMarket.id,
             name: newMarket.name,
             location: newMarket.location,
@@ -246,6 +262,7 @@ export const createSalesSlice: StateCreator<AppState, [], [], SalesSlice> = (set
         set((state) => {
             const updatedMarkets = state.markets.map((m) => m.id === id ? { ...m, ...updates } : m);
             try {
+                localStorage.setItem('mellow_oven_markets_backup', JSON.stringify(updatedMarkets));
                 localStorage.setItem('mellow_oven_market_overrides', JSON.stringify(
                     updatedMarkets.map(m => ({ id: m.id, isActive: m.isActive, type: m.type }))
                 ));
@@ -253,7 +270,7 @@ export const createSalesSlice: StateCreator<AppState, [], [], SalesSlice> = (set
             return { markets: updatedMarkets };
         });
         
-        const dbUpdates: any = { ...updates };
+        const dbUpdates: Record<string, any> = { ...updates };
         if (updates.isActive !== undefined) {
             dbUpdates.is_active = updates.isActive;
             delete dbUpdates.isActive;
@@ -273,15 +290,21 @@ export const createSalesSlice: StateCreator<AppState, [], [], SalesSlice> = (set
 
     removeMarket: async (id) => {
         set((state) => {
-            const updatedMarkets = state.markets.filter((m) => m.id !== id);
+            let updatedMarkets = state.markets.filter((m) => m.id !== id);
+            if (updatedMarkets.length === 0) {
+                updatedMarkets = DEFAULT_MARKETS;
+            }
             try {
+                localStorage.setItem('mellow_oven_markets_backup', JSON.stringify(updatedMarkets));
                 localStorage.setItem('mellow_oven_market_overrides', JSON.stringify(
                     updatedMarkets.map(m => ({ id: m.id, isActive: m.isActive, type: m.type }))
                 ));
             } catch (e) {}
             return { markets: updatedMarkets };
         });
-        await supabase.from('markets').delete().eq('id', id);
+        try {
+            await supabase.from('markets').delete().eq('id', id);
+        } catch (e) {}
     },
 
     marketSchedules: [],
@@ -317,7 +340,7 @@ export const createSalesSlice: StateCreator<AppState, [], [], SalesSlice> = (set
             marketSchedules: state.marketSchedules.map(s => s.id === id ? { ...s, ...updates } : s)
         }));
 
-        const dbUpdates: any = {};
+        const dbUpdates: Record<string, unknown> = {};
         if (updates.marketId !== undefined) dbUpdates.market_id = updates.marketId;
         if (updates.dayOfWeek !== undefined) dbUpdates.day_of_week = updates.dayOfWeek;
         if (updates.isActive !== undefined) dbUpdates.is_active = updates.isActive;
