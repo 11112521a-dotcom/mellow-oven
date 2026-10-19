@@ -3,9 +3,6 @@ import { useStore } from '@/src/store';
 import { Product, DailyProductionLog, Variant } from '@/types';
 import { formatCurrency } from '@/src/lib/utils';
 import { NumberInput } from '@/src/components/ui/NumberInput';
-import { AnimatedSelect, SelectOption } from '@/src/components/ui/AnimatedSelect';
-import { DEFAULT_MARKETS } from '@/src/store/slices/salesSlice';
-import { DEFAULT_PRODUCTS } from '@/src/store/slices/productsSlice';
 import { Calendar, Store, Save, ShoppingCart, Package, TrendingUp, AlertCircle, Check, X, Sparkles, ArrowRight, Sun, Cloud, CloudRain, CloudLightning, ChevronDown, ChevronUp, Wind, ThermometerSnowflake, UtensilsCrossed } from 'lucide-react';
 
 // Weather type
@@ -236,49 +233,17 @@ const WEATHER_OPTIONS = [
 ];
 
 export const DailySalesForm: React.FC = () => {
-    const products = useStore(s => s.products);
-    const markets = useStore(s => s.markets);
-    const fetchData = useStore(s => s.fetchData);
-    const dailyInventory = useStore(s => s.dailyInventory);
-    const fetchDailyInventory = useStore(s => s.fetchDailyInventory);
-    const saveDailyMarketSales = useStore(s => s.saveDailyMarketSales);
-    const productSales = useStore(s => s.productSales);
+    const {
+        products, markets, fetchData, dailyInventory, fetchDailyInventory, saveDailyMarketSales, productSales
+    } = useStore();
 
     const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
-    const [selectedMarketId, setSelectedMarketId] = useState<string>(() => {
-        return localStorage.getItem('last_selected_market_sales') || '';
-    });
+    const [selectedMarketId, setSelectedMarketId] = useState<string>(''); // Start empty - require user to select
     const [logs, setLogs] = useState<(DailyProductionLog & { product: Product, variant?: Variant })[]>([]);
     const [showConfirmModal, setShowConfirmModal] = useState(false);
     const [weather, setWeather] = useState<WeatherCondition>(null); // NEW: Weather state
     const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set()); // NEW: For collapsible groups
     const [hasSaved, setHasSaved] = useState(false); // FIX: Track if already saved to prevent duplicate entries
-
-    // Filter active markets with fallback
-    const activeMarkets = useMemo(() => {
-        const sourceMarkets = (markets && markets.length > 0) ? markets : DEFAULT_MARKETS;
-        const filtered = sourceMarkets.filter(m => m.isActive !== false && (m.type === 'market' || !m.type));
-        if (filtered.length > 0) return filtered;
-        const active = sourceMarkets.filter(m => m.isActive !== false);
-        return active.length > 0 ? active : sourceMarkets;
-    }, [markets]);
-
-    // Auto-select first active market if none selected or selected is invalid
-    useEffect(() => {
-        if (activeMarkets.length > 0) {
-            const isValid = activeMarkets.some(m => m.id === selectedMarketId);
-            if (!selectedMarketId || !isValid) {
-                setSelectedMarketId(activeMarkets[0].id);
-            }
-        }
-    }, [activeMarkets, selectedMarketId]);
-
-    // Persist selected market in localStorage
-    useEffect(() => {
-        if (selectedMarketId) {
-            localStorage.setItem('last_selected_market_sales', selectedMarketId);
-        }
-    }, [selectedMarketId]);
 
     // Success Modal State
     const [showSuccessModal, setShowSuccessModal] = useState(false);
@@ -303,12 +268,11 @@ export const DailySalesForm: React.FC = () => {
 
     // Initialize logs with "Available" from daily_inventory
     useEffect(() => {
-        const safeProducts = (products && products.length > 0) ? products : DEFAULT_PRODUCTS;
-        if (safeProducts.length > 0) {
+        if (products.length > 0) {
             const initialLogs: (DailyProductionLog & { product: Product, variant?: Variant })[] = [];
 
             // กรองสินค้าตามสาขา/ตลาดที่เลือก (แสดงเฉพาะเมื่อเลือกตลาดแล้วเท่านั้น ป้องกันแสดงข้อมูลมั่ว)
-            const filteredProducts = safeProducts.filter(p => {
+            const filteredProducts = products.filter(p => {
                 if (p.isActive === false) return false;
                 if (!selectedMarketId) return false; // ไม่เลือกตลาด จะไม่แสดงสินค้าเพื่อป้อนข้อมูล
                 
@@ -493,8 +457,8 @@ export const DailySalesForm: React.FC = () => {
 
     // Get current market name for UI
     const marketName = useMemo(() => {
-        return activeMarkets.find(m => m.id === selectedMarketId)?.name || 'Unknown Market';
-    }, [activeMarkets, selectedMarketId]);
+        return markets.find(m => m.id === selectedMarketId)?.name || 'Unknown Market';
+    }, [markets, selectedMarketId]);
 
 
     const handleSaveClick = () => {
@@ -590,13 +554,10 @@ export const DailySalesForm: React.FC = () => {
     return (
         <div className="space-y-6 animate-in fade-in duration-500">
             {/* Warm Cafe Header */}
-            <div className="relative rounded-2xl bg-gradient-to-br from-amber-50 via-orange-50 to-yellow-50 border border-amber-100 p-6 sm:p-8 z-20">
-                {/* Background Decoration */}
-                <div className="absolute inset-0 overflow-hidden rounded-2xl pointer-events-none z-0">
-                    <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-amber-200/30 to-transparent rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl" />
-                </div>
+            <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-amber-50 via-orange-50 to-yellow-50 border border-amber-100 p-6 sm:p-8">
+                <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-amber-200/30 to-transparent rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl" />
 
-                <div className="relative flex flex-col md:flex-row md:items-center justify-between gap-6 z-10">
+                <div className="relative flex flex-col md:flex-row md:items-center justify-between gap-6">
                     <div className="flex items-center gap-4">
                         <div className="w-14 h-14 bg-gradient-to-br from-amber-400 to-orange-500 rounded-2xl flex items-center justify-center shadow-lg shadow-amber-200/50">
                             <ShoppingCart size={28} className="text-white" />
@@ -610,43 +571,45 @@ export const DailySalesForm: React.FC = () => {
                         </div>
                     </div>
 
-                    <div className="flex flex-wrap items-center gap-3">
-                        {/* Market Selector - AnimatedSelect (Same style as Sales Report) */}
-                        <div className="w-56">
-                            <AnimatedSelect
+                    <div className="flex flex-wrap gap-3">
+                        <div className="bg-white/80 backdrop-blur-sm rounded-xl p-3 flex items-center gap-2 border border-amber-100 shadow-sm">
+                            <Store size={18} className="text-amber-600" />
+                            <select
                                 value={selectedMarketId}
-                                onChange={setSelectedMarketId}
-                                options={activeMarkets.map(m => ({ value: m.id, label: m.name }))}
-                                icon={Store}
-                                placeholder="-- เลือกตลาด/สาขา --"
-                            />
+                                onChange={e => setSelectedMarketId(e.target.value)}
+                                className="bg-transparent border-none text-stone-700 font-medium focus:ring-0 cursor-pointer"
+                            >
+                                <option value="">-- เลือกตลาด --</option>
+                                 {markets
+                                    .filter(m => m.isActive !== false && (m.type === 'market' || !m.type))
+                                    .map(m => (
+                                        <option key={m.id} value={m.id}>{m.name}</option>
+                                    ))}
+                            </select>
                         </div>
-
-                        {/* Date Picker - Premium Glassmorphism */}
-                        <div className="relative bg-white/80 backdrop-blur-sm rounded-xl px-4 py-2.5 flex items-center gap-2 border border-amber-100 shadow-sm transition-all hover:bg-amber-50 hover:border-amber-200">
-                            <Calendar size={18} className="text-amber-500 shrink-0" />
+                        <div className="bg-white/80 backdrop-blur-sm rounded-xl p-3 flex items-center gap-2 border border-amber-100 shadow-sm">
+                            <Calendar size={18} className="text-amber-600" />
                             <input
                                 type="date"
                                 value={date}
                                 onChange={e => setDate(e.target.value)}
-                                className="bg-transparent border-none text-stone-700 font-semibold text-sm focus:ring-0 cursor-pointer outline-none"
+                                className="bg-transparent border-none text-stone-700 font-medium focus:ring-0 cursor-pointer"
                             />
                         </div>
 
-                        {/* Weather Selector - Premium Glassmorphism */}
-                        <div className="bg-white/80 backdrop-blur-sm rounded-xl p-1.5 flex items-center gap-1 border border-amber-100 shadow-sm">
-                            <span className="text-stone-500 text-xs font-bold px-2">สภาพอากาศ:</span>
+                        {/* Weather Selector */}
+                        <div className="bg-white/80 backdrop-blur-sm rounded-xl p-2 flex items-center gap-1 border border-amber-100 shadow-sm">
+                            <span className="text-stone-500 text-sm px-2">อากาศ:</span>
                             {WEATHER_OPTIONS.map(w => (
                                 <button
                                     key={w.id}
                                     type="button"
                                     onClick={() => setWeather(weather === w.id ? null : w.id as WeatherCondition)}
-                                    className={`p-2 rounded-lg transition-all active:scale-95 ${weather === w.id
-                                        ? w.color + ' ring-2 ring-amber-400 shadow-sm scale-105 font-bold'
-                                        : 'text-stone-400 hover:bg-amber-50 hover:text-amber-700'
+                                    className={`p-2 rounded-lg transition-all ${weather === w.id
+                                        ? w.color + ' ring-2 ring-amber-400/50 scale-110'
+                                        : 'text-stone-400 hover:bg-amber-50'
                                         }`}
                                     title={w.label}
-                                    aria-label={`เลือกสภาพอากาศ ${w.label}`}
                                 >
                                     {w.icon}
                                 </button>
@@ -715,35 +678,33 @@ export const DailySalesForm: React.FC = () => {
 
                         return (
                             <div key={productId} className="bg-white rounded-2xl shadow-sm border border-cafe-100 overflow-hidden">
-                                {/* Group Header Button */}
-                                <button
-                                    type="button"
-                                    className="w-full px-4 py-3 flex items-center justify-between transition-colors bg-gradient-to-r from-cafe-600 to-cafe-700 text-white hover:from-cafe-700 hover:to-cafe-800 text-left outline-none focus-visible:ring-2 focus-visible:ring-amber-400"
+                                {/* Group Header */}
+                                <div
+                                    className="px-4 py-3 flex items-center justify-between cursor-pointer transition-colors bg-gradient-to-r from-cafe-600 to-cafe-700 text-white hover:from-cafe-700 hover:to-cafe-800"
                                     onClick={() => hasVariants && toggleGroup(productId)}
-                                    aria-expanded={isExpanded}
                                 >
                                     <div className="flex items-center gap-3">
                                         <span className="font-bold text-white">
                                             {group.product.name}
                                         </span>
                                         {hasVariants && (
-                                            <span className="text-xs bg-white/20 px-2 py-0.5 rounded-full font-medium">
+                                            <span className="text-xs bg-white/20 px-2 py-0.5 rounded-full">
                                                 {group.items.length} รส
                                             </span>
                                         )}
                                     </div>
                                     <div className="flex items-center gap-2">
-                                        <span className="text-xs px-2.5 py-1 rounded-full font-bold bg-blue-400/30 text-white border border-blue-300/30">
+                                        <span className="text-xs px-2 py-1 rounded-full font-bold bg-blue-400/30 text-white">
                                             📦 {group.totalAvailable}
                                         </span>
-                                        <span className="text-xs px-2.5 py-1 rounded-full font-bold bg-green-400/30 text-white border border-green-300/30">
+                                        <span className="text-xs px-2 py-1 rounded-full font-bold bg-green-400/30 text-white">
                                             ✅ {group.totalSold}
                                         </span>
                                         {hasVariants && (
                                             isExpanded ? <ChevronUp size={20} /> : <ChevronDown size={20} />
                                         )}
                                     </div>
-                                </button>
+                                </div>
 
                                 {/* Items Grid - Always show for single products, toggle for groups */}
                                 {(!hasVariants || isExpanded) && (

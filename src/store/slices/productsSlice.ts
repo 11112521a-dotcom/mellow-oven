@@ -6,39 +6,14 @@ import { ProductionForecast } from '../../lib/forecasting/types';
 import { forecastOutputToDbFormat } from '../../lib/forecasting/types';
 import { mapProduct } from '../helpers/mappers';
 
-export const DEFAULT_PRODUCTS: Product[] = [
-    { id: 'p1', name: 'เค้กมินิ (ส้ม)', category: 'Cake', flavor: 'ส้ม', price: 25, cost: 12, isActive: true },
-    { id: 'p2', name: 'เค้กมินิ (ช็อคโกแลต)', category: 'Cake', flavor: 'ช็อคโกแลต', price: 25, cost: 13, isActive: true },
-    { id: 'p3', name: 'ทาร์ตไข่ (ออริจินัล)', category: 'Tart', flavor: 'ออริจินัล', price: 20, cost: 8, isActive: true },
-    { id: 'p4', name: 'เค้กกล้วยหอม (ชีส)', category: 'Cake', flavor: 'ชีส', price: 35, cost: 18, isActive: true },
-];
-
-export const getStoredOrFallbackProducts = (currentProducts?: Product[]): Product[] => {
-    if (currentProducts && currentProducts.length > 0) return currentProducts;
-    try {
-        const stored = localStorage.getItem('mellow_oven_products_backup');
-        if (stored) {
-            const parsed = JSON.parse(stored);
-            if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-        }
-    } catch (e) {}
-    return DEFAULT_PRODUCTS;
-};
-
 export const createProductsSlice: StateCreator<AppState, [], [], ProductsSlice> = (set, get) => ({
-    products: getStoredOrFallbackProducts(),
+    products: [],
     dailyReports: [],
     productionForecasts: [],
 
     addProduct: async (product) => {
         const tempId = product.id;
-        set((state) => {
-            const updated = [...state.products, product];
-            try {
-                localStorage.setItem('mellow_oven_products_backup', JSON.stringify(updated));
-            } catch (e) {}
-            return { products: updated };
-        });
+        set((state) => ({ products: [...state.products, product] }));
 
         // Prepare data for Supabase (map camelCase to snake_case)
         const dbProduct = {
@@ -55,35 +30,25 @@ export const createProductsSlice: StateCreator<AppState, [], [], ProductsSlice> 
             image_url: product.imageUrl || null
         };
 
-        try {
-            const { data, error } = await supabase.from('products').insert(dbProduct).select().single();
-            if (error) {
-                console.warn('Supabase product insert skipped/failed (kept local):', error.message);
-            } else if (data) {
-                set((state) => {
-                    const mapped = state.products.map((p) => p.id === tempId ? mapProduct(data) : p);
-                    try {
-                        localStorage.setItem('mellow_oven_products_backup', JSON.stringify(mapped));
-                    } catch (e) {}
-                    return { products: mapped };
-                });
-            }
-        } catch (e) {
-            console.warn('Supabase product insert exception (kept local):', e);
+        const { data, error } = await supabase.from('products').insert(dbProduct).select().single();
+        if (error) {
+            console.error('Error adding product:', error);
+            // Rollback on error
+            set((state) => ({ products: state.products.filter(p => p.id !== tempId) }));
+        } else if (data) {
+            set((state) => ({
+                products: state.products.map((p) => p.id === tempId ? mapProduct(data) : p)
+            }));
         }
     },
 
     updateProduct: async (id, updates) => {
-        set((state) => {
-            const updated = state.products.map((p) => p.id === id ? { ...p, ...updates } : p);
-            try {
-                localStorage.setItem('mellow_oven_products_backup', JSON.stringify(updated));
-            } catch (e) {}
-            return { products: updated };
-        });
+        set((state) => ({
+            products: state.products.map((p) => p.id === id ? { ...p, ...updates } : p)
+        }));
         
         // Map updates to snake_case for database
-        const dbUpdates: Record<string, unknown> = {};
+        const dbUpdates: Record<string, any> = {};
         if (updates.name !== undefined) dbUpdates.name = updates.name;
         if (updates.price !== undefined) dbUpdates.price = updates.price;
         if (updates.cost !== undefined) dbUpdates.cost = updates.cost;
@@ -96,26 +61,28 @@ export const createProductsSlice: StateCreator<AppState, [], [], ProductsSlice> 
         if (updates.marketIds !== undefined) dbUpdates.market_ids = updates.marketIds;
         if (updates.imageUrl !== undefined) dbUpdates.image_url = updates.imageUrl;
 
-        try {
-            const { error } = await supabase.from('products').update(dbUpdates).eq('id', id);
-            if (error) {
-                console.warn('[updateProduct] DB update failed (kept local):', error);
-            }
-        } catch (e) {}
+        const { error } = await supabase.from('products').update(dbUpdates).eq('id', id);
+        if (error) {
+            console.error('[updateProduct] DB update failed:', error);
+        }
     },
 
     removeProduct: async (id) => {
-        set((state) => {
-            const updated = state.products.filter((p) => p.id !== id);
-            try {
-                localStorage.setItem('mellow_oven_products_backup', JSON.stringify(updated));
-            } catch (e) {}
-            return { products: updated };
-        });
+        // FIX: Pessimistic Delete - wait for DB success before updating local state
         try {
-            await supabase.from('products').delete().eq('id', id);
+            const { error } = await supabase.from('products').delete().eq('id', id);
+
+            if (error) {
+                console.error('[removeProduct] Database delete failed:', error);
+                throw new Error(`ลบสินค้าไม่สำเร็จ: ${error.message}`);
+            }
+
+            // Only update local state AFTER DB success
+            set((state) => ({ products: state.products.filter((p) => p.id !== id) }));
+
         } catch (err) {
-            console.warn('[removeProduct] Supabase delete failed (deleted locally):', err);
+            console.error('[removeProduct] Error:', err);
+            throw err;  // Re-throw for UI to handle
         }
     },
 

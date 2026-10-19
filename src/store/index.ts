@@ -21,8 +21,6 @@ import {
     mapDailyInventory, mapProductionForecast, mapProduct
 } from './helpers/mappers';
 import { Promotion, Bundle, SpecialOrder, Market, Product } from '../../types';
-import { getStoredOrFallbackMarkets, DEFAULT_MARKETS } from './slices/salesSlice';
-import { getStoredOrFallbackProducts, DEFAULT_PRODUCTS } from './slices/productsSlice';
 
 export const useStore = create<AppState>()(
     persist(
@@ -353,104 +351,76 @@ export const useStore = create<AppState>()(
                 // Calculate jar balances is now done by recalculateJarBalances at the end
 
                 set((state) => {
-                    // 🛡️ Safeguard Products: never overwrite with empty array on fetch failure
-                    let finalProducts: Product[];
-                    if (products && products.length > 0) {
-                        finalProducts = products.map(dbProduct => {
-                            const mappedProduct = mapProduct(dbProduct);
-                            const localProduct = state.products.find(p => p.id === mappedProduct.id);
+                    // Merge products with local state to preserve variants
+                    const mergedProducts = products?.map(dbProduct => {
+                        const mappedProduct = mapProduct(dbProduct);
+                        const localProduct = state.products.find(p => p.id === mappedProduct.id);
 
-                            if (localProduct) {
-                                return {
-                                    ...mappedProduct,
-                                    variants: (localProduct.variants && (!mappedProduct.variants || mappedProduct.variants.length === 0))
-                                        ? localProduct.variants
-                                        : mappedProduct.variants
-                                };
-                            }
-                            return mappedProduct;
-                        });
-                        try {
-                            localStorage.setItem('mellow_oven_products_backup', JSON.stringify(finalProducts));
-                        } catch (e) {}
-                    } else {
-                        finalProducts = getStoredOrFallbackProducts(state.products);
-                    }
-                    if (!finalProducts || finalProducts.length === 0) {
-                        finalProducts = DEFAULT_PRODUCTS;
-                    }
-
-                    // 🛡️ Safeguard Markets: never overwrite with empty array on fetch failure
-                    let finalMarkets: Market[];
-                    if (markets && markets.length > 0) {
-                        let overridesMap = new Map<string, { isActive?: boolean; type?: 'market' | 'consignment' }>();
-                        try {
-                            const stored = localStorage.getItem('mellow_oven_market_overrides');
-                            if (stored) {
-                                const parsed = JSON.parse(stored);
-                                parsed.forEach((o: { id: string; isActive?: boolean; type?: 'market' | 'consignment' }) => overridesMap.set(o.id, o));
-                            }
-                        } catch (e) {}
-
-                        finalMarkets = markets.map((row: any) => {
-                            const override = overridesMap.get(row.id);
-                            const existingStateMarket = state.markets?.find((m) => m.id === row.id);
-
-                            const finalIsActive = override?.isActive !== undefined 
-                                ? override.isActive 
-                                : (row.is_active !== undefined 
-                                    ? row.is_active 
-                                    : (existingStateMarket?.isActive !== undefined ? existingStateMarket.isActive : true));
-
-                            const finalType: 'market' | 'consignment' = override?.type || row.type || existingStateMarket?.type || 'market';
-
+                        if (localProduct) {
                             return {
-                                id: String(row.id),
-                                name: String(row.name || ''),
-                                contactName: row.contact_name || row.contactName || '',
-                                contactPhone: row.contact_phone || row.contactPhone || '',
-                                address: row.address || '',
-                                isActive: finalIsActive,
-                                type: finalType,
-                                createdAt: row.created_at || row.createdAt
+                                ...mappedProduct,
+                                variants: (localProduct.variants && (!mappedProduct.variants || mappedProduct.variants.length === 0))
+                                    ? localProduct.variants
+                                    : mappedProduct.variants
                             };
-                        });
-                        try {
-                            localStorage.setItem('mellow_oven_markets_backup', JSON.stringify(finalMarkets));
-                        } catch (e) {}
-                    } else {
-                        finalMarkets = getStoredOrFallbackMarkets(state.markets);
-                    }
-                    if (!finalMarkets || finalMarkets.length === 0) {
-                        finalMarkets = DEFAULT_MARKETS;
-                    }
+                        }
+                        return mappedProduct;
+                    }) || state.products;
+
+                    let overridesMap = new Map<string, { isActive?: boolean; type?: 'market' | 'consignment' }>();
+                    try {
+                        const stored = localStorage.getItem('mellow_oven_market_overrides');
+                        if (stored) {
+                            const parsed = JSON.parse(stored);
+                            parsed.forEach((o: any) => overridesMap.set(o.id, o));
+                        }
+                    } catch (e) {}
+
+                    const mappedMarkets = markets?.map((row: any) => {
+                        const override = overridesMap.get(row.id);
+                        const existingStateMarket = state.markets.find((m: any) => m.id === row.id);
+
+                        const finalIsActive = override?.isActive !== undefined 
+                            ? override.isActive 
+                            : (row.is_active !== undefined 
+                                ? row.is_active 
+                                : (existingStateMarket?.isActive !== undefined ? existingStateMarket.isActive : true));
+
+                        const finalType = override?.type || row.type || existingStateMarket?.type || 'market';
+
+                        return {
+                            ...row,
+                            isActive: finalIsActive,
+                            type: finalType
+                        };
+                    });
 
                     return {
                         ...state,
-                        products: (finalProducts && finalProducts.length > 0) ? finalProducts : DEFAULT_PRODUCTS,
-                        ingredients: (ingredients && ingredients.length > 0) ? mappedIngredients : state.ingredients,
-                        markets: (finalMarkets && finalMarkets.length > 0) ? finalMarkets : DEFAULT_MARKETS,
-                        transactions: (transactions && transactions.length > 0) ? mappedTransactions : state.transactions,
-                        productSales: (productSales && productSales.length > 0) ? mappedProductSales : state.productSales,
-                        productionForecasts: (productionForecasts && productionForecasts.length > 0) ? mappedProductionForecasts : state.productionForecasts,
-                        unallocatedProfits: (unallocatedProfitsData && unallocatedProfitsData.length > 0) ? unallocatedProfitsData.map(p => ({
+                        products: mergedProducts,
+                        ingredients: ingredients ? mappedIngredients : state.ingredients,
+                        markets: mappedMarkets || state.markets,
+                        transactions: transactions ? mappedTransactions : state.transactions,
+                        productSales: productSales ? mappedProductSales : state.productSales,
+                        productionForecasts: productionForecasts ? mappedProductionForecasts : state.productionForecasts,
+                        unallocatedProfits: unallocatedProfitsData?.map(p => ({
                             id: p.id,
                             date: p.date,
                             amount: p.amount,
                             source: p.source,
                             walletId: p.wallet_id,
                             createdAt: p.created_at
-                        })) : state.unallocatedProfits,
-                        externalShops: (externalShopsData && externalShopsData.length > 0) ? mappedExternalShops : state.externalShops,
+                        })) || state.unallocatedProfits,
+                        externalShops: externalShopsData ? mappedExternalShops : state.externalShops,
                         allocationProfiles: mappedAllocationProfiles.length > 0 ? mappedAllocationProfiles : state.allocationProfiles,
                         defaultProfileId: dbDefaultProfileId || state.defaultProfileId,
-                        promotions: mappedPromotions.length > 0 ? mappedPromotions : state.promotions,
-                        bundles: mappedBundles.length > 0 ? mappedBundles : state.bundles,
-                        specialOrders: mappedSpecialOrders.length > 0 ? mappedSpecialOrders : state.specialOrders,
-                        quotations: mappedQuotations.length > 0 ? mappedQuotations : state.quotations,
-                        invoices: mappedInvoices.length > 0 ? mappedInvoices : state.invoices,
-                        receipts: mappedReceipts.length > 0 ? mappedReceipts : state.receipts,
-                        marketSchedules: mappedMarketSchedules.length > 0 ? mappedMarketSchedules : state.marketSchedules,
+                        promotions: mappedPromotions,
+                        bundles: mappedBundles,
+                        specialOrders: mappedSpecialOrders,
+                        quotations: mappedQuotations,
+                        invoices: mappedInvoices,
+                        receipts: mappedReceipts,
+                        marketSchedules: mappedMarketSchedules,
                         debtConfig: debtConfigData ? {
                             isEnabled: debtConfigData.is_enabled,
                             fixedAmount: Number(debtConfigData.fixed_amount),
@@ -474,13 +444,13 @@ export const useStore = create<AppState>()(
                     .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, (payload) => {
                         if (payload.eventType === 'INSERT') {
                             set(state => {
-                                if (state.transactions.some(t => t.id === (payload.new as any).id)) return state;
+                                if (state.transactions.some(t => t.id === payload.new.id)) return state;
                                 return { transactions: [mapTransaction(payload.new as any), ...state.transactions] };
                             });
                         } else if (payload.eventType === 'UPDATE') {
-                            set(state => ({ transactions: state.transactions.map(t => t.id === (payload.new as any).id ? mapTransaction(payload.new as any) : t) }));
+                            set(state => ({ transactions: state.transactions.map(t => t.id === payload.new.id ? mapTransaction(payload.new as any) : t) }));
                         } else if (payload.eventType === 'DELETE') {
-                            set(state => ({ transactions: state.transactions.filter(t => t.id !== (payload.old as any).id) }));
+                            set(state => ({ transactions: state.transactions.filter(t => t.id !== payload.old.id) }));
                         }
                     })
                     .subscribe();
@@ -490,13 +460,13 @@ export const useStore = create<AppState>()(
                     .on('postgres_changes', { event: '*', schema: 'public', table: 'ingredients' }, (payload) => {
                         if (payload.eventType === 'INSERT') {
                             set(state => {
-                                if (state.ingredients.some(i => i.id === (payload.new as any).id)) return state;
+                                if (state.ingredients.some(i => i.id === payload.new.id)) return state;
                                 return { ingredients: [mapIngredient(payload.new as any), ...state.ingredients] };
                             });
                         } else if (payload.eventType === 'UPDATE') {
-                            set(state => ({ ingredients: state.ingredients.map(i => i.id === (payload.new as any).id ? mapIngredient(payload.new as any) : i) }));
+                            set(state => ({ ingredients: state.ingredients.map(i => i.id === payload.new.id ? mapIngredient(payload.new as any) : i) }));
                         } else if (payload.eventType === 'DELETE') {
-                            set(state => ({ ingredients: state.ingredients.filter(i => i.id !== (payload.old as any).id) }));
+                            set(state => ({ ingredients: state.ingredients.filter(i => i.id !== payload.old.id) }));
                         }
                     })
                     .subscribe();
@@ -517,9 +487,9 @@ export const useStore = create<AppState>()(
                                 return { productionForecasts: [newForecast, ...filtered] };
                             });
                         } else if (payload.eventType === 'UPDATE') {
-                            set(state => ({ productionForecasts: state.productionForecasts.map(f => f.id === (payload.new as any).id ? mapProductionForecast(payload.new as any) : f) }));
+                            set(state => ({ productionForecasts: state.productionForecasts.map(f => f.id === payload.new.id ? mapProductionForecast(payload.new as any) : f) }));
                         } else if (payload.eventType === 'DELETE') {
-                            set(state => ({ productionForecasts: state.productionForecasts.filter(f => f.id !== (payload.old as any).id) }));
+                            set(state => ({ productionForecasts: state.productionForecasts.filter(f => f.id !== payload.old.id) }));
                         }
                     })
                     .subscribe();
@@ -529,13 +499,13 @@ export const useStore = create<AppState>()(
                     .on('postgres_changes', { event: '*', schema: 'public', table: 'markets' }, (payload) => {
                         if (payload.eventType === 'INSERT') {
                             set(state => {
-                                if (state.markets.some(m => m.id === (payload.new as any).id)) return state;
+                                if (state.markets.some(m => m.id === payload.new.id)) return state;
                                 return { markets: [...state.markets, payload.new as Market] };
                             });
                         } else if (payload.eventType === 'UPDATE') {
-                            set(state => ({ markets: state.markets.map(m => m.id === (payload.new as any).id ? payload.new as Market : m) }));
+                            set(state => ({ markets: state.markets.map(m => m.id === payload.new.id ? payload.new as Market : m) }));
                         } else if (payload.eventType === 'DELETE') {
-                            set(state => ({ markets: state.markets.filter(m => m.id !== (payload.old as any).id) }));
+                            set(state => ({ markets: state.markets.filter(m => m.id !== payload.old.id) }));
                         }
                     })
                     .subscribe();
@@ -545,13 +515,13 @@ export const useStore = create<AppState>()(
                     .on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, (payload) => {
                         if (payload.eventType === 'INSERT') {
                             set(state => {
-                                if (state.products.some(p => p.id === (payload.new as any).id)) return state;
+                                if (state.products.some(p => p.id === payload.new.id)) return state;
                                 return { products: [...state.products, mapProduct(payload.new as any)] };
                             });
                         } else if (payload.eventType === 'UPDATE') {
-                            set(state => ({ products: state.products.map(p => p.id === (payload.new as any).id ? mapProduct(payload.new as any) : p) }));
+                            set(state => ({ products: state.products.map(p => p.id === payload.new.id ? mapProduct(payload.new as any) : p) }));
                         } else if (payload.eventType === 'DELETE') {
-                            set(state => ({ products: state.products.filter(p => p.id !== (payload.old as any).id) }));
+                            set(state => ({ products: state.products.filter(p => p.id !== payload.old.id) }));
                         }
                     })
                     .subscribe();
@@ -561,13 +531,13 @@ export const useStore = create<AppState>()(
                     .on('postgres_changes', { event: '*', schema: 'public', table: 'product_sales' }, (payload) => {
                         if (payload.eventType === 'INSERT') {
                             set(state => {
-                                if (state.productSales.some(s => s.id === (payload.new as any).id)) return state;
+                                if (state.productSales.some(s => s.id === payload.new.id)) return state;
                                 return { productSales: [mapProductSaleLog(payload.new as any), ...state.productSales] };
                             });
                         } else if (payload.eventType === 'UPDATE') {
-                            set(state => ({ productSales: state.productSales.map(s => s.id === (payload.new as any).id ? mapProductSaleLog(payload.new as any) : s) }));
+                            set(state => ({ productSales: state.productSales.map(s => s.id === payload.new.id ? mapProductSaleLog(payload.new as any) : s) }));
                         } else if (payload.eventType === 'DELETE') {
-                            set(state => ({ productSales: state.productSales.filter(s => s.id !== (payload.old as any).id) }));
+                            set(state => ({ productSales: state.productSales.filter(s => s.id !== payload.old.id) }));
                         }
                     })
                     .subscribe();
@@ -577,13 +547,13 @@ export const useStore = create<AppState>()(
                     .on('postgres_changes', { event: '*', schema: 'public', table: 'daily_inventory' }, (payload) => {
                         if (payload.eventType === 'INSERT') {
                             set(state => {
-                                if (state.dailyInventory.some(d => d.id === (payload.new as any).id)) return state;
+                                if (state.dailyInventory.some(d => d.id === payload.new.id)) return state;
                                 return { dailyInventory: [...state.dailyInventory, mapDailyInventory(payload.new as any)] };
                             });
                         } else if (payload.eventType === 'UPDATE') {
-                            set(state => ({ dailyInventory: state.dailyInventory.map(d => d.id === (payload.new as any).id ? mapDailyInventory(payload.new as any) : d) }));
+                            set(state => ({ dailyInventory: state.dailyInventory.map(d => d.id === payload.new.id ? mapDailyInventory(payload.new as any) : d) }));
                         } else if (payload.eventType === 'DELETE') {
-                            set(state => ({ dailyInventory: state.dailyInventory.filter(d => d.id !== (payload.old as any).id) }));
+                            set(state => ({ dailyInventory: state.dailyInventory.filter(d => d.id !== payload.old.id) }));
                         }
                     })
                     .subscribe();
@@ -602,9 +572,9 @@ export const useStore = create<AppState>()(
                 jars: state.jars,
                 jarCustomizations: state.jarCustomizations,
                 defaultProfileId: state.defaultProfileId,
-                debtConfig: state.debtConfig,  // Persist debt configuration
-                markets: state.markets,
-                products: state.products
+                debtConfig: state.debtConfig  // Persist debt configuration
+                // products: state.products,      // REMOVED - Zombie Data Risk
+                // productSales: state.productSales  // REMOVED - Zombie Data Risk
             })
         }
     )
